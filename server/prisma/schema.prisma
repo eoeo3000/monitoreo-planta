@@ -1,0 +1,88 @@
+// Motor de desarrollo: SQLite (sin dependencias externas para poder probar en este entorno).
+// Para producción en el servidor interno: cambiar provider a "postgresql" y DATABASE_URL
+// a la cadena de conexión de Postgres. El resto del esquema no depende del motor.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Planta {
+  id        String   @id @default(cuid())
+  nombre    String
+  ubicacion String?
+  createdAt DateTime @default(now())
+  areas     Area[]
+}
+
+model Area {
+  id       String   @id @default(cuid())
+  plantaId String
+  planta   Planta   @relation(fields: [plantaId], references: [id])
+  nombre   String
+  equipos  Equipo[]
+}
+
+model Equipo {
+  id           String        @id @default(cuid())
+  areaId       String
+  area         Area          @relation(fields: [areaId], references: [id])
+  tag          String        @unique
+  tipo         String
+  descripcion  String?
+  diagnosticos Diagnostico[]
+  avisos       Aviso[]
+}
+
+// Registro histórico. Nunca se edita ni se elimina una vez creado (regla de integridad #3).
+model Diagnostico {
+  id                 String      @id @default(cuid())
+  equipoId           String
+  equipo             Equipo      @relation(fields: [equipoId], references: [id])
+  severidad          String // normal | observacion | alerta | alarma
+  modoFalla          String?
+  diagnosticoTexto   String
+  recomendacionTexto String?
+  fechaHora          DateTime    @default(now())
+  usuario            String
+  avisoGenerado      Aviso?      @relation("DiagnosticoOrigen")
+  evidencias         Evidencia[]
+}
+
+// Nace únicamente a partir de un Diagnóstico (regla de integridad #8). Nunca se crea suelto.
+model Aviso {
+  id                  String      @id @default(cuid())
+  equipoId            String
+  equipo              Equipo      @relation(fields: [equipoId], references: [id])
+  diagnosticoOrigenId String      @unique
+  diagnosticoOrigen   Diagnostico @relation("DiagnosticoOrigen", fields: [diagnosticoOrigenId], references: [id])
+  numeroSap           String? // lo escribe el Supervisor; nulo mientras es "solicitud"
+  estado              String      @default("solicitud") // solicitud | abierto | en_tratamiento | cerrado
+  textoBreve          String
+  descripcion         String
+  clase               String // PM01 | PM02 | PM03 | PM04
+  modoFalla           String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+}
+
+model Evidencia {
+  id            String      @id @default(cuid())
+  diagnosticoId String
+  diagnostico   Diagnostico @relation(fields: [diagnosticoId], references: [id])
+  imagen        Bytes
+  mimeType      String
+  fechaHora     DateTime    @default(now())
+}
+
+// Catálogo editable por el Supervisor (provisional, ver sección 10 del prompt fuente).
+model CatalogoModoFalla {
+  id         String @id @default(cuid())
+  equipoTipo String
+  modoFalla  String
+
+  @@unique([equipoTipo, modoFalla])
+}

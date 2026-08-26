@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders plant heat map view by default', () => {
+test('renders analista screen with plant tree', () => {
   render(<App />);
-  const heading = screen.getByText(/Mapa de calor de planta/i);
+  const heading = screen.getByText(/Selecciona un equipo/i);
   expect(heading).toBeInTheDocument();
 });
