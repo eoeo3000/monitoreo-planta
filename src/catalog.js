@@ -1,6 +1,6 @@
 const EQUIPMENT_CATALOG = {
     bomba: {
-
+        label: 'Bomba',
         svg: (color) => (
             <svg width="50" height="50" viewBox="0 0 64 64" fill="none" stroke={color} strokeWidth="2">
                 {/* Voluta de la bomba (Círculo principal) */}
@@ -15,7 +15,7 @@ const EQUIPMENT_CATALOG = {
         ),
     },
     tanque: {
-
+        label: 'Tanque',
         svg: (color) => (
             <svg width="80" height="80" viewBox="0 0 80 80" fill="none" stroke={color} strokeWidth="2">
                 {/* Cuerpo del tanque (Cilindro vertical) */}
@@ -26,7 +26,7 @@ const EQUIPMENT_CATALOG = {
         ),
     },
     agitador: {
-
+        label: 'Agitador',
         svg: (color) => (
             <svg width="60" height="70" viewBox="0 0 60 70" fill="none" stroke={color} strokeWidth="2">
                 {/* Motor Superior */}
@@ -45,7 +45,7 @@ const EQUIPMENT_CATALOG = {
     },
 
     etiqueta: {
-
+        label: 'Etiqueta',
         svg: (color) => (
             <svg width="60" height="30" viewBox="0 0 60 30">
                 <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fill={color} fontSize="12" fontWeight="bold">
@@ -55,7 +55,7 @@ const EQUIPMENT_CATALOG = {
         ),
     },
     compresor: {
-
+        label: 'Compresor',
         svg: (color) => (
             <svg width="50" height="50" viewBox="0 0 64 64" fill="none" stroke={color} strokeWidth="2">
                 {/* Forma trapezoidal característica */}
