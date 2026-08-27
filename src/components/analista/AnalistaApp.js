@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { RECOMENDACION_DEFAULT, reglasPorSeveridad, colorDeSeveridad } from '../../analista/severidad';
+import { useFiltroEquipos } from '../../analista/filtroEquipos';
 import EquipoDiagnosticoPanel from './EquipoDiagnosticoPanel';
 import TablaEquipos from './TablaEquipos';
+import HistoricoDiagnosticos from './HistoricoDiagnosticos';
+import Dashboard from './Dashboard';
 import HistorialDetalleModal from './HistorialDetalleModal';
 import NuevoAvisoModal from './NuevoAvisoModal';
 import './analista.css';
@@ -10,7 +13,15 @@ const SEVERIDAD_EN_COLOR = true; // handoff §2 — flag para paleta mono en ace
 
 const FORM_VACIO = { severidad: 'normal', modoFalla: '', diagnosticoTexto: '', recomendacionTexto: '' };
 
+const VISTAS = [
+  { id: 'equipos', label: 'Equipos' },
+  { id: 'historico', label: 'Histórico' },
+  { id: 'dashboard', label: 'Dashboard' },
+];
+
 export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostico, solicitarAviso }) {
+  const [vista, setVista] = useState('equipos');
+  const filtro = useFiltroEquipos(data);
   const [equipoSeleccionadoId, setEquipoSeleccionadoId] = useState(null);
   const [form, setForm] = useState(FORM_VACIO);
   const [evidenciasPendientes, setEvidenciasPendientes] = useState([]);
@@ -175,12 +186,26 @@ export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostic
           </div>
           <h1 style={{ fontSize: 40, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>CONDICIÓN DE ACTIVOS</h1>
         </div>
+
+        <div className="seg">
+          {VISTAS.map((v) => (
+            <label key={v.id} className="seg-opt">
+              <input type="radio" checked={vista === v.id} onChange={() => setVista(v.id)} />
+              <span>{v.label}</span>
+            </label>
+          ))}
+        </div>
+
         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-neutral-600)' }}>
           Sesión: analista.demo · Datos de prueba locales
         </span>
       </header>
 
-      <TablaEquipos data={data} onAbrirEquipo={abrirDesdeTabla} color={color} />
+      {vista === 'equipos' && <TablaEquipos data={data} filtro={filtro} onAbrirEquipo={abrirDesdeTabla} color={color} />}
+      {vista === 'historico' && (
+        <HistoricoDiagnosticos data={data} filtro={filtro} color={color} onAbrirDetalle={setDetalleHistorial} />
+      )}
+      {vista === 'dashboard' && <Dashboard data={data} filtro={filtro} />}
 
       {mostrarModalDiagnostico && equipo && (
         <div className="dialog-backdrop" onClick={() => setMostrarModalDiagnostico(false)} style={{ zIndex: 90 }}>

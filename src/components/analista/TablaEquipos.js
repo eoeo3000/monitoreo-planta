@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { condicionActual } from '../../analista/store';
 import { SEVERIDAD } from '../../analista/severidad';
 
@@ -13,38 +13,16 @@ function fmt(iso) {
 }
 
 // Vista de triage: busca/filtra equipos y permite cargar diagnósticos sin perder el
-// listado (doble clic abre el mismo formulario que la vista de Árbol, en un modal).
-export default function TablaEquipos({ data, onAbrirEquipo, color }) {
-  const [plantaId, setPlantaId] = useState('todas');
-  const [areaId, setAreaId] = useState('todas');
-  const [tipo, setTipo] = useState('todos');
-
-  const areasDisponibles = plantaId === 'todas' ? data.areas : data.areas.filter((a) => a.plantaId === plantaId);
-  const tiposDisponibles = useMemo(() => Array.from(new Set(data.equipos.map((eq) => eq.tipo))).sort(), [data.equipos]);
-
-  const equiposFiltrados = useMemo(() => {
-    return data.equipos.filter((eq) => {
-      const area = data.areas.find((a) => a.id === eq.areaId);
-      if (plantaId !== 'todas' && area?.plantaId !== plantaId) return false;
-      if (areaId !== 'todas' && eq.areaId !== areaId) return false;
-      if (tipo !== 'todos' && eq.tipo !== tipo) return false;
-      return true;
-    });
-  }, [data.equipos, data.areas, plantaId, areaId, tipo]);
+// listado (doble clic abre el formulario de diagnóstico en un modal).
+export default function TablaEquipos({ data, filtro, onAbrirEquipo, color }) {
+  const { plantaId, areaId, tipo, setPlantaId, setAreaId, setTipo, areasDisponibles, tiposDisponibles, equiposFiltrados } = filtro;
 
   return (
     <div style={{ padding: 'var(--space-6) var(--space-8)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', marginBottom: 'var(--space-4)', alignItems: 'flex-end' }}>
         <label className="field" style={{ minWidth: 180 }}>
           <span style={kicker}>Planta</span>
-          <select
-            className="input"
-            value={plantaId}
-            onChange={(e) => {
-              setPlantaId(e.target.value);
-              setAreaId('todas');
-            }}
-          >
+          <select className="input" value={plantaId} onChange={(e) => setPlantaId(e.target.value)}>
             <option value="todas">Todas</option>
             {data.plantas.map((p) => (
               <option key={p.id} value={p.id}>
