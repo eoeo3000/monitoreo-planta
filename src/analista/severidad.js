@@ -6,6 +6,18 @@ export const SEVERIDAD = {
   alarma: { label: 'Alarma', color: '#c62828' },
 };
 
+// Paleta monocroma en acero (handoff §2) — para severidadEnColor:false.
+export const SEVERIDAD_MONO = {
+  normal: 'var(--color-neutral-400)',
+  observacion: 'var(--color-accent-300)',
+  alerta: 'var(--color-accent-500)',
+  alarma: 'var(--color-accent-900)',
+};
+
+export function colorDeSeveridad(severidad, severidadEnColor = true) {
+  return severidadEnColor ? SEVERIDAD[severidad].color : SEVERIDAD_MONO[severidad];
+}
+
 export const SEVERIDAD_ORDEN = ['normal', 'observacion', 'alerta', 'alarma'];
 
 export const RECOMENDACION_DEFAULT =

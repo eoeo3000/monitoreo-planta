@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Blueprint from '../../theme/Blueprint';
 
 const CLASES = ['PM01', 'PM02', 'PM03', 'PM04'];
 const TEXTO_BREVE_MAX = 40; // provisional: largo típico de campo corto SAP, ajustable
@@ -6,6 +7,8 @@ const TEXTO_BREVE_MAX = 40; // provisional: largo típico de campo corto SAP, aj
 function descripcionSugerida(equipo, form) {
   return `${equipo.tag} - ${form.modoFalla} - ${form.severidad.toUpperCase()} / Diagnóstico: ${form.diagnosticoTexto} / Recomendación: ${form.recomendacionTexto}`;
 }
+
+const kicker = { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' };
 
 export default function NuevoAvisoModal({ equipo, diagnosticoForm, onCancel, onSolicitar }) {
   const [textoBreve, setTextoBreve] = useState(
@@ -15,55 +18,59 @@ export default function NuevoAvisoModal({ equipo, diagnosticoForm, onCancel, onS
   const [descripcion, setDescripcion] = useState(descripcionSugerida(equipo, diagnosticoForm));
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.4)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 100,
-      }}
-    >
-      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 480 }}>
-        <h3 style={{ marginTop: 0 }}>Solicitud de nuevo aviso</h3>
-        <p style={{ fontSize: '0.8rem', color: '#666' }}>
-          Se registrará como "solicitud" (sin número SAP). El Supervisor lo convertirá en aviso formal.
-        </p>
+    <div className="dialog-backdrop" style={{ zIndex: 100 }}>
+      <Blueprint
+        style={{
+          width: 'min(560px, 100%)',
+          background: 'var(--color-bg)',
+          padding: 'var(--space-8)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+          maxHeight: '88vh',
+          overflowY: 'auto',
+        }}
+      >
+        <div>
+          <div style={{ ...kicker, letterSpacing: '0.16em', color: 'var(--color-accent-700)' }}>Formulario SAP</div>
+          <h3 style={{ fontSize: 26, margin: 0 }}>Solicitud de nuevo aviso</h3>
+          <p style={{ margin: 'var(--space-2) 0 0', fontSize: 13, color: 'var(--color-neutral-700)' }}>
+            Se registra como solicitud, sin número SAP. El supervisor la convierte en aviso formal.
+          </p>
+        </div>
 
-        <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>
-          Texto breve ({textoBreve.length}/{TEXTO_BREVE_MAX})
+        <label className="field">
+          <span style={{ display: 'flex', ...kicker }}>
+            Texto breve<span style={{ marginLeft: 'auto' }}>{textoBreve.length}/{TEXTO_BREVE_MAX}</span>
+          </span>
+          <input
+            className="input"
+            maxLength={TEXTO_BREVE_MAX}
+            value={textoBreve}
+            onChange={(e) => setTextoBreve(e.target.value)}
+          />
         </label>
-        <input
-          value={textoBreve}
-          maxLength={TEXTO_BREVE_MAX}
-          onChange={(e) => setTextoBreve(e.target.value)}
-          style={{ width: '100%' }}
-        />
 
-        <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>Clase de aviso</label>
-        <select value={clase} onChange={(e) => setClase(e.target.value)} style={{ width: '100%' }}>
-          {CLASES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-
-        <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>
-          Descripción (autogenerada, editable)
+        <label className="field">
+          <span style={kicker}>Clase de aviso</span>
+          <select className="input" value={clase} onChange={(e) => setClase(e.target.value)}>
+            {CLASES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
         </label>
-        <textarea
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          rows={4}
-          style={{ width: '100%' }}
-        />
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-          <button onClick={onCancel}>Cancelar</button>
+        <label className="field">
+          <span style={kicker}>Descripción — autogenerada, editable</span>
+          <textarea className="input" rows={5} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+        </label>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
+          <button className="btn btn-secondary" onClick={onCancel}>Cancelar</button>
           <button
+            className="btn btn-primary"
             onClick={() =>
               onSolicitar({
                 textoBreve,
@@ -72,12 +79,11 @@ export default function NuevoAvisoModal({ equipo, diagnosticoForm, onCancel, onS
                 modoFalla: diagnosticoForm.modoFalla,
               })
             }
-            style={{ background: '#1565c0', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 4 }}
           >
             Solicitar
           </button>
         </div>
-      </div>
+      </Blueprint>
     </div>
   );
 }

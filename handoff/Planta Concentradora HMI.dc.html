@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/styles.css">
+<script src="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--color-bg); }
+  a { color: var(--color-accent-700); }
+  a:hover { color: var(--color-accent-900); }
+  .nodo:hover { box-shadow: inset 0 0 0 1px var(--color-accent) !important; }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body)">
+
+  <header style="display: flex; align-items: flex-end; gap: var(--space-6); padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--color-divider)">
+    <div>
+      <div style="font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-accent-700)">Gerencia · Vista de proceso</div>
+      <h1 style="font-size: 40px; margin: var(--space-1) 0 0; letter-spacing: 0.01em">PLANTA CONCENTRADORA</h1>
+    </div>
+    <p style="margin: 0 0 4px; max-width: 400px; font-size: 13px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">Diagrama de flujo con los símbolos del catálogo. Haz clic en un equipo para ver su condición monitoreada.</p>
+    <div style="margin-left: auto; display: flex; align-items: flex-end; gap: var(--space-6)">
+      <div style="text-align: right">
+        <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Equipos</div>
+        <div style="font-family: var(--font-heading); font-size: 30px; line-height: 1">{{ equiposCount }}</div>
+      </div>
+      <div style="text-align: right">
+        <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">En alerta</div>
+        <div style="font-family: var(--font-heading); font-size: 30px; line-height: 1; color: {{ alertaColor }}">{{ alertaCount }}</div>
+      </div>
+    </div>
+  </header>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 316px; align-items: start; gap: var(--space-6); padding: var(--space-6) var(--space-8) var(--space-8)">
+
+    <section class="blueprint" style="padding: var(--space-6); min-width: 0; overflow-x: auto">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-3) var(--space-4); margin-bottom: var(--space-4)">
+        <h3 style="font-size: 19px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">Circuito general</h3>
+        <span style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-neutral-500); white-space: nowrap">Chancado · Molienda · Flotación · Filtrado</span>
+        <span style="margin-left: auto; display: flex; align-items: center; gap: 1px; background: var(--color-neutral-300)">
+          <button class="btn btn-secondary" onClick="{{ zoomOut }}" style="background: var(--color-bg); border-radius: 0; width: 30px; padding: 0">−</button>
+          <button class="btn btn-secondary" onClick="{{ zoomFit }}" style="background: var(--color-bg); border-radius: 0; min-width: 62px; padding: 0; font-variant-numeric: tabular-nums">{{ zoomLabel }}</button>
+          <button class="btn btn-secondary" onClick="{{ zoomIn }}" style="background: var(--color-bg); border-radius: 0; width: 30px; padding: 0">+</button>
+        </span>
+        <span style="display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); font-size: 11px; color: var(--color-neutral-600)">
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; background: {{ leyendaNormal }}"></span>Normal</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; background: {{ leyendaObs }}"></span>Observación</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; background: {{ leyendaAlerta }}"></span>Alerta</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 7px; height: 7px; background: {{ leyendaAlarma }}"></span>Alarma</span>
+        </span>
+      </div>
+
+      <div ref="{{ wrapRef }}" style="overflow: auto; max-height: 76vh">
+      <div style="width: {{ escW }}; height: {{ escH }}">
+      <div style="position: relative; width: 1320px; height: 810px; transform-origin: 0 0; transform: {{ escala }}; stroke-width: {{ grosor }}">
+
+        <svg width="1320" height="810" viewBox="0 0 1320 810" fill="none" style="position: absolute; inset: 0; pointer-events: none; color: var(--color-accent)">
+          <defs>
+            <marker id="flecha" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--color-accent)" stroke="none"></path></marker>
+          </defs>
+          <g stroke="currentColor" marker-end="url(#flecha)">
+            <path d="M148 92 H198"></path>
+            <path d="M308 92 H358"></path>
+            <path d="M468 92 H518"></path>
+            <path d="M628 92 H678"></path>
+            <path d="M788 92 H838"></path>
+            <path d="M948 92 H998"></path>
+            <path d="M1054 144 V248"></path>
+            <path d="M1000 302 H950"></path>
+            <path d="M840 302 H790"></path>
+            <path d="M680 302 H630"></path>
+            <path d="M520 302 H470"></path>
+            <path d="M414 354 V410 H94 V458"></path>
+            <path d="M148 512 H198"></path>
+            <path d="M308 512 H358"></path>
+            <path d="M468 512 H518"></path>
+            <path d="M628 512 H678"></path>
+            <path d="M788 512 H838"></path>
+            <path d="M948 512 H998"></path>
+            <path d="M1108 512 H1158"></path>
+            <path d="M94 564 V620 H252 V668"></path>
+            <path d="M308 722 H358"></path>
+            <path d="M468 722 H518"></path>
+            <path d="M628 722 H678"></path>
+            <path d="M734 458 V418 H1056 V356"></path>
+          </g>
+          <g fill="var(--color-neutral-600)" stroke="none" font-family="Barlow" font-size="11" letter-spacing="0.08em">
+            <text x="152" y="84">FAJA Nº1</text>
+            <text x="792" y="84">FAJA Nº2</text>
+            <text x="1060" y="200">FINOS</text>
+            <text x="632" y="294">OVERFLOW</text>
+            <text x="100" y="614">RELAVE DESBASTE</text>
+            <text x="792" y="412">AGUA CLARA A RECICLAJE</text>
+            <text x="1112" y="504">CONCENTRADO</text>
+          </g>
+        </svg>
+
+        <div class="nodo" onClick="{{ on.mina }}" style="position: absolute; left: 40px; top: 40px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.mina.bg }}; box-shadow: {{ n.mina.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.mina.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.mina.icon }}"><path d="M4 28 L18 8 L32 28"></path><path d="M14 28 A4 4 0 0 1 22 28"></path><path d="M32 28 H46"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Mina subterránea</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.balanza }}" style="position: absolute; left: 200px; top: 40px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.balanza.bg }}; box-shadow: {{ n.balanza.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.balanza.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.balanza.icon }}"><path d="M10 20 H38"></path><path d="M24 20 V12"></path><path d="M14 12 H34"></path><path d="M4 28 H44"></path><path d="M14 20 V28 M34 20 V28"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Balanza 35 t</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.tolvaGruesos }}" style="position: absolute; left: 360px; top: 40px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.tolvaGruesos.bg }}; box-shadow: {{ n.tolvaGruesos.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.tolvaGruesos.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.tolvaGruesos.icon }}"><path d="M8 5 H40 L28 23 H20 Z"></path><path d="M20 23 V29"></path><path d="M28 23 V29"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Tolva de gruesos</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.quijada }}" style="position: absolute; left: 520px; top: 40px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.quijada.bg }}; box-shadow: {{ n.quijada.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.quijada.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.quijada.icon }}"><path d="M6 6 H42 V26 H6 Z"></path><path d="M14 6 L22 20 L30 6"></path><path d="M22 20 V26"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Ch. prim. quijada</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.conica }}" style="position: absolute; left: 680px; top: 40px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.conica.bg }}; box-shadow: {{ n.conica.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.conica.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.conica.icon }}"><path d="M10 6 H38 V26 H10 Z"></path><path d="M17 10 L24 22 L31 10"></path><path d="M17 10 H31"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Ch. sec. cónica</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.criba }}" style="position: absolute; left: 840px; top: 40px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.criba.bg }}; box-shadow: {{ n.criba.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.criba.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.criba.icon }}"><path d="M8 9 H44 L38 23 H2 Z"></path><path d="M16 9 L10 23 M24 9 L18 23 M32 9 L26 23"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Criba vibratoria</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.tolvaFinos }}" style="position: absolute; left: 1000px; top: 40px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.tolvaFinos.bg }}; box-shadow: {{ n.tolvaFinos.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.tolvaFinos.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.tolvaFinos.icon }}"><path d="M13 5 H35 L28 23 H20 Z"></path><path d="M20 23 V29"></path><path d="M28 23 V29"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Tolva de finos</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.molino }}" style="position: absolute; left: 1000px; top: 250px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.molino.bg }}; box-shadow: {{ n.molino.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.molino.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.molino.icon }}"><path d="M12 8 H36"></path><path d="M12 24 H36"></path><path d="M12 8 A5 8 0 0 0 12 24"></path><path d="M36 8 A5 8 0 0 1 36 24"></path><path d="M4 16 H8 M40 16 H44"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Molino de bolas</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.sumidero1 }}" style="position: absolute; left: 840px; top: 250px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.sumidero1.bg }}; box-shadow: {{ n.sumidero1.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.sumidero1.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.sumidero1.icon }}"><path d="M14 5 V26 H34 V5"></path><path d="M14 14 H34"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Sumidero 01</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.bomba1 }}" style="position: absolute; left: 680px; top: 250px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.bomba1.bg }}; box-shadow: {{ n.bomba1.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.bomba1.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.bomba1.icon }}"><circle cx="24" cy="18" r="9"></circle><path d="M24 9 V4 H34"></path><path d="M15 18 H8"></path><path d="M24 18 L30 14 M24 18 L20 25"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Bomba B-101</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.hidrociclon1 }}" style="position: absolute; left: 520px; top: 250px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.hidrociclon1.bg }}; box-shadow: {{ n.hidrociclon1.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.hidrociclon1.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.hidrociclon1.icon }}"><path d="M14 6 H34 V13 L24 27 L14 13 Z"></path><path d="M24 6 V2"></path><path d="M14 9 H8"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Hidrociclón 01</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.acondicionador }}" style="position: absolute; left: 360px; top: 250px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.acondicionador.bg }}; box-shadow: {{ n.acondicionador.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.acondicionador.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.acondicionador.icon }}"><path d="M14 6 V27 H34 V6"></path><path d="M24 2 V22"></path><path d="M19 22 H29"></path><path d="M14 12 H34"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Acondicionador</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.desbaste }}" style="position: absolute; left: 40px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.desbaste.bg }}; box-shadow: {{ n.desbaste.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.desbaste.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.desbaste.icon }}"><path d="M5 10 H43 V25 H5 Z"></path><path d="M5 15 H43"></path><circle cx="16" cy="20" r="2"></circle><circle cx="32" cy="20" r="2"></circle></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">F. Desbaste</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.recuperacion }}" style="position: absolute; left: 200px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.recuperacion.bg }}; box-shadow: {{ n.recuperacion.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.recuperacion.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.recuperacion.icon }}"><path d="M5 10 H43 V25 H5 Z"></path><path d="M5 15 H43"></path><circle cx="16" cy="20" r="2"></circle><circle cx="32" cy="20" r="2"></circle></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">F. Recuperación</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.limpieza }}" style="position: absolute; left: 360px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.limpieza.bg }}; box-shadow: {{ n.limpieza.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.limpieza.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.limpieza.icon }}"><path d="M5 10 H43 V25 H5 Z"></path><path d="M5 15 H43"></path><circle cx="16" cy="20" r="2"></circle><circle cx="32" cy="20" r="2"></circle></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">F. Limpieza</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.relimpieza }}" style="position: absolute; left: 520px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.relimpieza.bg }}; box-shadow: {{ n.relimpieza.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.relimpieza.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.relimpieza.icon }}"><path d="M5 10 H43 V25 H5 Z"></path><path d="M5 15 H43"></path><circle cx="16" cy="20" r="2"></circle><circle cx="32" cy="20" r="2"></circle></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">F. Re-limpieza</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.espesador }}" style="position: absolute; left: 680px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.espesador.bg }}; box-shadow: {{ n.espesador.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.espesador.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.espesador.icon }}"><path d="M5 8 H43 L24 27 Z"></path><path d="M5 13 H43"></path><path d="M24 4 V8"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Espesador</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.filtro }}" style="position: absolute; left: 840px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.filtro.bg }}; box-shadow: {{ n.filtro.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.filtro.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.filtro.icon }}"><circle cx="24" cy="15" r="10"></circle><path d="M20 6 V24 M28 6 V24"></path><path d="M14 29 H34"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Filtro de discos</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.horno }}" style="position: absolute; left: 1000px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.horno.bg }}; box-shadow: {{ n.horno.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.horno.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.horno.icon }}"><path d="M8 20 H40 V10 H8 Z"></path><path d="M18 10 V20 M30 10 V20"></path><circle cx="16" cy="25" r="3"></circle><circle cx="32" cy="25" r="3"></circle></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Horno de secado</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.concentrado }}" style="position: absolute; left: 1160px; top: 460px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.concentrado.bg }}; box-shadow: {{ n.concentrado.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.concentrado.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.concentrado.icon }}"><path d="M10 26 L24 8 L38 26 Z"></path><path d="M6 29 H42"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Conc. seco 6 % Hu</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.sumidero2 }}" style="position: absolute; left: 200px; top: 670px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.sumidero2.bg }}; box-shadow: {{ n.sumidero2.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.sumidero2.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.sumidero2.icon }}"><path d="M14 5 V26 H34 V5"></path><path d="M14 14 H34"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Sumidero 02</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.bomba2 }}" style="position: absolute; left: 360px; top: 670px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.bomba2.bg }}; box-shadow: {{ n.bomba2.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.bomba2.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.bomba2.icon }}"><circle cx="24" cy="18" r="9"></circle><path d="M24 9 V4 H34"></path><path d="M15 18 H8"></path><path d="M24 18 L30 14 M24 18 L20 25"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Bomba B-201</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.hidrociclon2 }}" style="position: absolute; left: 520px; top: 670px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.hidrociclon2.bg }}; box-shadow: {{ n.hidrociclon2.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.hidrociclon2.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.hidrociclon2.icon }}"><path d="M14 6 H34 V13 L24 27 L14 13 Z"></path><path d="M24 6 V2"></path><path d="M14 9 H8"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Hidrociclón 02</span>
+        </div>
+
+        <div class="nodo" onClick="{{ on.relavera }}" style="position: absolute; left: 680px; top: 670px; width: 108px; height: 104px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-2); background: {{ n.relavera.bg }}; box-shadow: {{ n.relavera.ring }}">
+          <span style="position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; background: {{ n.relavera.sev }}"></span>
+          <svg width="48" height="32" viewBox="0 0 48 32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ n.relavera.icon }}"><path d="M2 25 L13 12 L24 25"></path><path d="M22 25 L33 14 L44 25"></path><path d="M2 28 H44"></path></svg>
+          <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase; text-align: center; line-height: 1.1">Relavera</span>
+        </div>
+      </div>
+      </div>
+      </div>
+    </section>
+
+    <aside class="blueprint" style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); position: sticky; top: var(--space-6)">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div>
+        <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">{{ detalleEtapa }}</div>
+        <h3 style="font-size: 22px; margin: 0">{{ detalleNombre }}</h3>
+      </div>
+
+      <sc-if value="{{ sinDetalle }}" hint-placeholder-val="{{ false }}">
+        <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-neutral-600)">Selecciona un equipo del diagrama para ver su TAG, su condición monitoreada y su posición en el circuito.</p>
+      </sc-if>
+
+      <sc-if value="{{ hayDetalle }}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: var(--space-4)">
+          <div style="display: flex; align-items: center; gap: var(--space-3); border: 1px solid {{ detalleColor }}; padding: var(--space-2) var(--space-3)">
+            <span style="width: 10px; height: 10px; background: {{ detalleColor }}"></span>
+            <span style="font-family: var(--font-heading); font-size: 17px; letter-spacing: 0.04em; text-transform: uppercase; color: {{ detalleColor }}">{{ detalleSeveridad }}</span>
+          </div>
+          <div style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-4); font-size: 13px">
+            <span style="color: var(--color-neutral-600)">TAG</span><span style="font-family: var(--font-heading); font-size: 15px; letter-spacing: 0.05em">{{ detalleTag }}</span>
+            <span style="color: var(--color-neutral-600)">Tipo</span><span>{{ detalleTipo }}</span>
+            <span style="color: var(--color-neutral-600)">Recibe de</span><span>{{ detalleEntrada }}</span>
+            <span style="color: var(--color-neutral-600)">Entrega a</span><span>{{ detalleSalida }}</span>
+            <span style="color: var(--color-neutral-600)">Monitoreo</span><span>{{ detalleMonitoreo }}</span>
+          </div>
+          <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">{{ detalleNota }}</p>
+        </div>
+      </sc-if>
+    </aside>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;severidadEnColor&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Comportamiento&quot;},&quot;grosorTrazo&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1.5,&quot;min&quot;:1,&quot;max&quot;:2,&quot;step&quot;:0.25,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Iconos&quot;}}">
+class Component extends DCLogic {
+  SEV_COLOR = { normal: '#2e7d32', observacion: '#1565c0', alerta: '#f9a825', alarma: '#c62828' };
+  SEV_MONO = { normal: 'var(--color-neutral-400)', observacion: 'var(--color-accent-300)', alerta: 'var(--color-accent-500)', alarma: 'var(--color-accent-900)' };
+  SEV_LABEL = { normal: 'Normal', observacion: 'Observación', alerta: 'Alerta', alarma: 'Alarma' };
+
+  NODOS = [
+    { key: 'mina', nombre: 'Mina subterránea', tag: 'MIN-001', tipo: 'Frente de extracción', etapa: 'Extracción', sev: 'normal', de: '—', a: 'Balanza 35 t', mon: 'No aplica', nota: 'Origen del mineral. Sin instrumentación en línea; el control es por tonelaje declarado.' },
+    { key: 'balanza', nombre: 'Balanza 35 t', tag: 'BAL-001', tipo: 'Pesaje de camiones', etapa: 'Extracción', sev: 'normal', de: 'Mina subterránea', a: 'Tolva de gruesos', mon: 'Celdas de carga', nota: 'Registra tonelaje de entrada a planta; base del balance metalúrgico diario.' },
+    { key: 'tolvaGruesos', nombre: 'Tolva de gruesos', tag: 'TQ-101', tipo: 'Tolva', etapa: 'Chancado', sev: 'normal', de: 'Balanza 35 t', a: 'Ch. prim. quijada', mon: 'Nivel radar', nota: 'Pulmón de alimentación al chancado primario.' },
+    { key: 'quijada', nombre: 'Ch. primario de quijada', tag: 'CH-101', tipo: 'Chancadora', etapa: 'Chancado', sev: 'observacion', de: 'Tolva de gruesos', a: 'Ch. sec. cónica', mon: 'Vibración + corriente', nota: 'Reducción primaria. Tendencia de corriente levemente al alza en las últimas dos semanas.' },
+    { key: 'conica', nombre: 'Ch. secundario cónico', tag: 'CH-102', tipo: 'Chancadora', etapa: 'Chancado', sev: 'normal', de: 'Ch. prim. quijada', a: 'Criba vibratoria', mon: 'Vibración + corriente', nota: 'Reducción secundaria previa al clasificado.' },
+    { key: 'criba', nombre: 'Criba vibratoria', tag: 'CRV-101', tipo: 'Harnero', etapa: 'Chancado', sev: 'alerta', de: 'Ch. sec. cónica', a: 'Tolva de finos', mon: 'Vibración', nota: 'Energía en banda de alta frecuencia consistente con daño temprano de rodamiento lado acople.' },
+    { key: 'tolvaFinos', nombre: 'Tolva de finos', tag: 'TQ-102', tipo: 'Tolva', etapa: 'Chancado', sev: 'normal', de: 'Criba vibratoria', a: 'Molino de bolas', mon: 'Nivel radar', nota: 'Almacena el producto fino que alimenta la molienda.' },
+    { key: 'molino', nombre: 'Molino de bolas', tag: 'MOL-201', tipo: 'Molino', etapa: 'Molienda', sev: 'observacion', de: 'Tolva de finos', a: 'Sumidero 01', mon: 'Vibración + potencia', nota: 'Equipo crítico del circuito. Monitoreo continuo de descansos y piñón corona.' },
+    { key: 'sumidero1', nombre: 'Sumidero 01', tag: 'SMP-201', tipo: 'Cajón de bombeo', etapa: 'Molienda', sev: 'normal', de: 'Molino de bolas', a: 'Bomba B-101', mon: 'Nivel', nota: 'Recibe la descarga del molino antes del bombeo a clasificación.' },
+    { key: 'bomba1', nombre: 'Bomba B-101', tag: 'B-101', tipo: 'Bomba centrífuga', etapa: 'Molienda', sev: 'alerta', de: 'Sumidero 01', a: 'Hidrociclón 01', mon: 'Vibración', nota: 'Bomba de alimentación primaria. Reemplazo de rodamiento planificado para la próxima ventana.' },
+    { key: 'hidrociclon1', nombre: 'Hidrociclón 01', tag: 'HC-201', tipo: 'Clasificador', etapa: 'Molienda', sev: 'normal', de: 'Bomba B-101', a: 'Acondicionador', mon: 'Presión de entrada', nota: 'El underflow retorna al molino; el overflow pasa a acondicionamiento.' },
+    { key: 'acondicionador', nombre: 'Acondicionador', tag: 'ACD-301', tipo: 'Tanque agitado', etapa: 'Flotación', sev: 'normal', de: 'Hidrociclón 01', a: 'F. Desbaste', mon: 'Vibración de agitador', nota: 'Dosificación de reactivos y tiempo de residencia previo a flotación.' },
+    { key: 'desbaste', nombre: 'Flotación desbaste', tag: 'FLT-301', tipo: 'Banco de celdas', etapa: 'Flotación', sev: 'normal', de: 'Acondicionador', a: 'F. Recuperación', mon: 'Vibración de motores', nota: 'Primera etapa de concentración; su relave alimenta el circuito de relaves.' },
+    { key: 'recuperacion', nombre: 'Flotación recuperación', tag: 'FLT-302', tipo: 'Banco de celdas', etapa: 'Flotación', sev: 'normal', de: 'F. Desbaste', a: 'F. Limpieza', mon: 'Vibración de motores', nota: 'Recupera valores remanentes del desbaste.' },
+    { key: 'limpieza', nombre: 'Flotación limpieza', tag: 'FLT-303', tipo: 'Banco de celdas', etapa: 'Flotación', sev: 'observacion', de: 'F. Recuperación', a: 'F. Re-limpieza', mon: 'Vibración de motores', nota: 'Sube la ley del concentrado. Leve aumento de temperatura en motor de celda 2.' },
+    { key: 'relimpieza', nombre: 'Flotación re-limpieza', tag: 'FLT-304', tipo: 'Banco de celdas', etapa: 'Flotación', sev: 'normal', de: 'F. Limpieza', a: 'Espesador', mon: 'Vibración de motores', nota: 'Etapa final de concentración antes del espesado.' },
+    { key: 'espesador', nombre: 'Espesador', tag: 'ESP-401', tipo: 'Espesador', etapa: 'Filtrado', sev: 'normal', de: 'F. Re-limpieza', a: 'Filtro de discos', mon: 'Torque de rastras', nota: 'El agua clara del overflow se recicla al circuito de molienda.' },
+    { key: 'filtro', nombre: 'Filtro de discos', tag: 'FIL-401', tipo: 'Filtro', etapa: 'Filtrado', sev: 'normal', de: 'Espesador', a: 'Horno de secado', mon: 'Vibración + vacío', nota: 'Entrega concentrado húmedo de 10–15 % Hu.' },
+    { key: 'horno', nombre: 'Horno de secado', tag: 'HRN-401', tipo: 'Horno rotatorio', etapa: 'Filtrado', sev: 'alarma', de: 'Filtro de discos', a: 'Conc. seco 6 % Hu', mon: 'Temperatura + vibración', nota: 'Temperatura de descanso sobre límite de alarma. Requiere intervención inmediata.' },
+    { key: 'concentrado', nombre: 'Concentrado seco', tag: 'PRD-401', tipo: 'Producto', etapa: 'Producto', sev: 'normal', de: 'Horno de secado', a: 'Despacho', mon: 'Muestreo de humedad', nota: 'Producto final a 6 % de humedad, listo para despacho.' },
+    { key: 'sumidero2', nombre: 'Sumidero 02', tag: 'SMP-501', tipo: 'Cajón de bombeo', etapa: 'Relaves', sev: 'normal', de: 'F. Desbaste', a: 'Bomba B-201', mon: 'Nivel', nota: 'Colecta el relave de flotación desbaste.' },
+    { key: 'bomba2', nombre: 'Bomba B-201', tag: 'B-201', tipo: 'Bomba centrífuga', etapa: 'Relaves', sev: 'normal', de: 'Sumidero 02', a: 'Hidrociclón 02', mon: 'Vibración', nota: 'Bombeo de relave a clasificación para relleno hidráulico.' },
+    { key: 'hidrociclon2', nombre: 'Hidrociclón 02', tag: 'HC-501', tipo: 'Clasificador', etapa: 'Relaves', sev: 'normal', de: 'Bomba B-201', a: 'Relavera', mon: 'Presión de entrada', nota: 'Separa relave grueso para relleno hidráulico de labores.' },
+    { key: 'relavera', nombre: 'Relavera', tag: 'REL-501', tipo: 'Depósito', etapa: 'Relaves', sev: 'observacion', de: 'Hidrociclón 02', a: '—', mon: 'Piezómetros', nota: 'Depósito de relaves. Nivel piezométrico en seguimiento tras las últimas lluvias.' },
+  ];
+
+  state = { seleccionado: 'criba', zoom: 1 };
+  wrap = null;
+
+  componentDidMount() {
+    requestAnimationFrame(this.ajustar);
+    if (typeof ResizeObserver !== 'undefined' && this.wrap) {
+      this.ro = new ResizeObserver(() => { if (!this.manual) this.ajustar(); });
+      this.ro.observe(this.wrap);
+    }
+  }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); }
+
+  ajustar = () => {
+    if (!this.wrap) return;
+    this.manual = false;
+    const z = Math.min(1, Math.max(0.4, this.wrap.clientWidth / 1320));
+    this.setState({ zoom: Math.floor(z * 100) / 100 });
+  };
+
+  paso(dir) {
+    this.manual = true;
+    this.setState(s => ({ zoom: Math.min(2, Math.max(0.4, Math.round((s.zoom + dir * 0.15) * 100) / 100)) }));
+  }
+
+  color(sev) { return (this.props.severidadEnColor === false ? this.SEV_MONO : this.SEV_COLOR)[sev]; }
+
+  renderVals() {
+    const s = this.state;
+    const n = {}, on = {};
+    this.NODOS.forEach(d => {
+      const act = s.seleccionado === d.key;
+      n[d.key] = {
+        bg: act ? 'var(--color-accent-100)' : 'transparent',
+        ring: act ? 'inset 0 0 0 1px var(--color-accent)' : 'none',
+        icon: act ? 'var(--color-accent-800)' : 'var(--color-neutral-700)',
+        sev: this.color(d.sev),
+      };
+      on[d.key] = () => this.setState({ seleccionado: d.key });
+    });
+
+    const d = this.NODOS.find(x => x.key === s.seleccionado) || null;
+    const enAlerta = this.NODOS.filter(x => x.sev === 'alerta' || x.sev === 'alarma').length;
+
+    return {
+      n, on,
+      grosor: this.props.grosorTrazo ?? 1.5,
+      wrapRef: el => { this.wrap = el; },
+      escala: 'scale(' + s.zoom + ')',
+      escW: Math.round(1320 * s.zoom) + 'px',
+      escH: Math.round(810 * s.zoom) + 'px',
+      zoomLabel: Math.round(s.zoom * 100) + ' %',
+      zoomIn: () => this.paso(1),
+      zoomOut: () => this.paso(-1),
+      zoomFit: this.ajustar,
+      equiposCount: String(this.NODOS.length).padStart(2, '0'),
+      alertaCount: String(enAlerta).padStart(2, '0'),
+      alertaColor: this.color('alerta'),
+      leyendaNormal: this.color('normal'), leyendaObs: this.color('observacion'),
+      leyendaAlerta: this.color('alerta'), leyendaAlarma: this.color('alarma'),
+      sinDetalle: !d, hayDetalle: !!d,
+      detalleEtapa: d ? d.etapa : 'Sin selección',
+      detalleNombre: d ? d.nombre : 'Ningún equipo',
+      detalleTag: d ? d.tag : '—',
+      detalleTipo: d ? d.tipo : '—',
+      detalleEntrada: d ? d.de : '—',
+      detalleSalida: d ? d.a : '—',
+      detalleMonitoreo: d ? d.mon : '—',
+      detalleNota: d ? d.nota : '',
+      detalleSeveridad: d ? this.SEV_LABEL[d.sev] : '',
+      detalleColor: d ? this.color(d.sev) : 'var(--color-neutral-400)',
+    };
+  }
+}
+
+</script>
+</body>
+</html>

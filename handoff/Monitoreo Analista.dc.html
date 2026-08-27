@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/styles.css">
+<script src="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--color-bg); }
+  a { color: var(--color-accent-700); }
+  a:hover { color: var(--color-accent-900); }
+  input, select, textarea, button { font-family: inherit; }
+  textarea.input { resize: vertical; }
+  .sev-row:hover { background: var(--color-accent-100); }
+  .tree-eq:hover { background: var(--color-accent-100); }
+</style>
+</helmet>
+<div style="display: flex; min-height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body)">
+
+  <aside style="width: 272px; flex-shrink: 0; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column">
+    <div style="padding: var(--space-4); border-bottom: 1px solid var(--color-divider)">
+      <div style="font-family: var(--font-heading); font-weight: 600; font-size: 19px; letter-spacing: -0.01em">CONDICIÓN DE ACTIVOS</div>
+      <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">Estación del analista</div>
+    </div>
+
+    <div style="padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); overflow-y: auto; flex-grow: 1">
+      <sc-for list="{{ arbol }}" as="planta" hint-placeholder-count="1">
+        <div style="display: flex; flex-direction: column; gap: var(--space-2)">
+          <div style="display: flex; align-items: baseline; gap: var(--space-2); border-bottom: 1px solid var(--color-neutral-300); padding-bottom: var(--space-1)">
+            <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">01</span>
+            <span style="font-family: var(--font-heading); font-size: 15px; letter-spacing: 0.02em; text-transform: uppercase">{{ planta.nombre }}</span>
+          </div>
+          <sc-for list="{{ planta.areas }}" as="area" hint-placeholder-count="2">
+            <div style="display: flex; flex-direction: column; gap: 1px">
+              <div onClick="{{ area.toggle }}" style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer; padding: var(--space-1) 0; font-size: 13px; color: var(--color-neutral-700)" style-hover="color: var(--color-text)">
+                <span style="font-size: 9px; width: 8px; color: var(--color-accent)">{{ area.caret }}</span>
+                <span style="letter-spacing: 0.02em">{{ area.nombre }}</span>
+              </div>
+              <sc-if value="{{ area.expanded }}" hint-placeholder-val="{{ true }}">
+                <div style="display: flex; flex-direction: column; gap: 1px; margin-left: var(--space-3); border-left: 1px solid var(--color-neutral-300); padding-left: var(--space-3)">
+                  <sc-for list="{{ area.equipos }}" as="eq" hint-placeholder-count="2">
+                    <div class="tree-eq" onClick="{{ eq.select }}" style="display: flex; align-items: center; gap: var(--space-2); cursor: pointer; padding: var(--space-2); font-size: 13px; background: {{ eq.bg }}; box-shadow: {{ eq.ring }}">
+                      <sc-if value="{{ mostrarSeveridadArbol }}" hint-placeholder-val="{{ true }}">
+                        <span title="{{ eq.sevLabel }}" style="width: 7px; height: 7px; flex-shrink: 0; background: {{ eq.dotColor }}"></span>
+                      </sc-if>
+                      <span style="font-family: var(--font-heading); font-size: 14px; letter-spacing: 0.04em">{{ eq.tag }}</span>
+                      <span style="margin-left: auto; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-neutral-500)">{{ eq.tipo }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="padding: var(--space-4); border-top: 1px solid var(--color-divider); font-size: 11px; color: var(--color-neutral-600); line-height: 1.5">
+      Sesión: analista.demo · Datos de prueba locales
+    </div>
+  </aside>
+
+  <main style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column">
+    <sc-if value="{{ sinEquipo }}" hint-placeholder-val="{{ false }}">
+      <div style="flex-grow: 1; display: grid; place-items: center; padding: var(--space-8)">
+        <div class="blueprint" style="padding: 56px 72px; text-align: center; max-width: 460px">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent-700); margin-bottom: var(--space-3)">Sin selección</div>
+          <h3 style="font-size: 24px; margin: 0 0 var(--space-2)">Selecciona un equipo</h3>
+          <p style="margin: 0; font-size: 14px; color: var(--color-neutral-700)">Elige un TAG en el árbol de planta para ver su condición, registrar un diagnóstico y consultar su historial.</p>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hayEquipo }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <header style="display: flex; align-items: flex-end; gap: var(--space-6); padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--color-divider)">
+          <div style="min-width: 0">
+            <div style="font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent-700); margin-bottom: var(--space-1)">{{ areaNombre }}</div>
+            <h1 style="font-size: 44px; margin: 0; letter-spacing: 0.01em">{{ equipoTag }}</h1>
+            <div style="font-size: 14px; color: var(--color-neutral-700); margin-top: var(--space-1)">{{ equipoDescripcion }}</div>
+          </div>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: var(--space-4)">
+            <div style="text-align: right">
+              <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Condición actual</div>
+              <div style="font-family: var(--font-heading); font-size: 26px; line-height: 1.1; color: {{ condColor }}">{{ condLabel }}</div>
+            </div>
+            <div style="width: 44px; height: 44px; border: 1px solid {{ condColor }}; display: grid; place-items: center">
+              <span style="width: 12px; height: 12px; background: {{ condColor }}"></span>
+            </div>
+          </div>
+        </header>
+
+        <div style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--space-6); padding: var(--space-6) var(--space-8) var(--space-8)">
+
+          <section class="blueprint" style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4)" onPaste="{{ onPaste }}">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display: flex; align-items: center; gap: var(--space-4)">
+              <div>
+                <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">Registro</div>
+                <h3 style="font-size: 22px; margin: 0">Nuevo diagnóstico</h3>
+              </div>
+              <button class="btn btn-secondary" onClick="{{ cargarUltima }}" disabled="{{ sinCondicion }}" style="margin-left: auto">Última condición</button>
+            </div>
+
+            <sc-if value="{{ hayMensaje }}" hint-placeholder-val="{{ false }}">
+              <div style="border-left: 2px solid {{ mensajeColor }}; padding: var(--space-2) var(--space-3); font-size: 13px; color: {{ mensajeColor }}; background: var(--color-neutral-100)">{{ mensajeTexto }}</div>
+            </sc-if>
+
+            <div>
+              <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: var(--space-2)">Severidad</div>
+              <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-2)">
+                <sc-for list="{{ severidades }}" as="s" hint-placeholder-count="4">
+                  <div class="sev-row" onClick="{{ s.pick }}" style="cursor: pointer; min-width: 0; border: 1px solid {{ s.border }}; background: {{ s.bg }}; padding: var(--space-2) var(--space-3); display: flex; flex-direction: column; gap: 4px">
+                    <span style="width: 8px; height: 8px; background: {{ s.color }}"></span>
+                    <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.01em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {{ s.text }}">{{ s.label }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <label class="field">
+              <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Modo de falla {{ marcaModoFalla }}</span>
+              <select class="input" value="{{ modoFalla }}" onChange="{{ onModoFalla }}">
+                <option value="">—</option>
+                <sc-for list="{{ modosFalla }}" as="m" hint-placeholder-count="4">
+                  <option value="{{ m }}">{{ m }}</option>
+                </sc-for>
+              </select>
+            </label>
+
+            <label class="field">
+              <span style="display: flex; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Diagnóstico *<span style="margin-left: auto; letter-spacing: 0.06em">{{ contDiag }}</span></span>
+              <textarea class="input" rows="4" maxLength="1000" value="{{ diagnosticoTexto }}" onChange="{{ onDiagnostico }}" placeholder="Hallazgos, mediciones y evidencia técnica."></textarea>
+            </label>
+
+            <label class="field">
+              <span style="display: flex; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Recomendación {{ marcaRecomendacion }}<span style="margin-left: auto; letter-spacing: 0.06em">{{ contRec }}</span></span>
+              <textarea class="input" rows="3" maxLength="1000" value="{{ recomendacionTexto }}" onChange="{{ onRecomendacion }}" placeholder="Acción sugerida y ventana de intervención."></textarea>
+            </label>
+
+            <div>
+              <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: var(--space-2)">Evidencia — pega una imagen con Ctrl+V</div>
+              <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; min-height: 64px; border: 1px dashed var(--color-neutral-400); padding: var(--space-2)">
+                <sc-if value="{{ sinEvidencia }}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size: 12px; color: var(--color-neutral-500); padding: 0 var(--space-2)">Sin evidencia adjunta.</span>
+                </sc-if>
+                <sc-for list="{{ evidencias }}" as="ev" hint-placeholder-count="0">
+                  <div style="{{ ev.style }}"></div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: var(--space-3); padding-top: var(--space-2)">
+              <button class="btn btn-secondary" onClick="{{ insertar }}">Insertar diagnóstico</button>
+              <button class="btn btn-primary blueprint" onClick="{{ abrirAviso }}" style="position: relative">
+                <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+                Nuevo aviso
+              </button>
+            </div>
+          </section>
+
+          <div style="display: flex; flex-direction: column; gap: var(--space-6); min-width: 0">
+            <section class="blueprint" style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-3)">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">Estado</div>
+              <h3 style="font-size: 20px; margin: 0">Último registro</h3>
+              <div style="display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-4); font-size: 13px">
+                <span style="color: var(--color-neutral-600)">Severidad</span><span style="font-family: var(--font-heading); font-size: 15px; letter-spacing: 0.03em; color: {{ condColor }}">{{ condLabel }}</span>
+                <span style="color: var(--color-neutral-600)">Modo de falla</span><span>{{ condModoFalla }}</span>
+                <span style="color: var(--color-neutral-600)">Fecha</span><span>{{ condFecha }}</span>
+                <span style="color: var(--color-neutral-600)">Usuario</span><span>{{ condUsuario }}</span>
+              </div>
+            </section>
+
+            <section class="blueprint" style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-3)">
+              <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+              <div style="display: flex; align-items: baseline; gap: var(--space-3)">
+                <div>
+                  <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">SAP</div>
+                  <h3 style="font-size: 20px; margin: 0">Avisos abiertos</h3>
+                </div>
+                <span style="margin-left: auto; font-family: var(--font-heading); font-size: 22px; color: var(--color-neutral-500)">{{ avisosCount }}</span>
+              </div>
+              <sc-if value="{{ sinAvisos }}" hint-placeholder-val="{{ false }}">
+                <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">No existen avisos abiertos para este equipo.</p>
+              </sc-if>
+              <sc-for list="{{ avisos }}" as="a" hint-placeholder-count="1">
+                <div style="display: flex; flex-direction: column; gap: 2px; border-top: 1px solid var(--color-neutral-300); padding-top: var(--space-2)">
+                  <div style="display: flex; align-items: center; gap: var(--space-2)">
+                    <span style="font-family: var(--font-heading); font-size: 15px; letter-spacing: 0.04em">{{ a.numero }}</span>
+                    <span class="tag tag-outline" style="margin-left: auto">{{ a.estado }}</span>
+                  </div>
+                  <div style="font-size: 13px; color: var(--color-neutral-700)">{{ a.textoBreve }} · {{ a.clase }}</div>
+                </div>
+              </sc-for>
+            </section>
+          </div>
+
+          <section class="blueprint" style="grid-column: 1 / -1; padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4)">
+            <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+            <div style="display: flex; align-items: baseline; gap: var(--space-3)">
+              <div>
+                <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">Trazabilidad</div>
+                <h3 style="font-size: 20px; margin: 0">Análisis histórico</h3>
+              </div>
+              <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-600)">Haz clic en una fila para ver el detalle</span>
+            </div>
+            <sc-if value="{{ sinHistorial }}" hint-placeholder-val="{{ false }}">
+              <p style="margin: 0; font-size: 13px; color: var(--color-neutral-600)">Sin registros históricos.</p>
+            </sc-if>
+            <sc-if value="{{ hayHistorial }}" hint-placeholder-val="{{ true }}">
+              <table class="table" style="width: 100%">
+                <thead>
+                  <tr>
+                    <th style="width: 180px">Fecha</th>
+                    <th style="width: 140px">Usuario</th>
+                    <th style="width: 130px">Severidad</th>
+                    <th style="width: 200px">Modo de falla</th>
+                    <th>Diagnóstico</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ historial }}" as="h" hint-placeholder-count="2">
+                    <tr class="sev-row" onClick="{{ h.abrir }}" style="cursor: pointer">
+                      <td style="font-variant-numeric: tabular-nums">{{ h.fecha }}</td>
+                      <td>{{ h.usuario }}</td>
+                      <td><span style="display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-heading); letter-spacing: 0.03em; color: {{ h.color }}"><span style="width: 7px; height: 7px; background: {{ h.color }}"></span>{{ h.sevLabel }}</span></td>
+                      <td>{{ h.modoFalla }}</td>
+                      <td style="color: var(--color-neutral-700)">{{ h.resumen }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </sc-if>
+          </section>
+        </div>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{ mostrarAviso }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" style="z-index: 100">
+      <div class="blueprint" style="width: min(560px, 100%); background: var(--color-bg); padding: var(--space-8); display: flex; flex-direction: column; gap: var(--space-4); max-height: 88vh; overflow-y: auto">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div>
+          <div style="font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent-700)">Formulario SAP</div>
+          <h3 style="font-size: 26px; margin: 0">Solicitud de nuevo aviso</h3>
+          <p style="margin: var(--space-2) 0 0; font-size: 13px; color: var(--color-neutral-700)">Se registra como solicitud, sin número SAP. El supervisor la convierte en aviso formal.</p>
+        </div>
+        <label class="field">
+          <span style="display: flex; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Texto breve<span style="margin-left: auto">{{ contBreve }}</span></span>
+          <input class="input" maxLength="40" value="{{ textoBreve }}" onChange="{{ onTextoBreve }}">
+        </label>
+        <label class="field">
+          <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Clase de aviso</span>
+          <select class="input" value="{{ clase }}" onChange="{{ onClase }}">
+            <sc-for list="{{ clases }}" as="c" hint-placeholder-count="4">
+              <option value="{{ c }}">{{ c }}</option>
+            </sc-for>
+          </select>
+        </label>
+        <label class="field">
+          <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Descripción — autogenerada, editable</span>
+          <textarea class="input" rows="5" value="{{ descripcionAviso }}" onChange="{{ onDescripcion }}"></textarea>
+        </label>
+        <div style="display: flex; justify-content: flex-end; gap: var(--space-3)">
+          <button class="btn btn-secondary" onClick="{{ cerrarAviso }}">Cancelar</button>
+          <button class="btn btn-primary" onClick="{{ confirmarAviso }}">Solicitar</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ mostrarDetalle }}" hint-placeholder-val="{{ false }}">
+    <div class="dialog-backdrop" onClick="{{ cerrarDetalle }}" style="z-index: 100">
+      <div class="blueprint" style="width: min(560px, 100%); background: var(--color-bg); padding: var(--space-8); display: flex; flex-direction: column; gap: var(--space-4); max-height: 88vh; overflow-y: auto">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display: flex; align-items: flex-start; gap: var(--space-4)">
+          <div>
+            <div style="font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-accent-700)">{{ detalleFecha }}</div>
+            <h3 style="font-size: 26px; margin: 0">Detalle de diagnóstico</h3>
+          </div>
+          <button class="btn btn-icon btn-secondary" onClick="{{ cerrarDetalle }}" style="margin-left: auto">✕</button>
+        </div>
+        <div style="display: flex; align-items: center; gap: var(--space-3); border: 1px solid {{ detalleColor }}; padding: var(--space-2) var(--space-3)">
+          <span style="width: 10px; height: 10px; background: {{ detalleColor }}"></span>
+          <span style="font-family: var(--font-heading); font-size: 18px; letter-spacing: 0.04em; text-transform: uppercase; color: {{ detalleColor }}">{{ detalleSeveridad }}</span>
+          <span style="margin-left: auto; font-size: 12px; color: var(--color-neutral-600)">{{ detalleUsuario }}</span>
+        </div>
+        <div style="display: grid; gap: var(--space-4); font-size: 14px">
+          <div>
+            <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 2px">Modo de falla</div>
+            <div>{{ detalleModoFalla }}</div>
+          </div>
+          <div>
+            <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 2px">Diagnóstico</div>
+            <div style="text-wrap: pretty">{{ detalleDiagnostico }}</div>
+          </div>
+          <div>
+            <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 2px">Recomendación</div>
+            <div style="text-wrap: pretty">{{ detalleRecomendacion }}</div>
+          </div>
+          <div>
+            <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 2px">Aviso asociado</div>
+            <div>{{ detalleAviso }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;mostrarSeveridadArbol&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Comportamiento&quot;},&quot;severidadEnColor&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Comportamiento&quot;}}">
+class Component extends DCLogic {
+  SEV_COLOR = { normal: '#2e7d32', observacion: '#1565c0', alerta: '#f9a825', alarma: '#c62828' };
+  SEV_MONO = { normal: 'var(--color-neutral-400)', observacion: 'var(--color-accent-300)', alerta: 'var(--color-accent-500)', alarma: 'var(--color-accent-900)' };
+  SEV_LABEL = { normal: 'Normal', observacion: 'Observación', alerta: 'Alerta', alarma: 'Alarma' };
+  ORDEN = ['normal', 'observacion', 'alerta', 'alarma'];
+  CLASES = ['PM01', 'PM02', 'PM03', 'PM04'];
+  RECOMENDACION_DEFAULT = 'Se mantendrá en observación según ruta de inspección programada.';
+  CATALOGO = {
+    bomba: ['Desalineamiento', 'Desbalance', 'Daño de rodamiento', 'Cavitación', 'Holgura mecánica'],
+    tanque: ['Corrosión', 'Fuga', 'Fisura estructural'],
+    agitador: ['Desalineamiento', 'Desbalance', 'Daño de rodamiento', 'Falla de acople'],
+    compresor: ['Desgaste de válvulas', 'Daño de rodamiento', 'Fuga de gas', 'Sobrecalentamiento'],
+  };
+
+  state = {
+    plantas: [{ id: 'planta1', nombre: 'Planta Salar' }],
+    areas: [
+      { id: 'area1', plantaId: 'planta1', nombre: 'Área de Bombeo' },
+      { id: 'area2', plantaId: 'planta1', nombre: 'Área de Molienda' },
+    ],
+    equipos: [
+      { id: 'eq1', areaId: 'area1', tag: 'B-101', tipo: 'bomba', descripcion: 'Bomba de alimentación primaria' },
+      { id: 'eq2', areaId: 'area1', tag: 'TQ-102', tipo: 'tanque', descripcion: 'Tanque de proceso' },
+      { id: 'eq3', areaId: 'area2', tag: 'AG-201', tipo: 'agitador', descripcion: 'Agitador línea 1' },
+      { id: 'eq4', areaId: 'area2', tag: 'CP-202', tipo: 'compresor', descripcion: 'Compresor de aire de instrumentos' },
+    ],
+    diagnosticos: [
+      { id: 'diag1', equipoId: 'eq1', severidad: 'alerta', modoFalla: 'Daño de rodamiento', diagnosticoTexto: 'Se detecta incremento de energía en banda de alta frecuencia consistente con etapa temprana de daño en rodamiento lado acople.', recomendacionTexto: 'Planificar reemplazo de rodamiento en próxima ventana de mantenimiento.', fechaHora: '2026-08-20T10:00:00.000Z', usuario: 'analista.demo' },
+      { id: 'diag2', equipoId: 'eq3', severidad: 'normal', modoFalla: null, diagnosticoTexto: 'Niveles vibratorios estables, sin anomalías respecto a línea base.', recomendacionTexto: 'Se mantendrá en observación según ruta de inspección programada.', fechaHora: '2026-08-22T09:00:00.000Z', usuario: 'analista.demo' },
+    ],
+    avisos: [
+      { id: 'aviso1', equipoId: 'eq1', diagnosticoOrigenId: 'diag1', numeroSap: null, estado: 'solicitud', textoBreve: 'B-101 daño rodamiento', clase: 'PM02' },
+    ],
+    seleccionado: 'eq1',
+    colapsadas: {},
+    form: { severidad: 'normal', modoFalla: '', diagnosticoTexto: '', recomendacionTexto: '' },
+    evidencias: [],
+    mensaje: null,
+    modalAviso: null,
+    detalle: null,
+  };
+
+  color(sev) {
+    const mono = this.props.severidadEnColor === false;
+    return (mono ? this.SEV_MONO : this.SEV_COLOR)[sev];
+  }
+
+  reglas(sev) {
+    return {
+      modoFallaRequerido: sev !== 'normal',
+      recomendacionRequerida: sev === 'alerta' || sev === 'alarma',
+      avisoRequerido: sev === 'alerta' || sev === 'alarma',
+    };
+  }
+
+  fmt(iso) {
+    try { return new Date(iso).toLocaleString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return iso; }
+  }
+
+  historialDe(id) {
+    return this.state.diagnosticos.filter(d => d.equipoId === id).sort((a, b) => new Date(b.fechaHora) - new Date(a.fechaHora));
+  }
+
+  setForm(patch) { this.setState(s => ({ form: { ...s.form, ...patch }, mensaje: null })); }
+
+  pickSeveridad(sev) {
+    this.setState(s => {
+      const next = { ...s.form, severidad: sev };
+      if (!this.reglas(sev).recomendacionRequerida && !next.recomendacionTexto) next.recomendacionTexto = this.RECOMENDACION_DEFAULT;
+      if (sev === 'normal') next.modoFalla = '';
+      return { form: next, mensaje: null };
+    });
+  }
+
+  validar() {
+    const f = this.state.form, r = this.reglas(f.severidad);
+    if (r.modoFallaRequerido && !f.modoFalla) return 'Falta completar Modo de falla.';
+    if (!f.diagnosticoTexto.trim()) return 'Falta completar Diagnóstico.';
+    if (r.recomendacionRequerida && !f.recomendacionTexto.trim()) return 'Falta completar Recomendación.';
+    return null;
+  }
+
+  insertar = () => {
+    const err = this.validar();
+    if (err) return this.setState({ mensaje: { tipo: 'error', texto: err } });
+    const f = this.state.form;
+    if (this.reglas(f.severidad).avisoRequerido) {
+      return this.setState({ mensaje: { tipo: 'error', texto: 'Esta severidad exige un aviso asociado. Usa "Nuevo aviso" en lugar de "Insertar".' } });
+    }
+    const ultimo = this.historialDe(this.state.seleccionado)[0];
+    if (ultimo && ultimo.severidad === f.severidad && (ultimo.modoFalla || '') === (f.modoFalla || '') && ultimo.diagnosticoTexto === f.diagnosticoTexto && (Date.now() - new Date(ultimo.fechaHora)) / 60000 < 5) {
+      return this.setState({ mensaje: { tipo: 'error', texto: 'Duplicado: idéntico al último registro de hace menos de 5 minutos.' } });
+    }
+    const nuevo = { id: 'diag_' + Date.now(), equipoId: this.state.seleccionado, fechaHora: new Date().toISOString(), usuario: 'analista.demo', ...f };
+    this.setState(s => ({ diagnosticos: [...s.diagnosticos, nuevo], form: { severidad: 'normal', modoFalla: '', diagnosticoTexto: '', recomendacionTexto: '' }, evidencias: [], mensaje: { tipo: 'ok', texto: 'Diagnóstico registrado.' } }));
+  };
+
+  abrirAviso = () => {
+    const err = this.validar();
+    if (err) return this.setState({ mensaje: { tipo: 'error', texto: err } });
+    const f = this.state.form;
+    if (!this.reglas(f.severidad).avisoRequerido) {
+      return this.setState({ mensaje: { tipo: 'error', texto: 'Nuevo aviso aplica solo a severidad Alerta o Alarma.' } });
+    }
+    const eq = this.equipo();
+    this.setState({
+      mensaje: null,
+      modalAviso: {
+        textoBreve: (eq.tag + ' ' + (f.modoFalla || '')).slice(0, 40),
+        clase: 'PM02',
+        descripcion: eq.tag + ' - ' + f.modoFalla + ' - ' + f.severidad.toUpperCase() + ' / Diagnóstico: ' + f.diagnosticoTexto + ' / Recomendación: ' + f.recomendacionTexto,
+      },
+    });
+  };
+
+  confirmarAviso = () => {
+    const f = this.state.form, m = this.state.modalAviso, eqId = this.state.seleccionado;
+    const diagId = 'diag_' + Date.now();
+    const diagnostico = { id: diagId, equipoId: eqId, fechaHora: new Date().toISOString(), usuario: 'analista.demo', ...f };
+    const aviso = { id: 'aviso_' + Date.now(), equipoId: eqId, diagnosticoOrigenId: diagId, numeroSap: null, estado: 'solicitud', textoBreve: m.textoBreve, clase: m.clase, descripcion: m.descripcion, modoFalla: f.modoFalla };
+    this.setState(s => ({ diagnosticos: [...s.diagnosticos, diagnostico], avisos: [...s.avisos, aviso], form: { severidad: 'normal', modoFalla: '', diagnosticoTexto: '', recomendacionTexto: '' }, evidencias: [], modalAviso: null, mensaje: { tipo: 'ok', texto: 'Solicitud de aviso registrada junto al diagnóstico.' } }));
+  };
+
+  onPaste = (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image/') === 0) {
+        const file = item.getAsFile();
+        const reader = new FileReader();
+        reader.onload = () => this.setState(s => ({ evidencias: [...s.evidencias, { dataUrl: reader.result }] }));
+        reader.readAsDataURL(file);
+      }
+    }
+  };
+
+  equipo() { return this.state.equipos.find(e => e.id === this.state.seleccionado) || null; }
+
+  renderVals() {
+    const s = this.state, eq = this.equipo();
+    const mostrarSeveridadArbol = this.props.mostrarSeveridadArbol !== false;
+    const hist = eq ? this.historialDe(eq.id) : [];
+    const cond = hist[0] || null;
+    const f = s.form, r = this.reglas(f.severidad);
+    const m = s.modalAviso;
+    const d = s.detalle;
+    const avisoDetalle = d ? s.avisos.find(a => a.diagnosticoOrigenId === d.id) : null;
+
+    const arbol = s.plantas.map(p => ({
+      id: p.id, nombre: p.nombre,
+      areas: s.areas.filter(a => a.plantaId === p.id).map(a => {
+        const expanded = !s.colapsadas[a.id];
+        return {
+          id: a.id, nombre: a.nombre, expanded, caret: expanded ? '▾' : '▸',
+          toggle: () => this.setState(st => ({ colapsadas: { ...st.colapsadas, [a.id]: !st.colapsadas[a.id] } })),
+          equipos: s.equipos.filter(e => e.areaId === a.id).map(e => {
+            const c = this.historialDe(e.id)[0];
+            const sel = e.id === s.seleccionado;
+            return {
+              id: e.id, tag: e.tag, tipo: e.tipo,
+              dotColor: c ? this.color(c.severidad) : 'var(--color-neutral-300)',
+              sevLabel: c ? this.SEV_LABEL[c.severidad] : 'Sin diagnóstico',
+              bg: sel ? 'var(--color-accent-100)' : 'transparent',
+              ring: sel ? 'inset 2px 0 0 var(--color-accent)' : 'none',
+              select: () => this.setState({ seleccionado: e.id, form: { severidad: 'normal', modoFalla: '', diagnosticoTexto: '', recomendacionTexto: '' }, evidencias: [], mensaje: null }),
+            };
+          }),
+        };
+      }),
+    }));
+
+    const severidades = this.ORDEN.map(k => {
+      const on = f.severidad === k;
+      return {
+        key: k, label: this.SEV_LABEL[k], color: this.color(k), pick: () => this.pickSeveridad(k),
+        border: on ? this.color(k) : 'var(--color-neutral-300)',
+        bg: on ? 'var(--color-neutral-100)' : 'transparent',
+        text: on ? 'var(--color-text)' : 'var(--color-neutral-600)',
+      };
+    });
+
+    return {
+      arbol, severidades, mostrarSeveridadArbol,
+      sinEquipo: !eq, hayEquipo: !!eq,
+      equipoTag: eq ? eq.tag : '', equipoDescripcion: eq ? eq.descripcion : '',
+      areaNombre: eq ? (s.areas.find(a => a.id === eq.areaId) || {}).nombre : '',
+      condColor: cond ? this.color(cond.severidad) : 'var(--color-neutral-400)',
+      condLabel: cond ? this.SEV_LABEL[cond.severidad] : 'Sin diagnóstico',
+      condModoFalla: cond ? (cond.modoFalla || '—') : '—',
+      condFecha: cond ? this.fmt(cond.fechaHora) : '—',
+      condUsuario: cond ? cond.usuario : '—',
+      sinCondicion: !cond,
+      cargarUltima: () => cond && this.setState({ form: { severidad: cond.severidad, modoFalla: cond.modoFalla || '', diagnosticoTexto: cond.diagnosticoTexto, recomendacionTexto: cond.recomendacionTexto || '' }, mensaje: null }),
+      hayMensaje: !!s.mensaje,
+      mensajeTexto: s.mensaje ? s.mensaje.texto : '',
+      mensajeColor: s.mensaje && s.mensaje.tipo === 'error' ? '#c62828' : 'var(--color-accent-700)',
+      modoFalla: f.modoFalla, modosFalla: eq ? (this.CATALOGO[eq.tipo] || []) : [],
+      marcaModoFalla: r.modoFallaRequerido ? '*' : '',
+      marcaRecomendacion: r.recomendacionRequerida ? '*' : '',
+      diagnosticoTexto: f.diagnosticoTexto, recomendacionTexto: f.recomendacionTexto,
+      contDiag: f.diagnosticoTexto.length + '/1000',
+      contRec: f.recomendacionTexto.length + '/1000',
+      onModoFalla: e => this.setForm({ modoFalla: e.target.value }),
+      onDiagnostico: e => this.setForm({ diagnosticoTexto: e.target.value }),
+      onRecomendacion: e => this.setForm({ recomendacionTexto: e.target.value }),
+      onPaste: this.onPaste,
+      evidencias: s.evidencias.map(ev => ({ style: { width: 56, height: 56, backgroundImage: 'url(' + ev.dataUrl + ')', backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid var(--color-neutral-400)' } })),
+      sinEvidencia: s.evidencias.length === 0,
+      insertar: this.insertar, abrirAviso: this.abrirAviso,
+      avisos: (eq ? s.avisos.filter(a => a.equipoId === eq.id && a.estado !== 'cerrado') : []).map(a => ({
+        id: a.id, numero: a.numeroSap || 'Sin número SAP', estado: a.estado, textoBreve: a.textoBreve, clase: a.clase || 'PM02',
+      })),
+      avisosCount: String(eq ? s.avisos.filter(a => a.equipoId === eq.id && a.estado !== 'cerrado').length : 0).padStart(2, '0'),
+      sinAvisos: !eq || s.avisos.filter(a => a.equipoId === eq.id && a.estado !== 'cerrado').length === 0,
+      historial: hist.map(h => ({
+        id: h.id, fecha: this.fmt(h.fechaHora), usuario: h.usuario,
+        sevLabel: this.SEV_LABEL[h.severidad], color: this.color(h.severidad),
+        modoFalla: h.modoFalla || '—',
+        resumen: h.diagnosticoTexto.length > 90 ? h.diagnosticoTexto.slice(0, 90) + '…' : h.diagnosticoTexto,
+        abrir: () => this.setState({ detalle: h }),
+      })),
+      sinHistorial: hist.length === 0, hayHistorial: hist.length > 0,
+      mostrarAviso: !!m,
+      textoBreve: m ? m.textoBreve : '',
+      contBreve: m ? m.textoBreve.length + '/40' : '',
+      clase: m ? m.clase : 'PM02', clases: this.CLASES,
+      descripcionAviso: m ? m.descripcion : '',
+      onTextoBreve: e => this.setState(st => ({ modalAviso: { ...st.modalAviso, textoBreve: e.target.value } })),
+      onClase: e => this.setState(st => ({ modalAviso: { ...st.modalAviso, clase: e.target.value } })),
+      onDescripcion: e => this.setState(st => ({ modalAviso: { ...st.modalAviso, descripcion: e.target.value } })),
+      cerrarAviso: () => this.setState({ modalAviso: null }),
+      confirmarAviso: this.confirmarAviso,
+      mostrarDetalle: !!d,
+      detalleFecha: d ? this.fmt(d.fechaHora) : '',
+      detalleUsuario: d ? d.usuario : '',
+      detalleColor: d ? this.color(d.severidad) : 'var(--color-neutral-400)',
+      detalleSeveridad: d ? this.SEV_LABEL[d.severidad] : '',
+      detalleModoFalla: d ? (d.modoFalla || '—') : '',
+      detalleDiagnostico: d ? d.diagnosticoTexto : '',
+      detalleRecomendacion: d ? (d.recomendacionTexto || '—') : '',
+      detalleAviso: avisoDetalle ? (avisoDetalle.numeroSap || 'Solicitud sin número SAP') + ' (' + avisoDetalle.estado + ')' : 'Sin aviso asociado',
+      cerrarDetalle: () => this.setState({ detalle: null }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

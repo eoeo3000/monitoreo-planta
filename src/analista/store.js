@@ -5,10 +5,24 @@ import {
   SEED_EQUIPOS,
   SEED_DIAGNOSTICOS,
   SEED_AVISOS,
+  AREA_ZONAS,
 } from './mockData';
 
-const STORAGE_KEY = 'condicion-activos-analista-v1';
+const STORAGE_KEY = 'condicion-activos-analista-v4';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
+const ZONA_DEFAULT = { x: 40, y: 300, width: 300, height: 180 };
+
+function datosSemilla() {
+  return {
+    plantas: SEED_PLANTAS,
+    areas: SEED_AREAS,
+    equipos: SEED_EQUIPOS,
+    diagnosticos: SEED_DIAGNOSTICOS,
+    avisos: SEED_AVISOS,
+    evidencias: [],
+    zonas: { ...AREA_ZONAS },
+  };
+}
 
 function loadInitial() {
   try {
@@ -17,14 +31,7 @@ function loadInitial() {
   } catch (e) {
     // localStorage no disponible o datos corruptos: usamos el set de prueba
   }
-  return {
-    plantas: SEED_PLANTAS,
-    areas: SEED_AREAS,
-    equipos: SEED_EQUIPOS,
-    diagnosticos: SEED_DIAGNOSTICOS,
-    avisos: SEED_AVISOS,
-    evidencias: [],
-  };
+  return datosSemilla();
 }
 
 export function condicionActual(equipoId, diagnosticos) {
@@ -119,11 +126,50 @@ export function useAnalistaData() {
     []
   );
 
+  const resetearDatos = useCallback(() => {
+    setData(datosSemilla());
+  }, []);
+
+  const crearArea = useCallback((plantaId, nombre) => {
+    const id = `area_${Date.now()}`;
+    setData((d) => ({
+      ...d,
+      areas: [...d.areas, { id, plantaId, nombre }],
+      zonas: { ...d.zonas, [id]: { ...ZONA_DEFAULT } },
+    }));
+    return id;
+  }, []);
+
+  const actualizarZonaArea = useCallback((areaId, zona) => {
+    setData((d) => ({ ...d, zonas: { ...d.zonas, [areaId]: zona } }));
+  }, []);
+
+  const crearEquipo = useCallback((areaId, { tag, tipo, descripcion, posicion }) => {
+    const id = `eq_${Date.now()}`;
+    setData((d) => ({
+      ...d,
+      equipos: [...d.equipos, { id, areaId, tag, tipo, descripcion: descripcion || '', posicion }],
+    }));
+    return id;
+  }, []);
+
+  const moverEquipo = useCallback((equipoId, posicion) => {
+    setData((d) => ({
+      ...d,
+      equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, posicion } : eq)),
+    }));
+  }, []);
+
   return {
     data,
     usuarioActual: USUARIO_ACTUAL,
     esDuplicadoReciente,
     crearDiagnostico,
     solicitarAviso,
+    resetearDatos,
+    crearArea,
+    actualizarZonaArea,
+    crearEquipo,
+    moverEquipo,
   };
 }

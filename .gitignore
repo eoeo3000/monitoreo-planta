@@ -26,3 +26,6 @@ yarn-error.log*
 server/node_modules
 server/.env
 server/prisma/dev.db
+
+# Netlify CLI local state
+.netlify

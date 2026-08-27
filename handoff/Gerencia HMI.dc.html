@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/styles.css">
+<script src="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--color-bg); }
+  a { color: var(--color-accent-700); }
+  a:hover { color: var(--color-accent-900); }
+  .cell:hover { background: var(--color-accent-100) !important; }
+  .filtro:hover { color: var(--color-text) !important; }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body)">
+
+  <header style="display: flex; align-items: flex-end; gap: var(--space-6); padding: var(--space-6) var(--space-8); border-bottom: 1px solid var(--color-divider)">
+    <div>
+      <div style="font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-accent-700)">Gerencia · Biblioteca de símbolos</div>
+      <h1 style="font-size: 40px; margin: var(--space-1) 0 0; letter-spacing: 0.01em">CATÁLOGO HMI</h1>
+    </div>
+    <p style="margin: 0 0 4px; max-width: 420px; font-size: 13px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">Símbolos de trazo fino para las vistas de planta. Selecciona los tipos que entran en la vista y aplícalos al esquema.</p>
+    <div style="margin-left: auto; display: flex; align-items: flex-end; gap: var(--space-6)">
+      <div style="text-align: right">
+        <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Símbolos</div>
+        <div style="font-family: var(--font-heading); font-size: 30px; line-height: 1">16</div>
+      </div>
+      <div style="text-align: right">
+        <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Trazo</div>
+        <div style="font-family: var(--font-heading); font-size: 30px; line-height: 1">{{ grosorLabel }}</div>
+      </div>
+    </div>
+  </header>
+
+  <div style="display: grid; grid-template-columns: 232px minmax(0, 1fr) 316px; align-items: start; gap: var(--space-6); padding: var(--space-6) var(--space-8) var(--space-8)">
+
+    <nav style="display: flex; flex-direction: column; gap: var(--space-2); position: sticky; top: var(--space-6)">
+      <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: var(--space-1)">Tipo de equipo</div>
+      <sc-for list="{{ filtros }}" as="f" hint-placeholder-count="5">
+        <div class="filtro" onClick="{{ f.pick }}" style="display: flex; align-items: center; gap: var(--space-3); cursor: pointer; padding: var(--space-2) var(--space-3); font-size: 14px; color: {{ f.color }}; background: {{ f.bg }}; box-shadow: {{ f.ring }}">
+          <span style="font-family: var(--font-heading); letter-spacing: 0.04em; text-transform: uppercase">{{ f.label }}</span>
+          <span style="margin-left: auto; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--color-neutral-500)">{{ f.count }}</span>
+        </div>
+      </sc-for>
+    </nav>
+
+    <div style="display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; stroke-width: {{ grosor }}">
+
+      <sc-if value="{{ verBombas }}" hint-placeholder-val="{{ true }}">
+        <section class="blueprint" style="padding: var(--space-6)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4)">
+            <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">01</span>
+            <h3 style="font-size: 19px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">Bombas</h3>
+            <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-600)">Elementos de transporte de fluido</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--color-neutral-300)">
+
+            <div class="cell" onClick="{{ pick.bombaCentrifuga }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.bombaCentrifuga.bg }}; box-shadow: {{ sel.bombaCentrifuga.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.bombaCentrifuga.icon }}">
+                <circle cx="20" cy="22" r="10"></circle>
+                <path d="M20 12 V5 H31"></path>
+                <path d="M10 22 H3"></path>
+                <path d="M20 22 L27 17 M20 22 L15 30"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Centrífuga</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">PMP-C</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.bombaDosificadora }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.bombaDosificadora.bg }}; box-shadow: {{ sel.bombaDosificadora.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.bombaDosificadora.icon }}">
+                <rect x="6" y="15" width="17" height="13"></rect>
+                <path d="M23 21.5 H31"></path>
+                <path d="M31 16 V27"></path>
+                <path d="M6 21.5 H2"></path>
+                <path d="M14.5 15 V9 H24"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Dosificadora</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">PMP-D</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.bombaVacio }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.bombaVacio.bg }}; box-shadow: {{ sel.bombaVacio.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.bombaVacio.icon }}">
+                <circle cx="20" cy="21" r="10"></circle>
+                <path d="M14 17 L20 26 L26 17"></path>
+                <path d="M20 11 V4"></path>
+                <path d="M30 21 H37"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Vacío</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">PMP-V</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.bombaSumergible }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.bombaSumergible.bg }}; box-shadow: {{ sel.bombaSumergible.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.bombaSumergible.icon }}">
+                <path d="M7 6 V33 H33 V6"></path>
+                <path d="M7 14 H33"></path>
+                <circle cx="20" cy="25" r="6"></circle>
+                <path d="M20 19 V9"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Sumergible</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">PMP-S</span>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{ verTanques }}" hint-placeholder-val="{{ true }}">
+        <section class="blueprint" style="padding: var(--space-6)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4)">
+            <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">02</span>
+            <h3 style="font-size: 19px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">Tanques y vasijas</h3>
+            <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-600)">Contención y transferencia térmica</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--color-neutral-300)">
+
+            <div class="cell" onClick="{{ pick.tanqueAtmosferico }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.tanqueAtmosferico.bg }}; box-shadow: {{ sel.tanqueAtmosferico.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.tanqueAtmosferico.icon }}">
+                <rect x="8" y="8" width="24" height="26"></rect>
+                <path d="M8 22 H32"></path>
+                <path d="M20 8 V3"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Atmosférico</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">TQ-A</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.vasijaPresion }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.vasijaPresion.bg }}; box-shadow: {{ sel.vasijaPresion.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.vasijaPresion.icon }}">
+                <path d="M10 12 V28 A10 6 0 0 0 30 28 V12 A10 6 0 0 0 10 12"></path>
+                <path d="M10 12 A10 6 0 0 0 30 12"></path>
+                <path d="M20 6 V3"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Presurizada</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">TQ-P</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.silo }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.silo.bg }}; box-shadow: {{ sel.silo.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.silo.icon }}">
+                <path d="M9 7 H31 V24 L22 34 H18 L9 24 Z"></path>
+                <path d="M9 15 H31"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Silo</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">SIL</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.intercambiador }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.intercambiador.bg }}; box-shadow: {{ sel.intercambiador.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.intercambiador.icon }}">
+                <rect x="5" y="12" width="30" height="17"></rect>
+                <path d="M5 20.5 H12 L15 15 L20 26 L25 15 L28 20.5 H35"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Intercambiador</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">HEX</span>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{ verRotativos }}" hint-placeholder-val="{{ true }}">
+        <section class="blueprint" style="padding: var(--space-6)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4)">
+            <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">03</span>
+            <h3 style="font-size: 19px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">Equipos rotativos</h3>
+            <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-600)">Sujetos a ruta de vibraciones</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--color-neutral-300)">
+
+            <div class="cell" onClick="{{ pick.agitador }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.agitador.bg }}; box-shadow: {{ sel.agitador.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.agitador.icon }}">
+                <path d="M8 10 V33 H32 V10"></path>
+                <path d="M20 4 V27"></path>
+                <path d="M13 22 H27"></path>
+                <path d="M15 27 H25"></path>
+                <path d="M14 4 H26"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Agitador</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">AG</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.compresor }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.compresor.bg }}; box-shadow: {{ sel.compresor.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.compresor.icon }}">
+                <circle cx="20" cy="20" r="11"></circle>
+                <path d="M12 12 L28 16 V24 L12 28"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Compresor</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">CP</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.motor }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.motor.bg }}; box-shadow: {{ sel.motor.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.motor.icon }}">
+                <rect x="6" y="13" width="21" height="15"></rect>
+                <path d="M27 20.5 H35"></path>
+                <path d="M11 13 V28 M16 13 V28 M21 13 V28"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Motor</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">MOT</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.soplador }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.soplador.bg }}; box-shadow: {{ sel.soplador.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.soplador.icon }}">
+                <circle cx="20" cy="20" r="11"></circle>
+                <circle cx="20" cy="20" r="3"></circle>
+                <path d="M20 17 C20 10 14 9 12 13"></path>
+                <path d="M22.6 21.5 C28.6 25 31 20 28 17"></path>
+                <path d="M17.4 21.5 C11.4 25 12 30 16 30"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Soplador</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">BLW</span>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{ verInstrumentos }}" hint-placeholder-val="{{ true }}">
+        <section class="blueprint" style="padding: var(--space-6)">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          <div style="display: flex; align-items: baseline; gap: var(--space-3); margin-bottom: var(--space-4)">
+            <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">04</span>
+            <h3 style="font-size: 19px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">Instrumentos</h3>
+            <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-600)">Medición y control en línea</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--color-neutral-300)">
+
+            <div class="cell" onClick="{{ pick.transmisorPresion }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.transmisorPresion.bg }}; box-shadow: {{ sel.transmisorPresion.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.transmisorPresion.icon }}">
+                <circle cx="20" cy="17" r="10"></circle>
+                <path d="M20 17 L26 12"></path>
+                <path d="M20 27 V34"></path>
+                <path d="M13 34 H27"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Presión</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">PT</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.sensorVibracion }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.sensorVibracion.bg }}; box-shadow: {{ sel.sensorVibracion.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.sensorVibracion.icon }}">
+                <rect x="5" y="14" width="11" height="13"></rect>
+                <path d="M21 13 C25 17 25 24 21 28"></path>
+                <path d="M26 9 C32 15 32 26 26 32"></path>
+                <path d="M5 27 V33 H16 V27"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Vibración</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">VT</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.caudalimetro }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.caudalimetro.bg }}; box-shadow: {{ sel.caudalimetro.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.caudalimetro.icon }}">
+                <path d="M3 14 H37 M3 26 H37"></path>
+                <circle cx="20" cy="20" r="8"></circle>
+                <path d="M15 15 L25 20 L15 25"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Caudal</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">FT</span>
+            </div>
+
+            <div class="cell" onClick="{{ pick.valvulaControl }}" style="cursor: pointer; padding: var(--space-6) var(--space-3); display: flex; flex-direction: column; align-items: center; gap: var(--space-3); text-align: center; background: {{ sel.valvulaControl.bg }}; box-shadow: {{ sel.valvulaControl.ring }}">
+              <svg width="44" height="44" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" style="color: {{ sel.valvulaControl.icon }}">
+                <path d="M9 22 L31 32 L31 22 L9 32 Z"></path>
+                <path d="M20 27 V15"></path>
+                <path d="M12 8 H28 V15 H12 Z"></path>
+              </svg>
+              <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Válvula ctrl.</span>
+              <span style="display: {{ codigoDisplay }}; font-size: 10px; letter-spacing: 0.12em; color: var(--color-neutral-500)">FCV</span>
+            </div>
+          </div>
+        </section>
+      </sc-if>
+    </div>
+
+    <aside class="blueprint" style="padding: var(--space-6); display: flex; flex-direction: column; gap: var(--space-4); position: sticky; top: var(--space-6)">
+      <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+      <div style="display: flex; align-items: flex-end; gap: var(--space-3)">
+        <div>
+          <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">Vista HMI</div>
+          <h3 style="font-size: 20px; margin: 0">Selección</h3>
+        </div>
+        <span style="margin-left: auto; font-family: var(--font-heading); font-size: 34px; line-height: 0.9; color: var(--color-neutral-500)">{{ count }}</span>
+      </div>
+
+      <sc-if value="{{ sinSeleccion }}" hint-placeholder-val="{{ false }}">
+        <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-neutral-600)">Ningún símbolo seleccionado. Haz clic en una celda del catálogo para añadirla.</p>
+      </sc-if>
+
+      <div style="display: flex; flex-direction: column">
+        <sc-for list="{{ seleccionados }}" as="s" hint-placeholder-count="2">
+          <div style="display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-top: 1px solid var(--color-neutral-300)">
+            <span style="width: 6px; height: 6px; background: var(--color-accent); flex-shrink: 0"></span>
+            <span style="font-family: var(--font-heading); font-size: 14px; letter-spacing: 0.03em; text-transform: uppercase">{{ s.nombre }}</span>
+            <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">{{ s.codigo }}</span>
+            <button class="btn btn-ghost" onClick="{{ s.quitar }}" style="margin-left: auto; font-size: 13px">Quitar</button>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{ hayAplicado }}" hint-placeholder-val="{{ false }}">
+        <div style="border-left: 2px solid var(--color-accent); background: var(--color-neutral-100); padding: var(--space-2) var(--space-3); font-size: 12px; color: var(--color-accent-900)">{{ aplicadoTexto }}</div>
+      </sc-if>
+
+      <div style="display: flex; gap: var(--space-2); border-top: 1px solid var(--color-neutral-300); padding-top: var(--space-4)">
+        <button class="btn btn-primary blueprint" onClick="{{ aplicar }}" disabled="{{ sinSeleccion }}" style="position: relative">
+          <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+          Aplicar a la vista
+        </button>
+        <button class="btn btn-secondary" onClick="{{ limpiar }}" disabled="{{ sinSeleccion }}">Limpiar</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;seleccionMultiple&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Comportamiento&quot;},&quot;mostrarCodigos&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Comportamiento&quot;},&quot;grosorTrazo&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1.5,&quot;min&quot;:1,&quot;max&quot;:2,&quot;step&quot;:0.25,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Iconos&quot;}}">
+class Component extends DCLogic {
+  CATALOGO = [
+    { key: 'bombaCentrifuga', nombre: 'Centrífuga', codigo: 'PMP-C', grupo: 'bombas' },
+    { key: 'bombaDosificadora', nombre: 'Dosificadora', codigo: 'PMP-D', grupo: 'bombas' },
+    { key: 'bombaVacio', nombre: 'Vacío', codigo: 'PMP-V', grupo: 'bombas' },
+    { key: 'bombaSumergible', nombre: 'Sumergible', codigo: 'PMP-S', grupo: 'bombas' },
+    { key: 'tanqueAtmosferico', nombre: 'Atmosférico', codigo: 'TQ-A', grupo: 'tanques' },
+    { key: 'vasijaPresion', nombre: 'Presurizada', codigo: 'TQ-P', grupo: 'tanques' },
+    { key: 'silo', nombre: 'Silo', codigo: 'SIL', grupo: 'tanques' },
+    { key: 'intercambiador', nombre: 'Intercambiador', codigo: 'HEX', grupo: 'tanques' },
+    { key: 'agitador', nombre: 'Agitador', codigo: 'AG', grupo: 'rotativos' },
+    { key: 'compresor', nombre: 'Compresor', codigo: 'CP', grupo: 'rotativos' },
+    { key: 'motor', nombre: 'Motor', codigo: 'MOT', grupo: 'rotativos' },
+    { key: 'soplador', nombre: 'Soplador', codigo: 'BLW', grupo: 'rotativos' },
+    { key: 'transmisorPresion', nombre: 'Presión', codigo: 'PT', grupo: 'instrumentos' },
+    { key: 'sensorVibracion', nombre: 'Vibración', codigo: 'VT', grupo: 'instrumentos' },
+    { key: 'caudalimetro', nombre: 'Caudal', codigo: 'FT', grupo: 'instrumentos' },
+    { key: 'valvulaControl', nombre: 'Válvula ctrl.', codigo: 'FCV', grupo: 'instrumentos' },
+  ];
+
+  GRUPOS = [
+    { id: 'todos', label: 'Todos' },
+    { id: 'bombas', label: 'Bombas' },
+    { id: 'tanques', label: 'Tanques' },
+    { id: 'rotativos', label: 'Rotativos' },
+    { id: 'instrumentos', label: 'Instrumentos' },
+  ];
+
+  state = { filtro: 'todos', elegidos: ['agitador', 'transmisorPresion'], aplicado: null };
+
+  toggle(key) {
+    const multi = this.props.seleccionMultiple !== false;
+    this.setState(s => {
+      const on = s.elegidos.indexOf(key) !== -1;
+      if (!multi) return { elegidos: on ? [] : [key], aplicado: null };
+      return { elegidos: on ? s.elegidos.filter(k => k !== key) : [...s.elegidos, key], aplicado: null };
+    });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const grosor = this.props.grosorTrazo ?? 1.5;
+    const sel = {}, pick = {};
+    this.CATALOGO.forEach(c => {
+      const on = s.elegidos.indexOf(c.key) !== -1;
+      sel[c.key] = {
+        bg: on ? 'var(--color-accent-100)' : 'var(--color-bg)',
+        ring: on ? 'inset 0 0 0 1px var(--color-accent)' : 'none',
+        icon: on ? 'var(--color-accent-800)' : 'var(--color-neutral-700)',
+      };
+      pick[c.key] = () => this.toggle(c.key);
+    });
+
+    const filtros = this.GRUPOS.map(g => {
+      const on = s.filtro === g.id;
+      return {
+        id: g.id, label: g.label,
+        count: String(g.id === 'todos' ? this.CATALOGO.length : this.CATALOGO.filter(c => c.grupo === g.id).length).padStart(2, '0'),
+        pick: () => this.setState({ filtro: g.id }),
+        bg: on ? 'var(--color-accent-100)' : 'transparent',
+        ring: on ? 'inset 2px 0 0 var(--color-accent)' : 'none',
+        color: on ? 'var(--color-accent-900)' : 'var(--color-neutral-600)',
+      };
+    });
+
+    const ve = g => s.filtro === 'todos' || s.filtro === g;
+
+    return {
+      filtros, sel, pick,
+      verBombas: ve('bombas'), verTanques: ve('tanques'), verRotativos: ve('rotativos'), verInstrumentos: ve('instrumentos'),
+      grosor, grosorLabel: grosor.toFixed(2).replace(/0$/, ''),
+      codigoDisplay: this.props.mostrarCodigos === false ? 'none' : 'block',
+      count: String(s.elegidos.length).padStart(2, '0'),
+      sinSeleccion: s.elegidos.length === 0,
+      seleccionados: s.elegidos.map(k => {
+        const c = this.CATALOGO.find(x => x.key === k);
+        return { nombre: c.nombre, codigo: c.codigo, quitar: () => this.toggle(k) };
+      }),
+      hayAplicado: !!s.aplicado,
+      aplicadoTexto: s.aplicado || '',
+      aplicar: () => this.setState(st => ({ aplicado: st.elegidos.length + ' símbolo(s) aplicados a la vista de planta.' })),
+      limpiar: () => this.setState({ elegidos: [], aplicado: null }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

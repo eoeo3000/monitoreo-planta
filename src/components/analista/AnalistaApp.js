@@ -1,18 +1,38 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useAnalistaData, condicionActual } from '../../analista/store';
-import { SEVERIDAD, RECOMENDACION_DEFAULT, reglasPorSeveridad } from '../../analista/severidad';
+import { condicionActual } from '../../analista/store';
+import { SEVERIDAD, SEVERIDAD_ORDEN, RECOMENDACION_DEFAULT, reglasPorSeveridad, colorDeSeveridad } from '../../analista/severidad';
 import { CATALOGO_MODO_FALLA } from '../../analista/mockData';
+import Blueprint from '../../theme/Blueprint';
 import HistorialDetalleModal from './HistorialDetalleModal';
 import NuevoAvisoModal from './NuevoAvisoModal';
+import './analista.css';
 
 const TEXTO_MAX = 1000;
+const MOSTRAR_SEVERIDAD_ARBOL = true; // provisional — el documento fuente deja pendiente si el árbol debe mostrar severidad
+const SEVERIDAD_EN_COLOR = true; // handoff §2 — flag para paleta mono en acero
 
 const FORM_VACIO = { severidad: 'normal', modoFalla: '', diagnosticoTexto: '', recomendacionTexto: '' };
 
-export default function AnalistaApp() {
-  const { data, esDuplicadoReciente, crearDiagnostico, solicitarAviso } = useAnalistaData();
+function fmt(iso) {
+  try {
+    return new Date(iso).toLocaleString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (e) {
+    return iso;
+  }
+}
+
+const kicker = { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' };
+const kickerAccent = { ...kicker, letterSpacing: '0.16em', color: 'var(--color-accent-700)' };
+
+export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostico, solicitarAviso }) {
   const [equipoSeleccionadoId, setEquipoSeleccionadoId] = useState(null);
-  const [expandido, setExpandido] = useState({});
+  const [colapsadas, setColapsadas] = useState({});
   const [form, setForm] = useState(FORM_VACIO);
   const [evidenciasPendientes, setEvidenciasPendientes] = useState([]);
   const [detalleHistorial, setDetalleHistorial] = useState(null);
@@ -41,16 +61,19 @@ export default function AnalistaApp() {
     setMensaje(null);
   }, [equipoSeleccionadoId]);
 
-  // Autocompletado editable de recomendación en Normal/Observación (sección 3).
-  useEffect(() => {
-    const reglas = reglasPorSeveridad(form.severidad);
-    if (!reglas.recomendacionRequerida && !form.recomendacionTexto) {
-      setForm((f) => ({ ...f, recomendacionTexto: RECOMENDACION_DEFAULT }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.severidad]);
+  const toggleArea = (areaId) => setColapsadas((c) => ({ ...c, [areaId]: !c[areaId] }));
 
-  const toggleArea = (areaId) => setExpandido((e) => ({ ...e, [areaId]: !e[areaId] }));
+  const pickSeveridad = (sev) => {
+    setForm((f) => {
+      const next = { ...f, severidad: sev };
+      if (!reglasPorSeveridad(sev).recomendacionRequerida && !next.recomendacionTexto) {
+        next.recomendacionTexto = RECOMENDACION_DEFAULT;
+      }
+      if (sev === 'normal') next.modoFalla = '';
+      return next;
+    });
+    setMensaje(null);
+  };
 
   const handlePasteEvidencia = (e) => {
     const items = e.clipboardData?.items || [];
@@ -74,6 +97,7 @@ export default function AnalistaApp() {
       diagnosticoTexto: condicion.diagnosticoTexto,
       recomendacionTexto: condicion.recomendacionTexto || '',
     });
+    setMensaje(null);
   };
 
   const validarCamposBase = () => {
@@ -92,7 +116,7 @@ export default function AnalistaApp() {
     if (reglas.avisoRequerido) {
       return setMensaje({
         tipo: 'error',
-        texto: 'Esta severidad requiere un aviso o solicitud asociada. Usa "Nuevo Aviso" en vez de "Insertar".',
+        texto: 'Esta severidad requiere un aviso o solicitud asociada. Usa "Nuevo aviso" en vez de "Insertar".',
       });
     }
 
@@ -114,7 +138,7 @@ export default function AnalistaApp() {
     if (error) return setMensaje({ tipo: 'error', texto: error });
     const reglas = reglasPorSeveridad(form.severidad);
     if (!reglas.avisoRequerido) {
-      return setMensaje({ tipo: 'error', texto: 'Nuevo Aviso solo aplica para severidad Alerta o Alarma.' });
+      return setMensaje({ tipo: 'error', texto: 'Nuevo aviso solo aplica para severidad Alerta o Alarma.' });
     }
     setMensaje(null);
     setMostrarModalAviso(true);
@@ -130,258 +154,435 @@ export default function AnalistaApp() {
 
   const modoFallaOpciones = equipo ? CATALOGO_MODO_FALLA[equipo.tipo] || [] : [];
   const reglas = reglasPorSeveridad(form.severidad);
+  const color = (sev) => colorDeSeveridad(sev, SEVERIDAD_EN_COLOR);
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', background: '#f5f5f5', color: '#222' }}>
+    <div style={{ display: 'flex', minHeight: '100%', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
       {/* ÁRBOL JERÁRQUICO */}
-      <aside style={{ width: 260, background: '#fff', borderRight: '1px solid #e0e0e0', overflowY: 'auto', padding: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Planta</h3>
-        {data.plantas.map((planta) => (
-          <div key={planta.id} style={{ marginBottom: 8 }}>
-            <strong style={{ fontSize: '0.9rem' }}>{planta.nombre}</strong>
-            {data.areas
-              .filter((a) => a.plantaId === planta.id)
-              .map((area) => (
-                <div key={area.id} style={{ marginLeft: 8 }}>
-                  <div
-                    onClick={() => toggleArea(area.id)}
-                    style={{ cursor: 'pointer', padding: '4px 0', fontSize: '0.85rem', color: '#555' }}
-                  >
-                    {expandido[area.id] === false ? '▸' : '▾'} {area.nombre}
-                  </div>
-                  {expandido[area.id] !== false &&
-                    data.equipos
-                      .filter((eq) => eq.areaId === area.id)
-                      .map((eq) => {
-                        const cond = condicionActual(eq.id, data.diagnosticos);
-                        return (
-                          <div
-                            key={eq.id}
-                            onClick={() => setEquipoSeleccionadoId(eq.id)}
-                            style={{
-                              marginLeft: 14,
-                              padding: '4px 6px',
-                              fontSize: '0.85rem',
-                              cursor: 'pointer',
-                              borderRadius: 4,
-                              background: eq.id === equipoSeleccionadoId ? '#e3f2fd' : 'transparent',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 6,
-                            }}
-                          >
-                            <span
-                              title={cond ? SEVERIDAD[cond.severidad].label : 'Sin diagnóstico'}
-                              style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: '50%',
-                                background: cond ? SEVERIDAD[cond.severidad].color : '#ccc',
-                                flexShrink: 0,
-                              }}
-                            />
-                            {eq.tag}
-                          </div>
-                        );
-                      })}
-                </div>
-              ))}
+      <aside style={{ width: 272, flexShrink: 0, borderRight: '1px solid var(--color-divider)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--color-divider)' }}>
+          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 19, letterSpacing: '-0.01em' }}>
+            CONDICIÓN DE ACTIVOS
           </div>
-        ))}
-        <p style={{ fontSize: '0.7rem', color: '#999', marginTop: 16 }}>
-          Nota: el punto de color junto al TAG es provisional — el documento fuente deja pendiente si el árbol debe
-          mostrar severidad o no.
-        </p>
+          <div style={kickerAccent}>Estación del analista</div>
+        </div>
+
+        <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', overflowY: 'auto', flexGrow: 1 }}>
+          {data.plantas.map((planta, i) => (
+            <div key={planta.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 'var(--space-2)',
+                  borderBottom: '1px solid var(--color-neutral-300)',
+                  paddingBottom: 'var(--space-1)',
+                }}
+              >
+                <span style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--color-neutral-500)' }}>
+                  {String(i + 1).padStart(2, '0')}
+                </span>
+                <span style={{ fontFamily: 'var(--font-heading)', fontSize: 15, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+                  {planta.nombre}
+                </span>
+              </div>
+
+              {data.areas
+                .filter((a) => a.plantaId === planta.id)
+                .map((area) => {
+                  const expanded = !colapsadas[area.id];
+                  return (
+                    <div key={area.id} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <div
+                        onClick={() => toggleArea(area.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 'var(--space-2)',
+                          cursor: 'pointer',
+                          padding: 'var(--space-1) 0',
+                          fontSize: 13,
+                          color: 'var(--color-neutral-700)',
+                        }}
+                      >
+                        <span style={{ fontSize: 9, width: 8, color: 'var(--color-accent)' }}>{expanded ? '▾' : '▸'}</span>
+                        <span style={{ letterSpacing: '0.02em' }}>{area.nombre}</span>
+                      </div>
+
+                      {expanded && (
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 1,
+                            marginLeft: 'var(--space-3)',
+                            borderLeft: '1px solid var(--color-neutral-300)',
+                            paddingLeft: 'var(--space-3)',
+                          }}
+                        >
+                          {data.equipos
+                            .filter((eq) => eq.areaId === area.id)
+                            .map((eq) => {
+                              const cond = condicionActual(eq.id, data.diagnosticos);
+                              const sel = eq.id === equipoSeleccionadoId;
+                              return (
+                                <div
+                                  key={eq.id}
+                                  className="tree-eq"
+                                  onClick={() => setEquipoSeleccionadoId(eq.id)}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 'var(--space-2)',
+                                    cursor: 'pointer',
+                                    padding: 'var(--space-2)',
+                                    fontSize: 13,
+                                    background: sel ? 'var(--color-accent-100)' : 'transparent',
+                                    boxShadow: sel ? 'inset 2px 0 0 var(--color-accent)' : 'none',
+                                  }}
+                                >
+                                  {MOSTRAR_SEVERIDAD_ARBOL && (
+                                    <span
+                                      title={cond ? SEVERIDAD[cond.severidad].label : 'Sin diagnóstico'}
+                                      style={{ width: 7, height: 7, flexShrink: 0, background: cond ? color(cond.severidad) : 'var(--color-neutral-300)' }}
+                                    />
+                                  )}
+                                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: 14, letterSpacing: '0.04em' }}>{eq.tag}</span>
+                                  <span style={{ marginLeft: 'auto', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-neutral-500)' }}>
+                                    {eq.tipo}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--color-divider)', fontSize: 11, color: 'var(--color-neutral-600)', lineHeight: 1.5 }}>
+          Sesión: analista.demo · Datos de prueba locales
+        </div>
       </aside>
 
       {/* PANEL PRINCIPAL */}
-      <main style={{ flexGrow: 1, overflowY: 'auto', padding: 24 }}>
+      <main style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {!equipo ? (
-          <p style={{ color: '#666' }}>Selecciona un equipo en el árbol para ver su diagnóstico.</p>
+          <div style={{ flexGrow: 1, display: 'grid', placeItems: 'center', padding: 'var(--space-8)' }}>
+            <Blueprint style={{ padding: '56px 72px', textAlign: 'center', maxWidth: 460 }}>
+              <div style={{ ...kickerAccent, marginBottom: 'var(--space-3)' }}>Sin selección</div>
+              <h3 style={{ fontSize: 24, margin: '0 0 var(--space-2)' }}>Selecciona un equipo</h3>
+              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-neutral-700)' }}>
+                Elige un TAG en el árbol de planta para ver su condición, registrar un diagnóstico y consultar su historial.
+              </p>
+            </Blueprint>
+          </div>
         ) : (
-          <>
-            {/* 1. IDENTIFICACIÓN */}
-            <h2 style={{ marginBottom: 0 }}>{equipo.tag}</h2>
-            <p style={{ color: '#666', marginTop: 4 }}>
-              {data.areas.find((a) => a.id === equipo.areaId)?.nombre} — {equipo.descripcion}
-            </p>
-
-            {/* 2. CONDICIÓN ACTUAL */}
-            <section style={{ background: '#fff', borderRadius: 8, padding: 16, marginBottom: 20 }}>
-              <h4 style={{ marginTop: 0 }}>Condición actual</h4>
-              {condicion ? (
-                <>
-                  <span
+          <div>
+            <header
+              style={{
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 'var(--space-6)',
+                padding: 'var(--space-6) var(--space-8)',
+                borderBottom: '1px solid var(--color-divider)',
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <div style={{ ...kickerAccent, marginBottom: 'var(--space-1)' }}>
+                  {data.areas.find((a) => a.id === equipo.areaId)?.nombre}
+                </div>
+                <h1 style={{ fontSize: 44, margin: 0, letterSpacing: '0.01em' }}>{equipo.tag}</h1>
+                <div style={{ fontSize: 14, color: 'var(--color-neutral-700)', marginTop: 'var(--space-1)' }}>{equipo.descripcion}</div>
+              </div>
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={kicker}>Condición actual</div>
+                  <div
                     style={{
-                      display: 'inline-block',
-                      padding: '2px 10px',
-                      borderRadius: 12,
-                      background: SEVERIDAD[condicion.severidad].color,
-                      color: '#fff',
-                      fontSize: '0.85rem',
+                      fontFamily: 'var(--font-heading)',
+                      fontSize: 26,
+                      lineHeight: 1.1,
+                      color: condicion ? color(condicion.severidad) : 'var(--color-neutral-400)',
                     }}
                   >
-                    {SEVERIDAD[condicion.severidad].label}
-                  </span>
-                  <p style={{ fontSize: '0.8rem', color: '#666', marginBottom: 0 }}>
-                    Último diagnóstico: {new Date(condicion.fechaHora).toLocaleString()} — {condicion.usuario}
-                  </p>
-                </>
-              ) : (
-                <p style={{ color: '#888', margin: 0 }}>Sin diagnóstico registrado.</p>
-              )}
-            </section>
-
-            {/* 3. NUEVO DIAGNÓSTICO */}
-            <section style={{ background: '#fff', borderRadius: 8, padding: 16, marginBottom: 20 }} onPaste={handlePasteEvidencia}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ margin: 0 }}>Nuevo diagnóstico</h4>
-                <button onClick={cargarUltimaCondicion} disabled={!condicion}>
-                  Última condición
-                </button>
-              </div>
-
-              {mensaje && (
-                <p style={{ color: mensaje.tipo === 'error' ? '#c62828' : '#2e7d32', fontSize: '0.85rem' }}>
-                  {mensaje.texto}
-                </p>
-              )}
-
-              <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>Severidad</label>
-              <select
-                value={form.severidad}
-                onChange={(e) => setForm((f) => ({ ...f, severidad: e.target.value }))}
-                style={{ width: '100%', color: SEVERIDAD[form.severidad].color, fontWeight: 'bold' }}
-              >
-                {Object.entries(SEVERIDAD).map(([key, cfg]) => (
-                  <option key={key} value={key} style={{ color: cfg.color }}>
-                    {cfg.label}
-                  </option>
-                ))}
-              </select>
-
-              <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>
-                Modo de falla {reglas.modoFallaRequerido ? '*' : ''}
-              </label>
-              <select
-                value={form.modoFalla}
-                onChange={(e) => setForm((f) => ({ ...f, modoFalla: e.target.value }))}
-                style={{ width: '100%' }}
-              >
-                <option value="">-</option>
-                {modoFallaOpciones.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-
-              <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>
-                Diagnóstico * ({form.diagnosticoTexto.length}/{TEXTO_MAX})
-              </label>
-              <textarea
-                value={form.diagnosticoTexto}
-                maxLength={TEXTO_MAX}
-                onChange={(e) => setForm((f) => ({ ...f, diagnosticoTexto: e.target.value }))}
-                rows={3}
-                style={{ width: '100%' }}
-              />
-
-              <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>
-                Recomendación {reglas.recomendacionRequerida ? '*' : ''} ({form.recomendacionTexto.length}/{TEXTO_MAX})
-              </label>
-              <textarea
-                value={form.recomendacionTexto}
-                maxLength={TEXTO_MAX}
-                onChange={(e) => setForm((f) => ({ ...f, recomendacionTexto: e.target.value }))}
-                rows={3}
-                style={{ width: '100%' }}
-              />
-
-              {/* 5. EVIDENCIA */}
-              <label style={{ fontSize: '0.75rem', display: 'block', marginTop: 10 }}>
-                Evidencia (pega una imagen con Ctrl+V en esta sección)
-              </label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', minHeight: 40 }}>
-                {evidenciasPendientes.length === 0 && (
-                  <span style={{ fontSize: '0.8rem', color: '#999' }}>Sin evidencia adjunta todavía.</span>
-                )}
-                {evidenciasPendientes.map((ev, i) => (
-                  <img
-                    key={i}
-                    src={ev.dataUrl}
-                    alt={`evidencia-${i}`}
-                    style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4, border: '1px solid #ddd' }}
-                  />
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-                <button onClick={insertar} style={{ padding: '8px 14px' }}>
-                  Insertar
-                </button>
-                <button
-                  onClick={abrirModalAviso}
-                  style={{ padding: '8px 14px', background: '#c62828', color: '#fff', border: 'none', borderRadius: 4 }}
+                    {condicion ? SEVERIDAD[condicion.severidad].label : 'Sin diagnóstico'}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    border: `1px solid ${condicion ? color(condicion.severidad) : 'var(--color-neutral-400)'}`,
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
                 >
-                  Nuevo Aviso
-                </button>
+                  <span style={{ width: 12, height: 12, background: condicion ? color(condicion.severidad) : 'var(--color-neutral-400)' }} />
+                </div>
               </div>
-            </section>
+            </header>
 
-            {/* 4. AVISOS */}
-            <section style={{ background: '#fff', borderRadius: 8, padding: 16, marginBottom: 20 }}>
-              <h4 style={{ marginTop: 0 }}>Avisos</h4>
-              {avisosEquipo.length === 0 ? (
-                <p style={{ color: '#888', margin: 0 }}>No existen avisos abiertos asociados a este equipo.</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0 }}>
-                  {avisosEquipo.map((a) => (
-                    <li key={a.id} style={{ padding: '6px 0', borderBottom: '1px solid #eee', fontSize: '0.85rem' }}>
-                      <strong>{a.numeroSap || 'Solicitud (sin número SAP)'}</strong> — {a.textoBreve} — {a.estado}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)',
+                gap: 'var(--space-6)',
+                padding: 'var(--space-6) var(--space-8) var(--space-8)',
+              }}
+            >
+              {/* NUEVO DIAGNÓSTICO */}
+              <Blueprint
+                as="section"
+                style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+                onPaste={handlePasteEvidencia}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                  <div>
+                    <div style={kickerAccent}>Registro</div>
+                    <h3 style={{ fontSize: 22, margin: 0 }}>Nuevo diagnóstico</h3>
+                  </div>
+                  <button className="btn btn-secondary" onClick={cargarUltimaCondicion} disabled={!condicion} style={{ marginLeft: 'auto' }}>
+                    Última condición
+                  </button>
+                </div>
 
-            {/* 6. HISTORIAL */}
-            <section style={{ background: '#fff', borderRadius: 8, padding: 16 }}>
-              <h4 style={{ marginTop: 0 }}>Análisis histórico</h4>
-              {historialEquipo.length === 0 ? (
-                <p style={{ color: '#888', margin: 0 }}>Sin registros históricos.</p>
-              ) : (
-                <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', borderBottom: '1px solid #ddd' }}>
-                      <th>Fecha</th>
-                      <th>Usuario</th>
-                      <th>Severidad</th>
-                      <th>Modo de falla</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {historialEquipo.map((d) => (
-                      <tr
-                        key={d.id}
-                        onClick={() => setDetalleHistorial(d)}
-                        style={{ cursor: 'pointer', borderBottom: '1px solid #f0f0f0' }}
-                      >
-                        <td>{new Date(d.fechaHora).toLocaleString()}</td>
-                        <td>{d.usuario}</td>
-                        <td>
-                          <span style={{ color: SEVERIDAD[d.severidad].color, fontWeight: 'bold' }}>
-                            {SEVERIDAD[d.severidad].label}
+                {mensaje && (
+                  <div
+                    style={{
+                      borderLeft: `2px solid ${mensaje.tipo === 'error' ? '#c62828' : 'var(--color-accent-700)'}`,
+                      padding: 'var(--space-2) var(--space-3)',
+                      fontSize: 13,
+                      color: mensaje.tipo === 'error' ? '#c62828' : 'var(--color-accent-700)',
+                      background: 'var(--color-neutral-100)',
+                    }}
+                  >
+                    {mensaje.texto}
+                  </div>
+                )}
+
+                <div>
+                  <div style={{ ...kicker, marginBottom: 'var(--space-2)' }}>Severidad</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 'var(--space-2)' }}>
+                    {SEVERIDAD_ORDEN.map((key) => {
+                      const on = form.severidad === key;
+                      return (
+                        <div
+                          key={key}
+                          className="sev-row"
+                          onClick={() => pickSeveridad(key)}
+                          style={{
+                            cursor: 'pointer',
+                            minWidth: 0,
+                            border: `1px solid ${on ? color(key) : 'var(--color-neutral-300)'}`,
+                            background: on ? 'var(--color-neutral-100)' : 'transparent',
+                            padding: 'var(--space-2) var(--space-3)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                          }}
+                        >
+                          <span style={{ width: 8, height: 8, background: color(key) }} />
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-heading)',
+                              fontSize: 13,
+                              letterSpacing: '0.01em',
+                              textTransform: 'uppercase',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              color: on ? 'var(--color-text)' : 'var(--color-neutral-600)',
+                            }}
+                          >
+                            {SEVERIDAD[key].label}
                           </span>
-                        </td>
-                        <td>{d.modoFalla || '-'}</td>
-                      </tr>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <label className="field">
+                  <span style={kicker}>Modo de falla {reglas.modoFallaRequerido ? '*' : ''}</span>
+                  <select className="input" value={form.modoFalla} onChange={(e) => setForm((f) => ({ ...f, modoFalla: e.target.value }))}>
+                    <option value="">—</option>
+                    {modoFallaOpciones.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
-          </>
+                  </select>
+                </label>
+
+                <label className="field">
+                  <span style={{ display: 'flex', ...kicker }}>
+                    Diagnóstico *<span style={{ marginLeft: 'auto', letterSpacing: '0.06em' }}>{form.diagnosticoTexto.length}/{TEXTO_MAX}</span>
+                  </span>
+                  <textarea
+                    className="input"
+                    rows={4}
+                    maxLength={TEXTO_MAX}
+                    value={form.diagnosticoTexto}
+                    onChange={(e) => setForm((f) => ({ ...f, diagnosticoTexto: e.target.value }))}
+                    placeholder="Hallazgos, mediciones y evidencia técnica."
+                  />
+                </label>
+
+                <label className="field">
+                  <span style={{ display: 'flex', ...kicker }}>
+                    Recomendación {reglas.recomendacionRequerida ? '*' : ''}
+                    <span style={{ marginLeft: 'auto', letterSpacing: '0.06em' }}>{form.recomendacionTexto.length}/{TEXTO_MAX}</span>
+                  </span>
+                  <textarea
+                    className="input"
+                    rows={3}
+                    maxLength={TEXTO_MAX}
+                    value={form.recomendacionTexto}
+                    onChange={(e) => setForm((f) => ({ ...f, recomendacionTexto: e.target.value }))}
+                    placeholder="Acción sugerida y ventana de intervención."
+                  />
+                </label>
+
+                <div>
+                  <div style={{ ...kicker, marginBottom: 'var(--space-2)' }}>Evidencia — pega una imagen con Ctrl+V</div>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 'var(--space-2)',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      minHeight: 64,
+                      border: '1px dashed var(--color-neutral-400)',
+                      padding: 'var(--space-2)',
+                    }}
+                  >
+                    {evidenciasPendientes.length === 0 && (
+                      <span style={{ fontSize: 12, color: 'var(--color-neutral-500)', padding: '0 var(--space-2)' }}>Sin evidencia adjunta.</span>
+                    )}
+                    {evidenciasPendientes.map((ev, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          width: 56,
+                          height: 56,
+                          backgroundImage: `url(${ev.dataUrl})`,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                          border: '1px solid var(--color-neutral-400)',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 'var(--space-3)', paddingTop: 'var(--space-2)' }}>
+                  <button className="btn btn-secondary" onClick={insertar}>
+                    Insertar diagnóstico
+                  </button>
+                  <Blueprint as="button" className="btn btn-primary" onClick={abrirModalAviso} style={{ position: 'relative' }}>
+                    Nuevo aviso
+                  </Blueprint>
+                </div>
+              </Blueprint>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', minWidth: 0 }}>
+                {/* ÚLTIMO REGISTRO */}
+                <Blueprint as="section" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                  <div style={kickerAccent}>Estado</div>
+                  <h3 style={{ fontSize: 20, margin: 0 }}>Último registro</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 'var(--space-2) var(--space-4)', fontSize: 13 }}>
+                    <span style={{ color: 'var(--color-neutral-600)' }}>Severidad</span>
+                    <span style={{ fontFamily: 'var(--font-heading)', fontSize: 15, letterSpacing: '0.03em', color: condicion ? color(condicion.severidad) : 'var(--color-neutral-400)' }}>
+                      {condicion ? SEVERIDAD[condicion.severidad].label : 'Sin diagnóstico'}
+                    </span>
+                    <span style={{ color: 'var(--color-neutral-600)' }}>Modo de falla</span>
+                    <span>{condicion ? condicion.modoFalla || '—' : '—'}</span>
+                    <span style={{ color: 'var(--color-neutral-600)' }}>Fecha</span>
+                    <span>{condicion ? fmt(condicion.fechaHora) : '—'}</span>
+                    <span style={{ color: 'var(--color-neutral-600)' }}>Usuario</span>
+                    <span>{condicion ? condicion.usuario : '—'}</span>
+                  </div>
+                </Blueprint>
+
+                {/* AVISOS ABIERTOS */}
+                <Blueprint as="section" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)' }}>
+                    <div>
+                      <div style={kickerAccent}>SAP</div>
+                      <h3 style={{ fontSize: 20, margin: 0 }}>Avisos abiertos</h3>
+                    </div>
+                    <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-heading)', fontSize: 22, color: 'var(--color-neutral-500)' }}>
+                      {String(avisosEquipo.length).padStart(2, '0')}
+                    </span>
+                  </div>
+                  {avisosEquipo.length === 0 ? (
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>No existen avisos abiertos para este equipo.</p>
+                  ) : (
+                    avisosEquipo.map((a) => (
+                      <div key={a.id} style={{ display: 'flex', flexDirection: 'column', gap: 2, borderTop: '1px solid var(--color-neutral-300)', paddingTop: 'var(--space-2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                          <span style={{ fontFamily: 'var(--font-heading)', fontSize: 15, letterSpacing: '0.04em' }}>{a.numeroSap || 'Sin número SAP'}</span>
+                          <span className="tag tag-outline" style={{ marginLeft: 'auto' }}>{a.estado}</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: 'var(--color-neutral-700)' }}>{a.textoBreve} · {a.clase}</div>
+                      </div>
+                    ))
+                  )}
+                </Blueprint>
+              </div>
+
+              {/* HISTORIAL */}
+              <Blueprint
+                as="section"
+                style={{ gridColumn: '1 / -1', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)' }}>
+                  <div>
+                    <div style={kickerAccent}>Trazabilidad</div>
+                    <h3 style={{ fontSize: 20, margin: 0 }}>Análisis histórico</h3>
+                  </div>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-neutral-600)' }}>Haz clic en una fila para ver el detalle</span>
+                </div>
+                {historialEquipo.length === 0 ? (
+                  <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>Sin registros históricos.</p>
+                ) : (
+                  <table className="table" style={{ width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 180 }}>Fecha</th>
+                        <th style={{ width: 140 }}>Usuario</th>
+                        <th style={{ width: 130 }}>Severidad</th>
+                        <th style={{ width: 200 }}>Modo de falla</th>
+                        <th>Diagnóstico</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {historialEquipo.map((h) => (
+                        <tr key={h.id} className="sev-row" onClick={() => setDetalleHistorial(h)} style={{ cursor: 'pointer' }}>
+                          <td style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(h.fechaHora)}</td>
+                          <td>{h.usuario}</td>
+                          <td>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-heading)', letterSpacing: '0.03em', color: color(h.severidad) }}>
+                              <span style={{ width: 7, height: 7, background: color(h.severidad) }} />
+                              {SEVERIDAD[h.severidad].label}
+                            </span>
+                          </td>
+                          <td>{h.modoFalla || '—'}</td>
+                          <td style={{ color: 'var(--color-neutral-700)' }}>
+                            {h.diagnosticoTexto.length > 90 ? h.diagnosticoTexto.slice(0, 90) + '…' : h.diagnosticoTexto}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </Blueprint>
+            </div>
+          </div>
         )}
       </main>
 
