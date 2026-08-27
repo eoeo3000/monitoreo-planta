@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 
-export default function Blueprint({ as: Tag = 'div', className = '', children, ...rest }) {
+const Blueprint = forwardRef(function Blueprint({ as: Tag = 'div', className = '', children, ...rest }, ref) {
   return (
-    <Tag className={`blueprint ${className}`.trim()} {...rest}>
+    <Tag ref={ref} className={`blueprint ${className}`.trim()} {...rest}>
       <i className="corner tl" />
       <i className="corner tr" />
       <i className="corner bl" />
@@ -10,4 +10,6 @@ export default function Blueprint({ as: Tag = 'div', className = '', children, .
       {children}
     </Tag>
   );
-}
+});
+
+export default Blueprint;

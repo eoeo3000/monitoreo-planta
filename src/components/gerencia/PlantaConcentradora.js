@@ -8,6 +8,12 @@ const GROSOR_TRAZO = 1.5; // handoff §5 prop "grosorTrazo"
 const SEVERIDAD_EN_COLOR = true; // handoff §5 prop "severidadEnColor"
 
 export default function PlantaConcentradora() {
+  // sectionRef mide un elemento cuyo ancho depende solo del layout de la grilla
+  // (nunca del contenido escalado). wrapRef es aparte y solo controla el scroll
+  // del contenido ya escalado. Si se miden ambos con el mismo ref, el zoom
+  // cambia el tamaño del contenido, que activa/desactiva la barra de scroll de
+  // ese mismo contenedor, lo que dispara otra medición: un parpadeo infinito.
+  const sectionRef = useRef(null);
   const wrapRef = useRef(null);
   const manualRef = useRef(false);
   const [seleccionado, setSeleccionado] = useState('criba');
@@ -16,20 +22,22 @@ export default function PlantaConcentradora() {
   const color = (sev) => colorDeSeveridad(sev, SEVERIDAD_EN_COLOR);
 
   const ajustar = () => {
-    if (!wrapRef.current) return;
+    if (!sectionRef.current) return;
     manualRef.current = false;
-    const z = Math.min(1, Math.max(0.4, wrapRef.current.clientWidth / 1320));
-    setZoom(Math.floor(z * 100) / 100);
+    const anchoDisponible = sectionRef.current.clientWidth - 2 * 20.4; // descuenta el padding var(--space-6)
+    const z = Math.min(1, Math.max(0.4, anchoDisponible / 1320));
+    const nuevo = Math.floor(z * 100) / 100;
+    setZoom((actual) => (actual === nuevo ? actual : nuevo));
   };
 
   useEffect(() => {
     const raf = requestAnimationFrame(ajustar);
     let ro;
-    if (typeof ResizeObserver !== 'undefined' && wrapRef.current) {
+    if (typeof ResizeObserver !== 'undefined' && sectionRef.current) {
       ro = new ResizeObserver(() => {
         if (!manualRef.current) ajustar();
       });
-      ro.observe(wrapRef.current);
+      ro.observe(sectionRef.current);
     }
     return () => {
       cancelAnimationFrame(raf);
@@ -81,7 +89,7 @@ export default function PlantaConcentradora() {
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 316px', alignItems: 'start', gap: 'var(--space-6)', padding: 'var(--space-6) var(--space-8) var(--space-8)' }}>
-        <Blueprint as="section" style={{ padding: 'var(--space-6)', minWidth: 0, overflowX: 'auto' }}>
+        <Blueprint ref={sectionRef} as="section" style={{ padding: 'var(--space-6)', minWidth: 0 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 'var(--space-3) var(--space-4)', marginBottom: 'var(--space-4)' }}>
             <h3 style={{ fontSize: 19, margin: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Circuito general</h3>
             <span style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-neutral-500)', whiteSpace: 'nowrap' }}>
