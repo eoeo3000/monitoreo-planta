@@ -1,24 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { condicionActual } from '../../analista/store';
-import { SEVERIDAD, RECOMENDACION_DEFAULT, reglasPorSeveridad, colorDeSeveridad } from '../../analista/severidad';
-import Blueprint from '../../theme/Blueprint';
+import { RECOMENDACION_DEFAULT, reglasPorSeveridad, colorDeSeveridad } from '../../analista/severidad';
 import EquipoDiagnosticoPanel from './EquipoDiagnosticoPanel';
 import TablaEquipos from './TablaEquipos';
 import HistorialDetalleModal from './HistorialDetalleModal';
 import NuevoAvisoModal from './NuevoAvisoModal';
 import './analista.css';
 
-const MOSTRAR_SEVERIDAD_ARBOL = true; // provisional — el documento fuente deja pendiente si el árbol debe mostrar severidad
 const SEVERIDAD_EN_COLOR = true; // handoff §2 — flag para paleta mono en acero
 
 const FORM_VACIO = { severidad: 'normal', modoFalla: '', diagnosticoTexto: '', recomendacionTexto: '' };
 
-const kickerAccent = { fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' };
-
 export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostico, solicitarAviso }) {
-  const [vista, setVista] = useState('arbol'); // 'arbol' | 'tabla'
   const [equipoSeleccionadoId, setEquipoSeleccionadoId] = useState(null);
-  const [colapsadas, setColapsadas] = useState({});
   const [form, setForm] = useState(FORM_VACIO);
   const [evidenciasPendientes, setEvidenciasPendientes] = useState([]);
   const [detalleHistorial, setDetalleHistorial] = useState(null);
@@ -47,12 +40,6 @@ export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostic
     setEvidenciasPendientes([]);
     setMensaje(null);
   }, [equipoSeleccionadoId]);
-
-  const toggleArea = (areaId) => setColapsadas((c) => ({ ...c, [areaId]: !c[areaId] }));
-
-  const seleccionarDesdeArbol = (id) => {
-    setEquipoSeleccionadoId(id);
-  };
 
   const abrirDesdeTabla = (id) => {
     setEquipoSeleccionadoId(id);
@@ -172,151 +159,28 @@ export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostic
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100%', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
-      {/* ÁRBOL JERÁRQUICO */}
-      <aside style={{ width: 272, flexShrink: 0, borderRight: '1px solid var(--color-divider)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--color-divider)' }}>
-          <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 19, letterSpacing: '-0.01em' }}>
-            CONDICIÓN DE ACTIVOS
+    <div style={{ minHeight: '100%', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 'var(--space-6)',
+          padding: 'var(--space-6) var(--space-8)',
+          borderBottom: '1px solid var(--color-divider)',
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
+            Estación del analista
           </div>
-          <div style={kickerAccent}>Estación del analista</div>
+          <h1 style={{ fontSize: 40, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>CONDICIÓN DE ACTIVOS</h1>
         </div>
-
-        <div style={{ padding: 'var(--space-3) var(--space-4) 0' }}>
-          <div className="seg" style={{ width: '100%' }}>
-            <label className="seg-opt" style={{ flex: 1, justifyContent: 'center' }}>
-              <input type="radio" checked={vista === 'arbol'} onChange={() => setVista('arbol')} />
-              <span>Árbol</span>
-            </label>
-            <label className="seg-opt" style={{ flex: 1, justifyContent: 'center' }}>
-              <input type="radio" checked={vista === 'tabla'} onChange={() => setVista('tabla')} />
-              <span>Tabla</span>
-            </label>
-          </div>
-        </div>
-
-        <div style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', overflowY: 'auto', flexGrow: 1 }}>
-          {data.plantas.map((planta, i) => (
-            <div key={planta.id} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'baseline',
-                  gap: 'var(--space-2)',
-                  borderBottom: '1px solid var(--color-neutral-300)',
-                  paddingBottom: 'var(--space-1)',
-                }}
-              >
-                <span style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--color-neutral-500)' }}>
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: 15, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-                  {planta.nombre}
-                </span>
-              </div>
-
-              {data.areas
-                .filter((a) => a.plantaId === planta.id)
-                .map((area) => {
-                  const expanded = !colapsadas[area.id];
-                  return (
-                    <div key={area.id} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <div
-                        onClick={() => toggleArea(area.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 'var(--space-2)',
-                          cursor: 'pointer',
-                          padding: 'var(--space-1) 0',
-                          fontSize: 13,
-                          color: 'var(--color-neutral-700)',
-                        }}
-                      >
-                        <span style={{ fontSize: 9, width: 8, color: 'var(--color-accent)' }}>{expanded ? '▾' : '▸'}</span>
-                        <span style={{ letterSpacing: '0.02em' }}>{area.nombre}</span>
-                      </div>
-
-                      {expanded && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 1,
-                            marginLeft: 'var(--space-3)',
-                            borderLeft: '1px solid var(--color-neutral-300)',
-                            paddingLeft: 'var(--space-3)',
-                          }}
-                        >
-                          {data.equipos
-                            .filter((eq) => eq.areaId === area.id)
-                            .map((eq) => {
-                              const cond = condicionActual(eq.id, data.diagnosticos);
-                              const sel = eq.id === equipoSeleccionadoId && vista === 'arbol';
-                              return (
-                                <div
-                                  key={eq.id}
-                                  className="tree-eq"
-                                  onClick={() => {
-                                    setVista('arbol');
-                                    seleccionarDesdeArbol(eq.id);
-                                  }}
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 'var(--space-2)',
-                                    cursor: 'pointer',
-                                    padding: 'var(--space-2)',
-                                    fontSize: 13,
-                                    background: sel ? 'var(--color-accent-100)' : 'transparent',
-                                    boxShadow: sel ? 'inset 2px 0 0 var(--color-accent)' : 'none',
-                                  }}
-                                >
-                                  {MOSTRAR_SEVERIDAD_ARBOL && (
-                                    <span
-                                      title={cond ? SEVERIDAD[cond.severidad].label : 'Sin diagnóstico'}
-                                      style={{ width: 7, height: 7, flexShrink: 0, background: cond ? color(cond.severidad) : 'var(--color-neutral-300)' }}
-                                    />
-                                  )}
-                                  <span style={{ fontFamily: 'var(--font-heading)', fontSize: 14, letterSpacing: '0.04em' }}>{eq.tag}</span>
-                                  <span style={{ marginLeft: 'auto', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-neutral-500)' }}>
-                                    {eq.tipo}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          ))}
-        </div>
-
-        <div style={{ padding: 'var(--space-4)', borderTop: '1px solid var(--color-divider)', fontSize: 11, color: 'var(--color-neutral-600)', lineHeight: 1.5 }}>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-neutral-600)' }}>
           Sesión: analista.demo · Datos de prueba locales
-        </div>
-      </aside>
+        </span>
+      </header>
 
-      {/* PANEL PRINCIPAL */}
-      <main style={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        {vista === 'tabla' ? (
-          <TablaEquipos data={data} onAbrirEquipo={abrirDesdeTabla} color={color} />
-        ) : !equipo ? (
-          <div style={{ flexGrow: 1, display: 'grid', placeItems: 'center', padding: 'var(--space-8)' }}>
-            <Blueprint style={{ padding: '56px 72px', textAlign: 'center', maxWidth: 460 }}>
-              <div style={{ ...kickerAccent, marginBottom: 'var(--space-3)' }}>Sin selección</div>
-              <h3 style={{ fontSize: 24, margin: '0 0 var(--space-2)' }}>Selecciona un equipo</h3>
-              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-neutral-700)' }}>
-                Elige un TAG en el árbol de planta para ver su condición, registrar un diagnóstico y consultar su historial.
-              </p>
-            </Blueprint>
-          </div>
-        ) : (
-          <EquipoDiagnosticoPanel {...panelProps} />
-        )}
-      </main>
+      <TablaEquipos data={data} onAbrirEquipo={abrirDesdeTabla} color={color} />
 
       {mostrarModalDiagnostico && equipo && (
         <div className="dialog-backdrop" onClick={() => setMostrarModalDiagnostico(false)} style={{ zIndex: 90 }}>

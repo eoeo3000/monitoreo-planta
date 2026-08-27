@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders analista screen with plant tree', () => {
+test('renders analista screen with equipment table', () => {
   render(<App />);
-  const heading = screen.getByText(/Selecciona un equipo/i);
-  expect(heading).toBeInTheDocument();
+  expect(screen.getByRole('heading', { level: 1, name: /CONDICIÓN DE ACTIVOS/i })).toBeInTheDocument();
+  expect(screen.getByRole('columnheader', { name: /TAG/i })).toBeInTheDocument();
 });
