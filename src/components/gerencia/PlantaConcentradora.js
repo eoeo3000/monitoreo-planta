@@ -166,28 +166,17 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               onMouseUp={onMouseUp}
               onMouseLeave={onMouseUp}
             >
-              <defs>
-                <marker id="flecha-conexion" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
-                  <path d="M0 0 L7 3.5 L0 7 Z" fill="var(--color-accent)" />
-                </marker>
-              </defs>
-
               {conexionesDePlanta.map((c) => {
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
                 const linea = acortarLinea(de.posicion || { x: 80, y: 80 }, a.posicion || { x: 80, y: 80 }, NODO_ANCHO / 2);
                 return (
-                  <line
-                    key={c.id}
-                    x1={linea.x1}
-                    y1={linea.y1}
-                    x2={linea.x2}
-                    y2={linea.y2}
-                    stroke="var(--color-accent)"
-                    strokeWidth={1.5}
-                    markerEnd="url(#flecha-conexion)"
-                  />
+                  <g key={c.id}>
+                    <line x1={linea.x1} y1={linea.y1} x2={linea.x2} y2={linea.y2} stroke="var(--color-accent)" strokeWidth={1} />
+                    <circle cx={linea.x1} cy={linea.y1} r={2.5} fill="var(--color-accent)" />
+                    <circle cx={linea.x2} cy={linea.y2} r={2.5} fill="var(--color-accent)" />
+                  </g>
                 );
               })}
 
