@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Blueprint from '../../theme/Blueprint';
 import { condicionActual } from '../../analista/store';
 import { colorDeSeveridad } from '../../analista/severidad';
@@ -37,13 +37,20 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   const [modoEdicion, setModoEdicion] = useState(false);
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
-  const [arrastre, setArrastre] = useState(null);
+  const [mousePos, setMousePos] = useState(null);
+  const [arrastre, setArrastre] = useState(null); // { id, offsetX, offsetY } — offset fijo del punto donde se agarró
+  const [posicionArrastre, setPosicionArrastre] = useState(null); // { id, x, y } — posición en vivo, sin tocar el store todavía
 
   const color = (sev) => colorDeSeveridad(sev, SEVERIDAD_EN_COLOR);
 
   const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
   const equiposDePlanta = data.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
   const conexionesDePlanta = data.conexiones.filter((c) => c.plantaId === plantaId);
+
+  // Mientras se arrastra, la posición vive solo en este componente — recién se
+  // guarda en el store (y en localStorage) al soltar el mouse. Escribir en cada
+  // mousemove hacía que todo el arrastre se sintiera trabado.
+  const posicionDe = (eq) => (posicionArrastre?.id === eq.id ? posicionArrastre : eq.posicion) || { x: 80, y: 80 };
 
   const puntoSvg = (event) => {
     const rect = svgRef.current.getBoundingClientRect();
@@ -59,21 +66,37 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   };
 
   const onMouseMove = (event) => {
-    if (!arrastre) return;
     const p = puntoSvg(event);
-    moverEquipo(arrastre.id, { x: Math.max(0, Math.round(p.x - arrastre.offsetX)), y: Math.max(0, Math.round(p.y - arrastre.offsetY)) });
+    if (arrastre) {
+      setPosicionArrastre({
+        id: arrastre.id,
+        x: Math.max(0, Math.round(p.x - arrastre.offsetX)),
+        y: Math.max(0, Math.round(p.y - arrastre.offsetY)),
+      });
+    }
+    if (modoConectar && origenConexion) {
+      setMousePos(p);
+    }
   };
 
-  const onMouseUp = () => setArrastre(null);
+  const onMouseUp = () => {
+    if (posicionArrastre) {
+      moverEquipo(posicionArrastre.id, { x: posicionArrastre.x, y: posicionArrastre.y });
+    }
+    setArrastre(null);
+    setPosicionArrastre(null);
+  };
 
   // Conectar es un flujo de dos clics: el primero fija el origen (origenConexion),
-  // el segundo crea la flecha hacia el equipo clickeado y libera el origen para
-  // poder encadenar otra conexión sin tener que reactivar el botón.
+  // el segundo crea la flecha hacia el equipo clickeado. Clic de nuevo sobre el
+  // mismo origen, o Escape, cancela sin crear nada.
   const onClickNodo = (eq) => {
     if (!modoEdicion || !modoConectar) return;
     if (!origenConexion) {
       setOrigenConexion(eq.id);
-    } else if (origenConexion !== eq.id) {
+    } else if (origenConexion === eq.id) {
+      setOrigenConexion(null);
+    } else {
       crearConexion(plantaId, origenConexion, eq.id);
       setOrigenConexion(null);
     }
@@ -83,6 +106,15 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
     setModoConectar((m) => !m);
     setOrigenConexion(null);
   };
+
+  useEffect(() => {
+    if (!modoConectar) return;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setOrigenConexion(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [modoConectar]);
 
   const agregarPlanta = () => {
     const nombre = window.prompt('Nombre de la nueva planta:');
@@ -144,7 +176,9 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               </button>
               <p style={{ fontSize: 11, color: 'var(--color-neutral-600)', margin: 0 }}>
                 {modoConectar
-                  ? 'Haz clic en el equipo de origen y luego en el de destino. Puedes seguir conectando otros pares sin volver a activar el botón.'
+                  ? origenConexion
+                    ? 'Haz clic en el equipo de destino. Clic de nuevo en el origen, o Esc, para cancelar.'
+                    : 'Haz clic en el equipo de origen. Puedes conectar varios pares seguidos sin volver a activar el botón.'
                   : 'Arrastra un equipo para reposicionarlo, o activa "Conectar equipos" para dibujar flechas de flujo.'}
               </p>
             </>
@@ -161,7 +195,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               ref={svgRef}
               width={CANVAS_WIDTH}
               height={CANVAS_HEIGHT}
-              style={{ display: 'block' }}
+              style={{ display: 'block', cursor: modoConectar && origenConexion ? 'crosshair' : undefined }}
               onMouseMove={onMouseMove}
               onMouseUp={onMouseUp}
               onMouseLeave={onMouseUp}
@@ -170,7 +204,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const linea = acortarLinea(de.posicion || { x: 80, y: 80 }, a.posicion || { x: 80, y: 80 }, NODO_ANCHO / 2);
+                const linea = acortarLinea(posicionDe(de), posicionDe(a), NODO_ANCHO / 2);
                 return (
                   <g key={c.id}>
                     <line x1={linea.x1} y1={linea.y1} x2={linea.x2} y2={linea.y2} stroke="var(--color-accent)" strokeWidth={1} />
@@ -180,10 +214,28 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 );
               })}
 
+              {modoConectar && origenConexion && mousePos && (() => {
+                const eqOrigen = equiposDePlanta.find((eq) => eq.id === origenConexion);
+                if (!eqOrigen) return null;
+                const p1 = posicionDe(eqOrigen);
+                return (
+                  <line
+                    x1={p1.x}
+                    y1={p1.y}
+                    x2={mousePos.x}
+                    y2={mousePos.y}
+                    stroke="var(--color-accent)"
+                    strokeWidth={1}
+                    strokeDasharray="4 3"
+                    pointerEvents="none"
+                  />
+                );
+              })()}
+
               {equiposDePlanta.map((eq) => {
                 const cond = condicionActual(eq.id, data.diagnosticos);
                 const c = cond ? color(cond.severidad) : 'var(--color-neutral-400)';
-                const pos = eq.posicion || { x: 80, y: 80 };
+                const pos = posicionDe(eq);
                 const origen = origenConexion === eq.id;
                 const icono = EQUIPO_ICONOS[eq.tipo];
                 const colorGlifo = origen ? 'var(--color-accent-800)' : 'var(--color-neutral-700)';
@@ -193,7 +245,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                     transform={`translate(${pos.x}, ${pos.y})`}
                     onMouseDown={(e) => onMouseDownNodo(e, eq)}
                     onClick={() => onClickNodo(eq)}
-                    style={{ cursor: modoEdicion ? (modoConectar ? 'pointer' : 'grab') : 'default' }}
+                    style={{ cursor: modoEdicion ? (modoConectar ? 'pointer' : arrastre?.id === eq.id ? 'grabbing' : 'grab') : 'default' }}
                   >
                     {/* Área invisible para poder arrastrar/hacer clic sin dibujar un recuadro */}
                     <rect
