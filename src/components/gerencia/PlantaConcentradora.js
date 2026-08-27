@@ -10,6 +10,7 @@ const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 460;
 const NODO_ANCHO = 64;
 const NODO_ALTO = 56;
+const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
 
 // Acorta la línea desde ambos extremos para que la flecha no quede tapada por el
 // nodo (rectangular) ni nazca desde su centro.
@@ -38,7 +39,8 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
   const [mousePos, setMousePos] = useState(null);
-  const [arrastre, setArrastre] = useState(null); // { id, offsetX, offsetY } — offset fijo del punto donde se agarró
+  const [mousedownInfo, setMousedownInfo] = useState(null); // { id, startX, startY, offsetX, offsetY } — desde el mousedown, antes de saber si es clic o arrastre
+  const [arrastre, setArrastre] = useState(null); // { id, offsetX, offsetY } — se confirma solo si hay movimiento real
   const [posicionArrastre, setPosicionArrastre] = useState(null); // { id, x, y } — posición en vivo, sin tocar el store todavía
 
   const color = (sev) => colorDeSeveridad(sev, SEVERIDAD_EN_COLOR);
@@ -57,16 +59,26 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
+  // No decidimos en el mousedown si es clic o arrastre: guardamos el punto de
+  // partida y recién en el mousemove, si hay movimiento real, se confirma como
+  // arrastre. Así se puede reposicionar un equipo aunque "Conectar equipos"
+  // siga activo — antes había que desactivarlo primero para poder moverlo.
   const onMouseDownNodo = (event, eq) => {
-    if (!modoEdicion || modoConectar) return;
+    if (!modoEdicion) return;
     event.stopPropagation();
     const p = puntoSvg(event);
     const pos = eq.posicion || { x: 80, y: 80 };
-    setArrastre({ id: eq.id, offsetX: p.x - pos.x, offsetY: p.y - pos.y });
+    setMousedownInfo({ id: eq.id, startX: p.x, startY: p.y, offsetX: p.x - pos.x, offsetY: p.y - pos.y });
   };
 
   const onMouseMove = (event) => {
     const p = puntoSvg(event);
+    if (mousedownInfo && !arrastre) {
+      const dist = Math.hypot(p.x - mousedownInfo.startX, p.y - mousedownInfo.startY);
+      if (dist > UMBRAL_ARRASTRE) {
+        setArrastre({ id: mousedownInfo.id, offsetX: mousedownInfo.offsetX, offsetY: mousedownInfo.offsetY });
+      }
+    }
     if (arrastre) {
       setPosicionArrastre({
         id: arrastre.id,
@@ -82,7 +94,12 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   const onMouseUp = () => {
     if (posicionArrastre) {
       moverEquipo(posicionArrastre.id, { x: posicionArrastre.x, y: posicionArrastre.y });
+    } else if (mousedownInfo && modoConectar) {
+      // Sin movimiento real: fue un clic, no un arrastre.
+      const eq = equiposDePlanta.find((e) => e.id === mousedownInfo.id);
+      if (eq) onClickNodo(eq);
     }
+    setMousedownInfo(null);
     setArrastre(null);
     setPosicionArrastre(null);
   };
@@ -91,7 +108,6 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   // el segundo crea la flecha hacia el equipo clickeado. Clic de nuevo sobre el
   // mismo origen, o Escape, cancela sin crear nada.
   const onClickNodo = (eq) => {
-    if (!modoEdicion || !modoConectar) return;
     if (!origenConexion) {
       setOrigenConexion(eq.id);
     } else if (origenConexion === eq.id) {
@@ -177,7 +193,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               <p style={{ fontSize: 11, color: 'var(--color-neutral-600)', margin: 0 }}>
                 {modoConectar
                   ? origenConexion
-                    ? 'Haz clic en el equipo de destino. Clic de nuevo en el origen, o Esc, para cancelar.'
+                    ? 'Haz clic en el equipo de destino. Clic de nuevo en el origen, o Esc, para cancelar. Arrastrar sigue funcionando igual.'
                     : 'Haz clic en el equipo de origen. Puedes conectar varios pares seguidos sin volver a activar el botón.'
                   : 'Arrastra un equipo para reposicionarlo, o activa "Conectar equipos" para dibujar flechas de flujo.'}
               </p>
@@ -244,8 +260,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                     key={eq.id}
                     transform={`translate(${pos.x}, ${pos.y})`}
                     onMouseDown={(e) => onMouseDownNodo(e, eq)}
-                    onClick={() => onClickNodo(eq)}
-                    style={{ cursor: modoEdicion ? (modoConectar ? 'pointer' : arrastre?.id === eq.id ? 'grabbing' : 'grab') : 'default' }}
+                    style={{ cursor: !modoEdicion ? 'default' : arrastre?.id === eq.id ? 'grabbing' : 'grab' }}
                   >
                     {/* Área invisible para poder arrastrar/hacer clic sin dibujar un recuadro */}
                     <rect
@@ -258,10 +273,10 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                     <rect x={NODO_ANCHO / 2 - 9} y={-NODO_ALTO / 2 + 3} width={6} height={6} fill={c} />
                     {icono && (
                       <svg
-                        x={-16}
-                        y={-19}
-                        width={32}
-                        height={20}
+                        x={-20}
+                        y={-24}
+                        width={40}
+                        height={25}
                         viewBox={icono.viewBox}
                         fill="none"
                         stroke="currentColor"
