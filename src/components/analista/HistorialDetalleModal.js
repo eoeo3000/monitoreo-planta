@@ -28,7 +28,7 @@ export default function HistorialDetalleModal({ diagnostico, aviso, onClose }) {
         style={{
           width: 'min(560px, 100%)',
           background: 'var(--color-bg)',
-          padding: 'var(--space-8)',
+          padding: 'var(--space-6)',
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--space-4)',

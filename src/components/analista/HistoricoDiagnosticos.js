@@ -50,7 +50,7 @@ export default function HistoricoDiagnosticos({ data, filtro, color, onAbrirDeta
   };
 
   return (
-    <div style={{ padding: 'var(--space-6) var(--space-8)' }}>
+    <div style={{ padding: 'var(--space-4) var(--space-6)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
         <div>
           <div style={kicker}>Filtro activo</div>

@@ -8,9 +8,9 @@ const kickerAccent = { ...kicker, letterSpacing: '0.16em', color: 'var(--color-a
 
 function KpiTile({ titulo, valor, colorValor }) {
   return (
-    <Blueprint as="section" style={{ padding: 'var(--space-6)', flex: 1, minWidth: 160 }}>
+    <Blueprint as="section" style={{ padding: 'var(--space-4)', flex: 1, minWidth: 160 }}>
       <div style={kicker}>{titulo}</div>
-      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 40, lineHeight: 1.1, color: colorValor || 'var(--color-text)' }}>{valor}</div>
+      <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1.1, color: colorValor || 'var(--color-text)' }}>{valor}</div>
     </Blueprint>
   );
 }
@@ -64,19 +64,19 @@ export default function Dashboard({ data, filtro }) {
   const maxConteo = Math.max(...SEVERIDAD_ORDEN.map((k) => conteos[k] || 0), 1);
 
   return (
-    <div style={{ padding: 'var(--space-6) var(--space-8)' }}>
+    <div style={{ padding: 'var(--space-4) var(--space-6)' }}>
       <div style={{ marginBottom: 'var(--space-4)' }}>
         <div style={kicker}>Filtro activo</div>
         <div style={{ fontFamily: 'var(--font-heading)', fontSize: 16 }}>{etiquetaFiltro}</div>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
         <KpiTile titulo="Total equipos" valor={equiposFiltrados.length} />
         <KpiTile titulo="Sin diagnóstico" valor={sinDiagnostico} colorValor={sinDiagnostico > 0 ? 'var(--color-neutral-600)' : undefined} />
         <KpiTile titulo="Avisos abiertos" valor={avisosAbiertos} colorValor={avisosAbiertos > 0 ? SEVERIDAD.alerta.color : undefined} />
       </div>
 
-      <Blueprint as="section" style={{ padding: 'var(--space-6)', maxWidth: 560 }}>
+      <Blueprint as="section" style={{ padding: 'var(--space-4)', maxWidth: 560 }}>
         <div style={kickerAccent}>Condición actual</div>
         <h3 style={{ fontSize: 20, margin: '0 0 var(--space-4)' }}>Distribución por severidad</h3>
         <BarraSeveridad conteos={conteos} maxConteo={maxConteo} />

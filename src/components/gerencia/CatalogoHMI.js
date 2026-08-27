@@ -31,8 +31,8 @@ export default function CatalogoHMI() {
         style={{
           display: 'flex',
           alignItems: 'flex-end',
-          gap: 'var(--space-6)',
-          padding: 'var(--space-6) var(--space-8)',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-6)',
           borderBottom: '1px solid var(--color-divider)',
         }}
       >
@@ -40,7 +40,7 @@ export default function CatalogoHMI() {
           <div style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
             Gerencia · Biblioteca de símbolos
           </div>
-          <h1 style={{ fontSize: 40, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>CATÁLOGO HMI</h1>
+          <h1 style={{ fontSize: 30, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>CATÁLOGO HMI</h1>
         </div>
         <p style={{ margin: '0 0 4px', maxWidth: 420, fontSize: 13, lineHeight: 1.5, color: 'var(--color-neutral-700)' }}>
           Símbolos de trazo fino para las vistas de planta. Selecciona los tipos que entran en la vista y aplícalos al esquema.
@@ -48,11 +48,11 @@ export default function CatalogoHMI() {
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 'var(--space-6)' }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>Símbolos</div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1 }}>{CATALOGO_SIMBOLOS.length}</div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1 }}>{CATALOGO_SIMBOLOS.length}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>Trazo</div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1 }}>{GROSOR_TRAZO.toFixed(2).replace(/0$/, '')}</div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1 }}>{GROSOR_TRAZO.toFixed(2).replace(/0$/, '')}</div>
           </div>
         </div>
       </header>
@@ -60,13 +60,13 @@ export default function CatalogoHMI() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '232px minmax(0, 1fr) 316px',
+          gridTemplateColumns: '232px minmax(0, 1fr) 272px',
           alignItems: 'start',
-          gap: 'var(--space-6)',
-          padding: 'var(--space-6) var(--space-8) var(--space-8)',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-6) var(--space-6)',
         }}
       >
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', position: 'sticky', top: 'var(--space-6)' }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', position: 'sticky', top: 'var(--space-4)' }}>
           <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)', marginBottom: 'var(--space-1)' }}>
             Tipo de equipo
           </div>
@@ -99,17 +99,17 @@ export default function CatalogoHMI() {
           })}
         </nav>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', minWidth: 0, strokeWidth: GROSOR_TRAZO }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 0, strokeWidth: GROSOR_TRAZO }}>
           {grupos.filter(verGrupo).map((g) => {
             const info = GRUPOS_INFO[g];
             return (
-              <Blueprint as="section" key={g} style={{ padding: 'var(--space-6)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+              <Blueprint as="section" key={g} style={{ padding: 'var(--space-4)' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
                   <span style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--color-neutral-500)' }}>{info.orden}</span>
                   <h3 style={{ fontSize: 19, margin: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{info.titulo}</h3>
                   <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-neutral-600)' }}>{info.nota}</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 1, background: 'var(--color-neutral-300)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: 1, background: 'var(--color-neutral-300)' }}>
                   {simbolosDeGrupo(g).map((s) => {
                     const on = elegidos.includes(s.key);
                     return (
@@ -119,7 +119,7 @@ export default function CatalogoHMI() {
                         onClick={() => toggle(s.key)}
                         style={{
                           cursor: 'pointer',
-                          padding: 'var(--space-6) var(--space-3)',
+                          padding: 'var(--space-4) var(--space-2)',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
@@ -130,8 +130,8 @@ export default function CatalogoHMI() {
                         }}
                       >
                         <svg
-                          width="44"
-                          height="44"
+                          width="36"
+                          height="36"
                           viewBox="0 0 40 40"
                           fill="none"
                           stroke="currentColor"
@@ -158,7 +158,7 @@ export default function CatalogoHMI() {
 
         <Blueprint
           as="aside"
-          style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', position: 'sticky', top: 'var(--space-6)' }}
+          style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', position: 'sticky', top: 'var(--space-4)' }}
         >
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 'var(--space-3)' }}>
             <div>

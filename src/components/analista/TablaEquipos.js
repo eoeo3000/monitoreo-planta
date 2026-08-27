@@ -18,7 +18,7 @@ export default function TablaEquipos({ data, filtro, onAbrirEquipo, color }) {
   const { plantaId, areaId, tipo, setPlantaId, setAreaId, setTipo, areasDisponibles, tiposDisponibles, equiposFiltrados } = filtro;
 
   return (
-    <div style={{ padding: 'var(--space-6) var(--space-8)' }}>
+    <div style={{ padding: 'var(--space-4) var(--space-6)' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', marginBottom: 'var(--space-4)', alignItems: 'flex-end' }}>
         <label className="field" style={{ minWidth: 180 }}>
           <span style={kicker}>Planta</span>

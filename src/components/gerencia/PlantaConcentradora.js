@@ -24,8 +24,8 @@ export default function PlantaConcentradora() {
   const ajustar = () => {
     if (!sectionRef.current) return;
     manualRef.current = false;
-    const anchoDisponible = sectionRef.current.clientWidth - 2 * 20.4; // descuenta el padding var(--space-6)
-    const z = Math.min(1, Math.max(0.4, anchoDisponible / 1320));
+    const anchoDisponible = sectionRef.current.clientWidth - 2 * 11.5; // descuenta el padding var(--space-4)
+    const z = Math.min(1, Math.max(0.4, anchoDisponible / 1104));
     const nuevo = Math.floor(z * 100) / 100;
     setZoom((actual) => (actual === nuevo ? actual : nuevo));
   };
@@ -60,8 +60,8 @@ export default function PlantaConcentradora() {
         style={{
           display: 'flex',
           alignItems: 'flex-end',
-          gap: 'var(--space-6)',
-          padding: 'var(--space-6) var(--space-8)',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-6)',
           borderBottom: '1px solid var(--color-divider)',
         }}
       >
@@ -69,7 +69,7 @@ export default function PlantaConcentradora() {
           <div style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
             Gerencia · Vista de proceso
           </div>
-          <h1 style={{ fontSize: 40, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>PLANTA CONCENTRADORA</h1>
+          <h1 style={{ fontSize: 30, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>PLANTA CONCENTRADORA</h1>
         </div>
         <p style={{ margin: '0 0 4px', maxWidth: 400, fontSize: 13, lineHeight: 1.5, color: 'var(--color-neutral-700)' }}>
           Diagrama de flujo con los símbolos del catálogo. Haz clic en un equipo para ver su condición monitoreada.
@@ -77,19 +77,19 @@ export default function PlantaConcentradora() {
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 'var(--space-6)' }}>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>Equipos</div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1 }}>{String(NODOS.length).padStart(2, '0')}</div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1 }}>{String(NODOS.length).padStart(2, '0')}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>En alerta</div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 30, lineHeight: 1, color: color('alerta') }}>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1, color: color('alerta') }}>
               {String(enAlerta).padStart(2, '0')}
             </div>
           </div>
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 316px', alignItems: 'start', gap: 'var(--space-6)', padding: 'var(--space-6) var(--space-8) var(--space-8)' }}>
-        <Blueprint ref={sectionRef} as="section" style={{ padding: 'var(--space-6)', minWidth: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 272px', alignItems: 'start', gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-6) var(--space-6)' }}>
+        <Blueprint ref={sectionRef} as="section" style={{ padding: 'var(--space-4)', minWidth: 0 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 'var(--space-3) var(--space-4)', marginBottom: 'var(--space-4)' }}>
             <h3 style={{ fontSize: 19, margin: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Circuito general</h3>
             <span style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-neutral-500)', whiteSpace: 'nowrap' }}>
@@ -121,9 +121,9 @@ export default function PlantaConcentradora() {
           </div>
 
           <div ref={wrapRef} style={{ overflow: 'auto', maxHeight: '76vh' }}>
-            <div style={{ width: Math.round(1320 * zoom), height: Math.round(810 * zoom) }}>
-              <div style={{ position: 'relative', width: 1320, height: 810, transformOrigin: '0 0', transform: `scale(${zoom})`, strokeWidth: GROSOR_TRAZO }}>
-                <svg width={1320} height={810} viewBox="0 0 1320 810" fill="none" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', color: 'var(--color-accent)' }}>
+            <div style={{ width: Math.round(1104 * zoom), height: Math.round(690 * zoom) }}>
+              <div style={{ position: 'relative', width: 1104, height: 690, transformOrigin: '0 0', transform: `scale(${zoom})`, strokeWidth: GROSOR_TRAZO }}>
+                <svg width={1104} height={690} viewBox="0 0 1104 690" fill="none" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', color: 'var(--color-accent)' }}>
                   <defs>
                     <marker id="flecha-planta" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
                       <path d="M0 0 L6 3 L0 6 Z" fill="var(--color-accent)" stroke="none" />
@@ -154,8 +154,8 @@ export default function PlantaConcentradora() {
                         position: 'absolute',
                         left: n.left,
                         top: n.top,
-                        width: 108,
-                        height: 104,
+                        width: 96,
+                        height: 84,
                         cursor: 'pointer',
                         zIndex: 1,
                         display: 'flex',
@@ -169,8 +169,8 @@ export default function PlantaConcentradora() {
                     >
                       <span style={{ position: 'absolute', top: 6, right: 6, width: 7, height: 7, background: color(n.sev) }} />
                       <svg
-                        width="48"
-                        height="32"
+                        width="40"
+                        height="26"
                         viewBox="0 0 48 32"
                         fill="none"
                         stroke="currentColor"
@@ -191,7 +191,7 @@ export default function PlantaConcentradora() {
           </div>
         </Blueprint>
 
-        <Blueprint as="aside" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', position: 'sticky', top: 'var(--space-6)' }}>
+        <Blueprint as="aside" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', position: 'sticky', top: 'var(--space-4)' }}>
           <div>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
               {nodo ? nodo.etapa : 'Sin selección'}

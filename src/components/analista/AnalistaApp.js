@@ -175,8 +175,8 @@ export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostic
         style={{
           display: 'flex',
           alignItems: 'flex-end',
-          gap: 'var(--space-6)',
-          padding: 'var(--space-6) var(--space-8)',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-6)',
           borderBottom: '1px solid var(--color-divider)',
         }}
       >
@@ -184,7 +184,7 @@ export default function AnalistaApp({ data, esDuplicadoReciente, crearDiagnostic
           <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
             Estación del analista
           </div>
-          <h1 style={{ fontSize: 40, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>CONDICIÓN DE ACTIVOS</h1>
+          <h1 style={{ fontSize: 30, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>CONDICIÓN DE ACTIVOS</h1>
         </div>
 
         <div className="seg">

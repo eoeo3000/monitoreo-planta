@@ -52,14 +52,14 @@ export default function EquipoDiagnosticoPanel({
         style={{
           display: 'flex',
           alignItems: 'flex-end',
-          gap: 'var(--space-6)',
-          padding: 'var(--space-6) var(--space-8)',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-6)',
           borderBottom: '1px solid var(--color-divider)',
         }}
       >
         <div style={{ minWidth: 0 }}>
           <div style={{ ...kickerAccent, marginBottom: 'var(--space-1)' }}>{areaNombre}</div>
-          <h1 style={{ fontSize: 44, margin: 0, letterSpacing: '0.01em' }}>{equipo.tag}</h1>
+          <h1 style={{ fontSize: 32, margin: 0, letterSpacing: '0.01em' }}>{equipo.tag}</h1>
           <div style={{ fontSize: 14, color: 'var(--color-neutral-700)', marginTop: 'var(--space-1)' }}>{equipo.descripcion}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
@@ -94,14 +94,14 @@ export default function EquipoDiagnosticoPanel({
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)',
-          gap: 'var(--space-6)',
-          padding: 'var(--space-6) var(--space-8) var(--space-8)',
+          gap: 'var(--space-4)',
+          padding: 'var(--space-4) var(--space-6) var(--space-6)',
         }}
       >
         {/* NUEVO DIAGNÓSTICO */}
         <Blueprint
           as="section"
-          style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+          style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
           onPaste={handlePasteEvidencia}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
@@ -188,7 +188,7 @@ export default function EquipoDiagnosticoPanel({
             </span>
             <textarea
               className="input"
-              rows={4}
+              rows={3}
               maxLength={TEXTO_MAX}
               value={form.diagnosticoTexto}
               onChange={(e) => setForm((f) => ({ ...f, diagnosticoTexto: e.target.value }))}
@@ -203,7 +203,7 @@ export default function EquipoDiagnosticoPanel({
             </span>
             <textarea
               className="input"
-              rows={3}
+              rows={2}
               maxLength={TEXTO_MAX}
               value={form.recomendacionTexto}
               onChange={(e) => setForm((f) => ({ ...f, recomendacionTexto: e.target.value }))}
@@ -219,7 +219,7 @@ export default function EquipoDiagnosticoPanel({
                 gap: 'var(--space-2)',
                 flexWrap: 'wrap',
                 alignItems: 'center',
-                minHeight: 64,
+                minHeight: 52,
                 border: '1px dashed var(--color-neutral-400)',
                 padding: 'var(--space-2)',
               }}
@@ -231,8 +231,8 @@ export default function EquipoDiagnosticoPanel({
                 <div
                   key={i}
                   style={{
-                    width: 56,
-                    height: 56,
+                    width: 44,
+                    height: 44,
                     backgroundImage: `url(${ev.dataUrl})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
@@ -253,9 +253,9 @@ export default function EquipoDiagnosticoPanel({
           </div>
         </Blueprint>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', minWidth: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 0 }}>
           {/* ÚLTIMO REGISTRO */}
-          <Blueprint as="section" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div style={kickerAccent}>Estado</div>
             <h3 style={{ fontSize: 20, margin: 0 }}>Último registro</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 'var(--space-2) var(--space-4)', fontSize: 13 }}>
@@ -273,7 +273,7 @@ export default function EquipoDiagnosticoPanel({
           </Blueprint>
 
           {/* AVISOS ABIERTOS */}
-          <Blueprint as="section" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)' }}>
               <div>
                 <div style={kickerAccent}>SAP</div>
@@ -302,7 +302,7 @@ export default function EquipoDiagnosticoPanel({
         {/* HISTORIAL */}
         <Blueprint
           as="section"
-          style={{ gridColumn: '1 / -1', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}
+          style={{ gridColumn: '1 / -1', padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}
         >
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)' }}>
             <div>
