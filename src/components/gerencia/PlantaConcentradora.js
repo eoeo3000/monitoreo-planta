@@ -1,232 +1,184 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Blueprint from '../../theme/Blueprint';
-import { colorDeSeveridad, SEVERIDAD } from '../../analista/severidad';
-import { NODOS, CONECTORES, ETIQUETAS_CONECTORES } from '../../gerencia/plantaConcentradoraData';
+import { condicionActual } from '../../analista/store';
+import { colorDeSeveridad } from '../../analista/severidad';
 import './gerenciaHMI.css';
 
-const GROSOR_TRAZO = 1.5; // handoff §5 prop "grosorTrazo"
-const SEVERIDAD_EN_COLOR = true; // handoff §5 prop "severidadEnColor"
+const SEVERIDAD_EN_COLOR = true;
+const CANVAS_WIDTH = 960;
+const CANVAS_HEIGHT = 460;
 
-export default function PlantaConcentradora() {
-  // sectionRef mide un elemento cuyo ancho depende solo del layout de la grilla
-  // (nunca del contenido escalado). wrapRef es aparte y solo controla el scroll
-  // del contenido ya escalado. Si se miden ambos con el mismo ref, el zoom
-  // cambia el tamaño del contenido, que activa/desactiva la barra de scroll de
-  // ese mismo contenedor, lo que dispara otra medición: un parpadeo infinito.
-  const sectionRef = useRef(null);
-  const wrapRef = useRef(null);
-  const manualRef = useRef(false);
-  const [seleccionado, setSeleccionado] = useState('criba');
-  const [zoom, setZoom] = useState(1);
+// Vista + editor de las plantas reales creadas en Administración (no un demo fijo):
+// equipos coloreados por condición actual, posicionables y conectables con flechas
+// de flujo de proceso (puramente visuales). Reemplaza el mock "Planta Concentradora"
+// del handoff, que quedó en el historial de git si se necesita como referencia.
+export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, crearConexion }) {
+  const svgRef = useRef(null);
+  const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [conectandoDesde, setConectandoDesde] = useState(null);
+  const [arrastre, setArrastre] = useState(null);
 
   const color = (sev) => colorDeSeveridad(sev, SEVERIDAD_EN_COLOR);
 
-  const ajustar = () => {
-    if (!sectionRef.current) return;
-    manualRef.current = false;
-    const anchoDisponible = sectionRef.current.clientWidth - 2 * 11.5; // descuenta el padding var(--space-4)
-    const z = Math.min(1, Math.max(0.4, anchoDisponible / 1104));
-    const nuevo = Math.floor(z * 100) / 100;
-    setZoom((actual) => (actual === nuevo ? actual : nuevo));
+  const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
+  const equiposDePlanta = data.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
+  const conexionesDePlanta = data.conexiones.filter((c) => c.plantaId === plantaId);
+
+  const puntoSvg = (event) => {
+    const rect = svgRef.current.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   };
 
-  useEffect(() => {
-    const raf = requestAnimationFrame(ajustar);
-    let ro;
-    if (typeof ResizeObserver !== 'undefined' && sectionRef.current) {
-      ro = new ResizeObserver(() => {
-        if (!manualRef.current) ajustar();
-      });
-      ro.observe(sectionRef.current);
+  const onMouseDownNodo = (event, eq) => {
+    if (!modoEdicion || conectandoDesde) return;
+    event.stopPropagation();
+    const p = puntoSvg(event);
+    const pos = eq.posicion || { x: 80, y: 80 };
+    setArrastre({ id: eq.id, offsetX: p.x - pos.x, offsetY: p.y - pos.y });
+  };
+
+  const onMouseMove = (event) => {
+    if (!arrastre) return;
+    const p = puntoSvg(event);
+    moverEquipo(arrastre.id, { x: Math.max(0, Math.round(p.x - arrastre.offsetX)), y: Math.max(0, Math.round(p.y - arrastre.offsetY)) });
+  };
+
+  const onMouseUp = () => setArrastre(null);
+
+  const onClickNodo = (eq) => {
+    if (!modoEdicion) return;
+    if (!conectandoDesde) return; // fuera de "conectar", el clic no hace nada (arrastrar ya lo cubre onMouseDown)
+    if (conectandoDesde !== eq.id) {
+      crearConexion(plantaId, conectandoDesde, eq.id);
     }
-    return () => {
-      cancelAnimationFrame(raf);
-      if (ro) ro.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const paso = (dir) => {
-    manualRef.current = true;
-    setZoom((z) => Math.min(2, Math.max(0.4, Math.round((z + dir * 0.15) * 100) / 100)));
+    setConectandoDesde(null);
   };
 
-  const nodo = NODOS.find((n) => n.key === seleccionado) || null;
-  const enAlerta = NODOS.filter((n) => n.sev === 'alerta' || n.sev === 'alarma').length;
+  const agregarPlanta = () => {
+    const nombre = window.prompt('Nombre de la nueva planta:');
+    if (nombre && nombre.trim()) {
+      const id = crearPlanta(nombre.trim());
+      setPlantaId(id);
+    }
+  };
 
   return (
-    <div style={{ minHeight: '100%', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          gap: 'var(--space-4)',
-          padding: 'var(--space-4) var(--space-6)',
-          borderBottom: '1px solid var(--color-divider)',
-        }}
-      >
+    <div style={{ display: 'flex', width: '100%', height: '100%', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
+      <aside style={{ width: 236, flexShrink: 0, borderRight: '1px solid var(--color-divider)', padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
         <div>
-          <div style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
-            Gerencia · Vista de proceso
-          </div>
-          <h1 style={{ fontSize: 30, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>PLANTA CONCENTRADORA</h1>
+          <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>Gerencia</div>
+          <h1 style={{ fontSize: 24, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>PLANTA</h1>
         </div>
-        <p style={{ margin: '0 0 4px', maxWidth: 400, fontSize: 13, lineHeight: 1.5, color: 'var(--color-neutral-700)' }}>
-          Diagrama de flujo con los símbolos del catálogo. Haz clic en un equipo para ver su condición monitoreada.
-        </p>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 'var(--space-6)' }}>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>Equipos</div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1 }}>{String(NODOS.length).padStart(2, '0')}</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>En alerta</div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1, color: color('alerta') }}>
-              {String(enAlerta).padStart(2, '0')}
-            </div>
-          </div>
-        </div>
-      </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 272px', alignItems: 'start', gap: 'var(--space-4)', padding: 'var(--space-4) var(--space-6) var(--space-6)' }}>
-        <Blueprint ref={sectionRef} as="section" style={{ padding: 'var(--space-4)', minWidth: 0 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 'var(--space-3) var(--space-4)', marginBottom: 'var(--space-4)' }}>
-            <h3 style={{ fontSize: 19, margin: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>Circuito general</h3>
-            <span style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-neutral-500)', whiteSpace: 'nowrap' }}>
-              Chancado · Molienda · Flotación · Filtrado
-            </span>
-            <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 1, background: 'var(--color-neutral-300)' }}>
-              <button className="btn btn-secondary" onClick={() => paso(-1)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 30, padding: 0 }}>
-                −
-              </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {data.plantas.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => setPlantaId(p.id)}
+              style={{
+                cursor: 'pointer',
+                padding: 'var(--space-2) var(--space-3)',
+                fontSize: 14,
+                fontFamily: 'var(--font-heading)',
+                background: p.id === plantaId ? 'var(--color-accent-100)' : 'transparent',
+                boxShadow: p.id === plantaId ? 'inset 2px 0 0 var(--color-accent)' : 'none',
+              }}
+            >
+              {p.nombre}
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-secondary" onClick={agregarPlanta}>+ Nueva planta</button>
+
+        <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <label className="seg-opt" style={{ border: '1px solid var(--color-divider)' }}>
+            <input type="checkbox" checked={modoEdicion} onChange={(e) => { setModoEdicion(e.target.checked); setConectandoDesde(null); }} />
+            <span>Modo edición</span>
+          </label>
+          {modoEdicion && (
+            <>
               <button
                 className="btn btn-secondary"
-                onClick={ajustar}
-                style={{ background: 'var(--color-bg)', borderRadius: 0, minWidth: 62, padding: 0, fontVariantNumeric: 'tabular-nums' }}
+                onClick={() => setConectandoDesde(conectandoDesde ? null : '__armar__')}
+                style={conectandoDesde ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent-700)' } : undefined}
               >
-                {Math.round(zoom * 100)} %
+                {conectandoDesde === '__armar__' ? 'Elige el equipo de origen…' : conectandoDesde ? 'Elige el equipo de destino…' : '+ Conectar equipos'}
               </button>
-              <button className="btn btn-secondary" onClick={() => paso(1)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 30, padding: 0 }}>
-                +
-              </button>
-            </span>
-            <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-2) var(--space-4)', fontSize: 11, color: 'var(--color-neutral-600)' }}>
-              {Object.keys(SEVERIDAD).map((key) => (
-                <span key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 7, height: 7, background: color(key) }} />
-                  {SEVERIDAD[key].label}
-                </span>
-              ))}
-            </span>
-          </div>
-
-          <div ref={wrapRef} style={{ overflow: 'auto', maxHeight: '76vh' }}>
-            <div style={{ width: Math.round(1104 * zoom), height: Math.round(690 * zoom) }}>
-              <div style={{ position: 'relative', width: 1104, height: 690, transformOrigin: '0 0', transform: `scale(${zoom})`, strokeWidth: GROSOR_TRAZO }}>
-                <svg width={1104} height={690} viewBox="0 0 1104 690" fill="none" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', color: 'var(--color-accent)' }}>
-                  <defs>
-                    <marker id="flecha-planta" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
-                      <path d="M0 0 L6 3 L0 6 Z" fill="var(--color-accent)" stroke="none" />
-                    </marker>
-                  </defs>
-                  <g stroke="currentColor" markerEnd="url(#flecha-planta)">
-                    {CONECTORES.map((d, i) => (
-                      <path key={i} d={d} />
-                    ))}
-                  </g>
-                  <g fill="var(--color-neutral-600)" stroke="none" fontFamily="Barlow" fontSize="11" letterSpacing="0.08em">
-                    {ETIQUETAS_CONECTORES.map((et, i) => (
-                      <text key={i} x={et.x} y={et.y}>
-                        {et.texto}
-                      </text>
-                    ))}
-                  </g>
-                </svg>
-
-                {NODOS.map((n) => {
-                  const act = seleccionado === n.key;
-                  return (
-                    <div
-                      key={n.key}
-                      className="nodo"
-                      onClick={() => setSeleccionado(n.key)}
-                      style={{
-                        position: 'absolute',
-                        left: n.left,
-                        top: n.top,
-                        width: 96,
-                        height: 84,
-                        cursor: 'pointer',
-                        zIndex: 1,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 'var(--space-2)',
-                        background: act ? 'var(--color-accent-100)' : 'transparent',
-                        boxShadow: act ? 'inset 0 0 0 1px var(--color-accent)' : 'none',
-                      }}
-                    >
-                      <span style={{ position: 'absolute', top: 6, right: 6, width: 7, height: 7, background: color(n.sev) }} />
-                      <svg
-                        width="40"
-                        height="26"
-                        viewBox="0 0 48 32"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{ color: act ? 'var(--color-accent-800)' : 'var(--color-neutral-700)' }}
-                      >
-                        {n.svg}
-                      </svg>
-                      <span style={{ fontFamily: 'var(--font-heading)', fontSize: 12, letterSpacing: '0.03em', textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.1 }}>
-                        {n.nombre}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </Blueprint>
-
-        <Blueprint as="aside" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', position: 'sticky', top: 'var(--space-4)' }}>
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
-              {nodo ? nodo.etapa : 'Sin selección'}
-            </div>
-            <h3 style={{ fontSize: 22, margin: 0 }}>{nodo ? nodo.nombre : 'Ningún equipo'}</h3>
-          </div>
-
-          {!nodo ? (
-            <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--color-neutral-600)' }}>
-              Selecciona un equipo del diagrama para ver su TAG, su condición monitoreada y su posición en el circuito.
-            </p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', border: `1px solid ${color(nodo.sev)}`, padding: 'var(--space-2) var(--space-3)' }}>
-                <span style={{ width: 10, height: 10, background: color(nodo.sev) }} />
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: 17, letterSpacing: '0.04em', textTransform: 'uppercase', color: color(nodo.sev) }}>
-                  {SEVERIDAD[nodo.sev].label}
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 'var(--space-2) var(--space-4)', fontSize: 13 }}>
-                <span style={{ color: 'var(--color-neutral-600)' }}>TAG</span>
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: 15, letterSpacing: '0.05em' }}>{nodo.tag}</span>
-                <span style={{ color: 'var(--color-neutral-600)' }}>Tipo</span>
-                <span>{nodo.tipo}</span>
-                <span style={{ color: 'var(--color-neutral-600)' }}>Recibe de</span>
-                <span>{nodo.de}</span>
-                <span style={{ color: 'var(--color-neutral-600)' }}>Entrega a</span>
-                <span>{nodo.a}</span>
-                <span style={{ color: 'var(--color-neutral-600)' }}>Monitoreo</span>
-                <span>{nodo.mon}</span>
-              </div>
-              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--color-neutral-700)' }}>{nodo.nota}</p>
-            </div>
+              <p style={{ fontSize: 11, color: 'var(--color-neutral-600)', margin: 0 }}>
+                Arrastra un equipo para reposicionarlo. Para conectar: activa el botón, haz clic en el equipo de origen y luego en el de destino.
+              </p>
+            </>
           )}
-        </Blueprint>
+        </div>
+      </aside>
+
+      <div style={{ flexGrow: 1, padding: 'var(--space-4) var(--space-6)', overflow: 'auto' }}>
+        {!plantaId ? (
+          <p style={{ color: 'var(--color-neutral-600)' }}>Crea una planta para empezar.</p>
+        ) : (
+          <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'inline-block' }}>
+            <svg
+              ref={svgRef}
+              width={CANVAS_WIDTH}
+              height={CANVAS_HEIGHT}
+              style={{ display: 'block' }}
+              onMouseMove={onMouseMove}
+              onMouseUp={onMouseUp}
+              onMouseLeave={onMouseUp}
+            >
+              <defs>
+                <marker id="flecha-conexion" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+                  <path d="M0 0 L7 3.5 L0 7 Z" fill="var(--color-accent)" />
+                </marker>
+              </defs>
+
+              {conexionesDePlanta.map((c) => {
+                const de = equiposDePlanta.find((eq) => eq.id === c.deId);
+                const a = equiposDePlanta.find((eq) => eq.id === c.aId);
+                if (!de || !a) return null;
+                const p1 = de.posicion || { x: 80, y: 80 };
+                const p2 = a.posicion || { x: 80, y: 80 };
+                return (
+                  <line
+                    key={c.id}
+                    x1={p1.x}
+                    y1={p1.y}
+                    x2={p2.x}
+                    y2={p2.y}
+                    stroke="var(--color-accent)"
+                    strokeWidth={1.5}
+                    markerEnd="url(#flecha-conexion)"
+                  />
+                );
+              })}
+
+              {equiposDePlanta.map((eq) => {
+                const cond = condicionActual(eq.id, data.diagnosticos);
+                const c = cond ? color(cond.severidad) : 'var(--color-neutral-400)';
+                const pos = eq.posicion || { x: 80, y: 80 };
+                const origen = conectandoDesde === eq.id;
+                return (
+                  <g
+                    key={eq.id}
+                    transform={`translate(${pos.x}, ${pos.y})`}
+                    onMouseDown={(e) => onMouseDownNodo(e, eq)}
+                    onClick={() => onClickNodo(eq)}
+                    style={{ cursor: modoEdicion ? (conectandoDesde ? 'pointer' : 'grab') : 'default' }}
+                  >
+                    <circle cx={0} cy={0} r={22} fill="var(--color-bg)" stroke={origen ? 'var(--color-accent)' : c} strokeWidth={origen ? 3 : 2.5} />
+                    <text x={0} y={4} textAnchor="middle" fontSize={10} fontFamily="Barlow Condensed" fontWeight={600} letterSpacing="0.02em" fill="var(--color-text)">
+                      {eq.tag}
+                    </text>
+                    <text x={0} y={36} textAnchor="middle" fontSize={10} fill="var(--color-neutral-600)" style={{ textTransform: 'uppercase' }}>
+                      {eq.tipo}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          </Blueprint>
+        )}
       </div>
     </div>
   );

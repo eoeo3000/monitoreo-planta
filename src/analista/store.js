@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS } from './mockData';
+import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS, SEED_CONEXIONES } from './mockData';
 
-const STORAGE_KEY = 'condicion-activos-analista-v5';
+const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
+const POSICION_DEFAULT = { x: 80, y: 80 };
 
 function datosSemilla() {
   return {
@@ -12,6 +13,7 @@ function datosSemilla() {
     diagnosticos: SEED_DIAGNOSTICOS,
     avisos: SEED_AVISOS,
     evidencias: [],
+    conexiones: SEED_CONEXIONES,
   };
 }
 
@@ -121,6 +123,55 @@ export function useAnalistaData() {
     setData(datosSemilla());
   }, []);
 
+  const crearPlanta = useCallback((nombre) => {
+    const id = `planta_${Date.now()}`;
+    setData((d) => ({ ...d, plantas: [...d.plantas, { id, nombre }] }));
+    return id;
+  }, []);
+
+  const crearArea = useCallback((plantaId, nombre) => {
+    const id = `area_${Date.now()}`;
+    setData((d) => ({ ...d, areas: [...d.areas, { id, plantaId, nombre }] }));
+    return id;
+  }, []);
+
+  const crearEquipo = useCallback((areaId, { tag, tipo, descripcion }) => {
+    const id = `eq_${Date.now()}`;
+    setData((d) => ({
+      ...d,
+      equipos: [
+        ...d.equipos,
+        { id, areaId, tag, tipo, descripcion: descripcion || '', posicion: { ...POSICION_DEFAULT } },
+      ],
+    }));
+    return id;
+  }, []);
+
+  const moverEquipo = useCallback((equipoId, posicion) => {
+    setData((d) => ({
+      ...d,
+      equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, posicion } : eq)),
+    }));
+  }, []);
+
+  // Conexiones = flechas de flujo entre equipos en el editor de Planta. Puramente
+  // visuales/informativas por ahora (no representan un dato de proceso consultable
+  // en otras pantallas), tal como se acordó al construirlas.
+  const crearConexion = useCallback((plantaId, deId, aId) => {
+    if (deId === aId) return;
+    const id = `conexion_${Date.now()}`;
+    setData((d) => {
+      const yaExiste = d.conexiones.some((c) => c.plantaId === plantaId && c.deId === deId && c.aId === aId);
+      if (yaExiste) return d;
+      return { ...d, conexiones: [...d.conexiones, { id, plantaId, deId, aId }] };
+    });
+    return id;
+  }, []);
+
+  const eliminarConexion = useCallback((id) => {
+    setData((d) => ({ ...d, conexiones: d.conexiones.filter((c) => c.id !== id) }));
+  }, []);
+
   return {
     data,
     usuarioActual: USUARIO_ACTUAL,
@@ -128,5 +179,11 @@ export function useAnalistaData() {
     crearDiagnostico,
     solicitarAviso,
     resetearDatos,
+    crearPlanta,
+    crearArea,
+    crearEquipo,
+    moverEquipo,
+    crearConexion,
+    eliminarConexion,
   };
 }

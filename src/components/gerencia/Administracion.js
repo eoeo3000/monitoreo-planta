@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Blueprint from '../../theme/Blueprint';
+import { CATALOGO_MODO_FALLA } from '../../analista/mockData';
 import { CATALOGO_SIMBOLOS, GRUPOS_SIMBOLOS, GRUPOS_INFO } from '../../gerencia/simbolosHMI';
 import './gerenciaHMI.css';
 
@@ -7,7 +8,157 @@ const MOSTRAR_CODIGOS = true; // handoff §4 prop "mostrarCodigos"
 const SELECCION_MULTIPLE = true; // handoff §4 prop "seleccionMultiple"
 const GROSOR_TRAZO = 1.5; // handoff §4 prop "grosorTrazo" (1–2)
 
-export default function CatalogoHMI() {
+const kicker = { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' };
+
+function GestionPlanta({ data, crearPlanta, crearArea, crearEquipo }) {
+  const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || '');
+  const [areaId, setAreaId] = useState('');
+  const [tag, setTag] = useState('');
+  const [tipo, setTipo] = useState(Object.keys(CATALOGO_MODO_FALLA)[0]);
+  const [descripcion, setDescripcion] = useState('');
+  const [mensaje, setMensaje] = useState(null);
+
+  const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
+  const equiposDeArea = data.equipos.filter((eq) => eq.areaId === areaId);
+
+  const agregarPlanta = () => {
+    const nombre = window.prompt('Nombre de la nueva planta:');
+    if (nombre && nombre.trim()) {
+      const id = crearPlanta(nombre.trim());
+      setPlantaId(id);
+      setAreaId('');
+    }
+  };
+
+  const agregarArea = () => {
+    if (!plantaId) return;
+    const nombre = window.prompt('Nombre de la nueva área:');
+    if (nombre && nombre.trim()) {
+      const id = crearArea(plantaId, nombre.trim());
+      setAreaId(id);
+    }
+  };
+
+  const crear = () => {
+    const tagLimpio = tag.trim();
+    if (!areaId) return setMensaje({ tipo: 'error', texto: 'Selecciona (o crea) un área primero.' });
+    if (!tagLimpio) return setMensaje({ tipo: 'error', texto: 'El TAG es obligatorio.' });
+    if (data.equipos.some((eq) => eq.tag.toLowerCase() === tagLimpio.toLowerCase())) {
+      return setMensaje({ tipo: 'error', texto: 'Ya existe un equipo con ese TAG.' });
+    }
+    crearEquipo(areaId, { tag: tagLimpio, tipo, descripcion: descripcion.trim() });
+    setTag('');
+    setDescripcion('');
+    setMensaje({ tipo: 'ok', texto: `Equipo ${tagLimpio} creado.` });
+  };
+
+  return (
+    <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>Alta de recursos</div>
+      <h3 style={{ fontSize: 20, margin: 0 }}>Plantas, áreas y equipos</h3>
+
+      {mensaje && (
+        <div
+          style={{
+            borderLeft: `2px solid ${mensaje.tipo === 'error' ? '#c62828' : 'var(--color-accent-700)'}`,
+            padding: 'var(--space-2) var(--space-3)',
+            fontSize: 13,
+            color: mensaje.tipo === 'error' ? '#c62828' : 'var(--color-accent-700)',
+            background: 'var(--color-neutral-100)',
+          }}
+        >
+          {mensaje.texto}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', alignItems: 'flex-end' }}>
+        <label className="field" style={{ minWidth: 200 }}>
+          <span style={kicker}>Planta</span>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <select
+              className="input"
+              value={plantaId}
+              onChange={(e) => {
+                setPlantaId(e.target.value);
+                setAreaId('');
+              }}
+            >
+              {data.plantas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-secondary" onClick={agregarPlanta}>+</button>
+          </div>
+        </label>
+
+        <label className="field" style={{ minWidth: 200 }}>
+          <span style={kicker}>Área</span>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <select className="input" value={areaId} onChange={(e) => setAreaId(e.target.value)} disabled={!plantaId}>
+              <option value="">—</option>
+              {areasDePlanta.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nombre}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-secondary" onClick={agregarArea} disabled={!plantaId}>+</button>
+          </div>
+        </label>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', alignItems: 'flex-end' }}>
+        <label className="field" style={{ minWidth: 160 }}>
+          <span style={kicker}>TAG</span>
+          <input className="input" value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Ej: B-107" />
+        </label>
+
+        <label className="field" style={{ minWidth: 160 }}>
+          <span style={kicker}>Tipo</span>
+          <select className="input" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+            {Object.keys(CATALOGO_MODO_FALLA).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field" style={{ minWidth: 220, flexGrow: 1 }}>
+          <span style={kicker}>Descripción</span>
+          <input className="input" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
+        </label>
+
+        <button className="btn btn-primary" onClick={crear} disabled={!areaId}>
+          Crear equipo
+        </button>
+      </div>
+
+      {areaId && (
+        <div>
+          <div style={{ ...kicker, marginBottom: 'var(--space-2)' }}>
+            Equipos en {data.areas.find((a) => a.id === areaId)?.nombre} ({equiposDeArea.length})
+          </div>
+          {equiposDeArea.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>Sin equipos en esta área todavía.</p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-2)' }}>
+              {equiposDeArea.map((eq) => (
+                <span key={eq.id} className="tag tag-neutral" style={{ fontFamily: 'var(--font-heading)', letterSpacing: '0.03em' }}>
+                  {eq.tag} · {eq.tipo}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Blueprint>
+  );
+}
+
+export default function Administracion({ data, crearPlanta, crearArea, crearEquipo }) {
   const [filtro, setFiltro] = useState('todos');
   const [elegidos, setElegidos] = useState(['agitador', 'transmisorPresion']);
   const [aplicado, setAplicado] = useState(null);
@@ -38,24 +189,28 @@ export default function CatalogoHMI() {
       >
         <div>
           <div style={{ fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>
-            Gerencia · Biblioteca de símbolos
+            Gerencia · Recursos y símbolos
           </div>
-          <h1 style={{ fontSize: 30, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>CATÁLOGO HMI</h1>
+          <h1 style={{ fontSize: 30, margin: 'var(--space-1) 0 0', letterSpacing: '0.01em' }}>ADMINISTRACIÓN</h1>
         </div>
         <p style={{ margin: '0 0 4px', maxWidth: 420, fontSize: 13, lineHeight: 1.5, color: 'var(--color-neutral-700)' }}>
-          Símbolos de trazo fino para las vistas de planta. Selecciona los tipos que entran en la vista y aplícalos al esquema.
+          Crea plantas, áreas y equipos, y consulta los símbolos de trazo fino usados en las vistas de planta.
         </p>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 'var(--space-6)' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>Equipos</div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1 }}>{data.equipos.length}</div>
+          </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>Símbolos</div>
             <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1 }}>{CATALOGO_SIMBOLOS.length}</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>Trazo</div>
-            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, lineHeight: 1 }}>{GROSOR_TRAZO.toFixed(2).replace(/0$/, '')}</div>
-          </div>
         </div>
       </header>
+
+      <div style={{ padding: 'var(--space-4) var(--space-6) 0' }}>
+        <GestionPlanta data={data} crearPlanta={crearPlanta} crearArea={crearArea} crearEquipo={crearEquipo} />
+      </div>
 
       <div
         style={{

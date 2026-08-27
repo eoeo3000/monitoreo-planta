@@ -24,25 +24,25 @@ export const SEED_AREAS = [
 
 export const SEED_EQUIPOS = [
   // Área de Bombeo — 6 bombas
-  { id: 'eq-b101', areaId: 'area-bombeo', tag: 'B-101', tipo: 'bomba', descripcion: 'Bomba de alimentación primaria' },
-  { id: 'eq-b102', areaId: 'area-bombeo', tag: 'B-102', tipo: 'bomba', descripcion: 'Bomba de alimentación secundaria' },
-  { id: 'eq-b103', areaId: 'area-bombeo', tag: 'B-103', tipo: 'bomba', descripcion: 'Bomba de traspaso' },
-  { id: 'eq-b104', areaId: 'area-bombeo', tag: 'B-104', tipo: 'bomba', descripcion: 'Bomba de recirculación' },
-  { id: 'eq-b105', areaId: 'area-bombeo', tag: 'B-105', tipo: 'bomba', descripcion: 'Bomba de refuerzo' },
-  { id: 'eq-b106', areaId: 'area-bombeo', tag: 'B-106', tipo: 'bomba', descripcion: 'Bomba de reserva' },
+  { id: 'eq-b101', areaId: 'area-bombeo', tag: 'B-101', tipo: 'bomba', descripcion: 'Bomba de alimentación primaria', posicion: { x: 80, y: 80 } },
+  { id: 'eq-b102', areaId: 'area-bombeo', tag: 'B-102', tipo: 'bomba', descripcion: 'Bomba de alimentación secundaria', posicion: { x: 220, y: 80 } },
+  { id: 'eq-b103', areaId: 'area-bombeo', tag: 'B-103', tipo: 'bomba', descripcion: 'Bomba de traspaso', posicion: { x: 360, y: 80 } },
+  { id: 'eq-b104', areaId: 'area-bombeo', tag: 'B-104', tipo: 'bomba', descripcion: 'Bomba de recirculación', posicion: { x: 80, y: 200 } },
+  { id: 'eq-b105', areaId: 'area-bombeo', tag: 'B-105', tipo: 'bomba', descripcion: 'Bomba de refuerzo', posicion: { x: 220, y: 200 } },
+  { id: 'eq-b106', areaId: 'area-bombeo', tag: 'B-106', tipo: 'bomba', descripcion: 'Bomba de reserva', posicion: { x: 360, y: 200 } },
 
   // Área de Agitación — 5 agitadores
-  { id: 'eq-ag201', areaId: 'area-agitacion', tag: 'AG-201', tipo: 'agitador', descripcion: 'Agitador línea 1' },
-  { id: 'eq-ag202', areaId: 'area-agitacion', tag: 'AG-202', tipo: 'agitador', descripcion: 'Agitador línea 2' },
-  { id: 'eq-ag203', areaId: 'area-agitacion', tag: 'AG-203', tipo: 'agitador', descripcion: 'Agitador línea 3' },
-  { id: 'eq-ag204', areaId: 'area-agitacion', tag: 'AG-204', tipo: 'agitador', descripcion: 'Agitador línea 4' },
-  { id: 'eq-ag205', areaId: 'area-agitacion', tag: 'AG-205', tipo: 'agitador', descripcion: 'Agitador línea 5' },
+  { id: 'eq-ag201', areaId: 'area-agitacion', tag: 'AG-201', tipo: 'agitador', descripcion: 'Agitador línea 1', posicion: { x: 520, y: 80 } },
+  { id: 'eq-ag202', areaId: 'area-agitacion', tag: 'AG-202', tipo: 'agitador', descripcion: 'Agitador línea 2', posicion: { x: 660, y: 80 } },
+  { id: 'eq-ag203', areaId: 'area-agitacion', tag: 'AG-203', tipo: 'agitador', descripcion: 'Agitador línea 3', posicion: { x: 520, y: 200 } },
+  { id: 'eq-ag204', areaId: 'area-agitacion', tag: 'AG-204', tipo: 'agitador', descripcion: 'Agitador línea 4', posicion: { x: 660, y: 200 } },
+  { id: 'eq-ag205', areaId: 'area-agitacion', tag: 'AG-205', tipo: 'agitador', descripcion: 'Agitador línea 5', posicion: { x: 590, y: 320 } },
 
   // Área de Clarificación — 1 clarificador
-  { id: 'eq-cl301', areaId: 'area-clarificacion', tag: 'CL-301', tipo: 'clarificador', descripcion: 'Clarificador primario' },
+  { id: 'eq-cl301', areaId: 'area-clarificacion', tag: 'CL-301', tipo: 'clarificador', descripcion: 'Clarificador primario', posicion: { x: 800, y: 80 } },
 
   // Área de Secado — 1 secador
-  { id: 'eq-sc401', areaId: 'area-secado', tag: 'SC-401', tipo: 'secador', descripcion: 'Secador rotatorio' },
+  { id: 'eq-sc401', areaId: 'area-secado', tag: 'SC-401', tipo: 'secador', descripcion: 'Secador rotatorio', posicion: { x: 800, y: 200 } },
 ];
 
 export const SEED_DIAGNOSTICOS = [
@@ -88,6 +88,13 @@ export const SEED_DIAGNOSTICOS = [
     fechaHora: '2026-08-25T08:15:00.000Z',
     usuario: 'analista.demo',
   },
+];
+
+// Flechas de flujo de proceso para el editor de Planta (puramente visuales).
+export const SEED_CONEXIONES = [
+  { id: 'con1', plantaId: 'planta1', deId: 'eq-b101', aId: 'eq-ag201' },
+  { id: 'con2', plantaId: 'planta1', deId: 'eq-ag201', aId: 'eq-cl301' },
+  { id: 'con3', plantaId: 'planta1', deId: 'eq-cl301', aId: 'eq-sc401' },
 ];
 
 export const SEED_AVISOS = [
