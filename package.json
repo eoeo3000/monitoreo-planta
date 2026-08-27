@@ -2,7 +2,7 @@
   "name": "monitoreo-planta",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://eoeo3000.github.io/monitoreo-planta",
+  "homepage": ".",
   "dependencies": {
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
