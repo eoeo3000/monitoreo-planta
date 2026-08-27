@@ -5,6 +5,15 @@ const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
 const POSICION_DEFAULT = { x: 80, y: 80 };
 
+// Date.now() puede repetirse dentro del mismo milisegundo cuando se crean muchos
+// registros seguidos en un bucle (p. ej. importando un CSV) — un contador propio
+// evita que dos ids terminen siendo iguales en ese caso.
+let contadorId = 0;
+function nuevoId(prefijo) {
+  contadorId += 1;
+  return `${prefijo}_${Date.now()}_${contadorId}`;
+}
+
 function datosSemilla() {
   return {
     plantas: SEED_PLANTAS,
@@ -64,7 +73,7 @@ export function useAnalistaData() {
   );
 
   const crearDiagnostico = useCallback((equipoId, diagnosticoData, evidenciasPendientes = []) => {
-    const id = `diag_${Date.now()}`;
+    const id = nuevoId('diag');
     const nuevo = {
       id,
       equipoId,
@@ -72,8 +81,8 @@ export function useAnalistaData() {
       usuario: USUARIO_ACTUAL,
       ...diagnosticoData,
     };
-    const evidencias = evidenciasPendientes.map((ev, i) => ({
-      id: `ev_${Date.now()}_${i}`,
+    const evidencias = evidenciasPendientes.map((ev) => ({
+      id: nuevoId('ev'),
       diagnosticoId: id,
       dataUrl: ev.dataUrl,
     }));
@@ -87,7 +96,7 @@ export function useAnalistaData() {
 
   const solicitarAviso = useCallback(
     (equipoId, diagnosticoData, avisoData, evidenciasPendientes = []) => {
-      const diagnosticoId = `diag_${Date.now()}`;
+      const diagnosticoId = nuevoId('diag');
       const diagnostico = {
         id: diagnosticoId,
         equipoId,
@@ -96,15 +105,15 @@ export function useAnalistaData() {
         ...diagnosticoData,
       };
       const aviso = {
-        id: `aviso_${Date.now()}`,
+        id: nuevoId('aviso'),
         equipoId,
         diagnosticoOrigenId: diagnosticoId,
         numeroSap: null,
         estado: 'solicitud',
         ...avisoData,
       };
-      const evidencias = evidenciasPendientes.map((ev, i) => ({
-        id: `ev_${Date.now()}_${i}`,
+      const evidencias = evidenciasPendientes.map((ev) => ({
+        id: nuevoId('ev'),
         diagnosticoId,
         dataUrl: ev.dataUrl,
       }));
@@ -124,19 +133,19 @@ export function useAnalistaData() {
   }, []);
 
   const crearPlanta = useCallback((nombre) => {
-    const id = `planta_${Date.now()}`;
+    const id = nuevoId('planta');
     setData((d) => ({ ...d, plantas: [...d.plantas, { id, nombre }] }));
     return id;
   }, []);
 
   const crearArea = useCallback((plantaId, nombre) => {
-    const id = `area_${Date.now()}`;
+    const id = nuevoId('area');
     setData((d) => ({ ...d, areas: [...d.areas, { id, plantaId, nombre }] }));
     return id;
   }, []);
 
   const crearEquipo = useCallback((areaId, { tag, tipo, descripcion }) => {
-    const id = `eq_${Date.now()}`;
+    const id = nuevoId('eq');
     setData((d) => ({
       ...d,
       equipos: [
@@ -159,7 +168,7 @@ export function useAnalistaData() {
   // en otras pantallas), tal como se acordó al construirlas.
   const crearConexion = useCallback((plantaId, deId, aId) => {
     if (deId === aId) return;
-    const id = `conexion_${Date.now()}`;
+    const id = nuevoId('conexion');
     setData((d) => {
       const yaExiste = d.conexiones.some((c) => c.plantaId === plantaId && c.deId === deId && c.aId === aId);
       if (yaExiste) return d;

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Blueprint from '../../theme/Blueprint';
 import { CATALOGO_MODO_FALLA } from '../../analista/mockData';
 import { CATALOGO_SIMBOLOS, GRUPOS_SIMBOLOS, GRUPOS_INFO } from '../../gerencia/simbolosHMI';
+import { descargarDisposicionPlanta, importarDisposicionPlanta } from '../../analista/plantaCsv';
 import './gerenciaHMI.css';
 
 const MOSTRAR_CODIGOS = true; // handoff §4 prop "mostrarCodigos"
@@ -31,8 +32,72 @@ function Mensaje({ mensaje }) {
   );
 }
 
+// Importa/exporta la disposición completa (equipos + conexiones) en un CSV con
+// columnas TAG, Planta, Área, Tipo, Descripción, Conecta a — el mismo formato en
+// ambos sentidos, para poder descargar, editar en Excel y volver a subir.
+function ImportarExportarPlanta({ data, crearPlanta, crearArea, crearEquipo, crearConexion }) {
+  const inputRef = useRef(null);
+  const [resultado, setResultado] = useState(null);
+
+  const onArchivoSeleccionado = (e) => {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    const lector = new FileReader();
+    lector.onload = () => {
+      const r = importarDisposicionPlanta(String(lector.result), { data, crearPlanta, crearArea, crearEquipo, crearConexion });
+      setResultado(r);
+    };
+    lector.readAsText(archivo, 'utf-8');
+    e.target.value = ''; // permite volver a elegir el mismo archivo si hace falta reintentar
+  };
+
+  return (
+    <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>Carga masiva</div>
+      <h3 style={{ fontSize: 20, margin: 0 }}>Importar / exportar disposición</h3>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-700)' }}>
+        Columnas: TAG, Planta, Área, Tipo, Descripción, Conecta a (TAG del siguiente equipo en el flujo). Planta y
+        Área se crean solas si no existen todavía.
+      </p>
+
+      <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+        <button className="btn btn-secondary" onClick={() => descargarDisposicionPlanta(data)}>
+          Descargar disposición actual (CSV)
+        </button>
+        <button className="btn btn-primary" onClick={() => inputRef.current?.click()}>
+          Importar desde CSV
+        </button>
+        <input ref={inputRef} type="file" accept=".csv,text/csv" onChange={onArchivoSeleccionado} style={{ display: 'none' }} />
+      </div>
+
+      {resultado && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <div
+            style={{
+              borderLeft: '2px solid var(--color-accent-700)',
+              padding: 'var(--space-2) var(--space-3)',
+              fontSize: 13,
+              color: 'var(--color-accent-700)',
+              background: 'var(--color-neutral-100)',
+            }}
+          >
+            {resultado.creados} equipo(s) creado(s), {resultado.conexiones} conexión(es) creada(s).
+          </div>
+          {resultado.errores.length > 0 && (
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#c62828' }}>
+              {resultado.errores.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </Blueprint>
+  );
+}
+
 // "Planta y ubicaciones técnicas": alta y listado de plantas y sus áreas.
-function SeccionPlanta({ data, crearPlanta, crearArea }) {
+function SeccionPlanta({ data, crearPlanta, crearArea, crearEquipo, crearConexion }) {
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || '');
   const [mensaje, setMensaje] = useState(null);
   const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
@@ -57,6 +122,8 @@ function SeccionPlanta({ data, crearPlanta, crearArea }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+      <ImportarExportarPlanta data={data} crearPlanta={crearPlanta} crearArea={crearArea} crearEquipo={crearEquipo} crearConexion={crearConexion} />
+
       <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>Alta de recursos</div>
         <h3 style={{ fontSize: 20, margin: 0 }}>Plantas</h3>
@@ -415,7 +482,7 @@ function CatalogoSimbolos() {
   );
 }
 
-export default function Administracion({ data, crearPlanta, crearArea, crearEquipo }) {
+export default function Administracion({ data, crearPlanta, crearArea, crearEquipo, crearConexion }) {
   const [seccion, setSeccion] = useState('equipos');
 
   return (
@@ -458,7 +525,9 @@ export default function Administracion({ data, crearPlanta, crearArea, crearEqui
       </header>
 
       <div style={{ padding: 'var(--space-4) var(--space-6) var(--space-6)' }}>
-        {seccion === 'planta' && <SeccionPlanta data={data} crearPlanta={crearPlanta} crearArea={crearArea} />}
+        {seccion === 'planta' && (
+          <SeccionPlanta data={data} crearPlanta={crearPlanta} crearArea={crearArea} crearEquipo={crearEquipo} crearConexion={crearConexion} />
+        )}
         {seccion === 'equipos' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             <SeccionEquipos data={data} crearEquipo={crearEquipo} />
