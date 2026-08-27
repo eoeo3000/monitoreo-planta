@@ -35,7 +35,8 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   const svgRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
   const [modoEdicion, setModoEdicion] = useState(false);
-  const [conectandoDesde, setConectandoDesde] = useState(null);
+  const [modoConectar, setModoConectar] = useState(false);
+  const [origenConexion, setOrigenConexion] = useState(null);
   const [arrastre, setArrastre] = useState(null);
 
   const color = (sev) => colorDeSeveridad(sev, SEVERIDAD_EN_COLOR);
@@ -50,7 +51,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   };
 
   const onMouseDownNodo = (event, eq) => {
-    if (!modoEdicion || conectandoDesde) return;
+    if (!modoEdicion || modoConectar) return;
     event.stopPropagation();
     const p = puntoSvg(event);
     const pos = eq.posicion || { x: 80, y: 80 };
@@ -65,13 +66,22 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
 
   const onMouseUp = () => setArrastre(null);
 
+  // Conectar es un flujo de dos clics: el primero fija el origen (origenConexion),
+  // el segundo crea la flecha hacia el equipo clickeado y libera el origen para
+  // poder encadenar otra conexión sin tener que reactivar el botón.
   const onClickNodo = (eq) => {
-    if (!modoEdicion) return;
-    if (!conectandoDesde) return; // fuera de "conectar", el clic no hace nada (arrastrar ya lo cubre onMouseDown)
-    if (conectandoDesde !== eq.id) {
-      crearConexion(plantaId, conectandoDesde, eq.id);
+    if (!modoEdicion || !modoConectar) return;
+    if (!origenConexion) {
+      setOrigenConexion(eq.id);
+    } else if (origenConexion !== eq.id) {
+      crearConexion(plantaId, origenConexion, eq.id);
+      setOrigenConexion(null);
     }
-    setConectandoDesde(null);
+  };
+
+  const alternarModoConectar = () => {
+    setModoConectar((m) => !m);
+    setOrigenConexion(null);
   };
 
   const agregarPlanta = () => {
@@ -112,20 +122,30 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
 
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <label className="seg-opt" style={{ border: '1px solid var(--color-divider)' }}>
-            <input type="checkbox" checked={modoEdicion} onChange={(e) => { setModoEdicion(e.target.checked); setConectandoDesde(null); }} />
+            <input
+              type="checkbox"
+              checked={modoEdicion}
+              onChange={(e) => {
+                setModoEdicion(e.target.checked);
+                setModoConectar(false);
+                setOrigenConexion(null);
+              }}
+            />
             <span>Modo edición</span>
           </label>
           {modoEdicion && (
             <>
               <button
                 className="btn btn-secondary"
-                onClick={() => setConectandoDesde(conectandoDesde ? null : '__armar__')}
-                style={conectandoDesde ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent-700)' } : undefined}
+                onClick={alternarModoConectar}
+                style={modoConectar ? { borderColor: 'var(--color-accent)', color: 'var(--color-accent-700)' } : undefined}
               >
-                {conectandoDesde === '__armar__' ? 'Elige el equipo de origen…' : conectandoDesde ? 'Elige el equipo de destino…' : '+ Conectar equipos'}
+                {!modoConectar ? '+ Conectar equipos' : !origenConexion ? 'Elige el equipo de origen…' : 'Elige el equipo de destino…'}
               </button>
               <p style={{ fontSize: 11, color: 'var(--color-neutral-600)', margin: 0 }}>
-                Arrastra un equipo para reposicionarlo. Para conectar: activa el botón, haz clic en el equipo de origen y luego en el de destino.
+                {modoConectar
+                  ? 'Haz clic en el equipo de origen y luego en el de destino. Puedes seguir conectando otros pares sin volver a activar el botón.'
+                  : 'Arrastra un equipo para reposicionarlo, o activa "Conectar equipos" para dibujar flechas de flujo.'}
               </p>
             </>
           )}
@@ -175,24 +195,24 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const cond = condicionActual(eq.id, data.diagnosticos);
                 const c = cond ? color(cond.severidad) : 'var(--color-neutral-400)';
                 const pos = eq.posicion || { x: 80, y: 80 };
-                const origen = conectandoDesde === eq.id;
+                const origen = origenConexion === eq.id;
                 const icono = EQUIPO_ICONOS[eq.tipo];
+                const colorGlifo = origen ? 'var(--color-accent-800)' : 'var(--color-neutral-700)';
                 return (
                   <g
                     key={eq.id}
                     transform={`translate(${pos.x}, ${pos.y})`}
                     onMouseDown={(e) => onMouseDownNodo(e, eq)}
                     onClick={() => onClickNodo(eq)}
-                    style={{ cursor: modoEdicion ? (conectandoDesde ? 'pointer' : 'grab') : 'default' }}
+                    style={{ cursor: modoEdicion ? (modoConectar ? 'pointer' : 'grab') : 'default' }}
                   >
+                    {/* Área invisible para poder arrastrar/hacer clic sin dibujar un recuadro */}
                     <rect
                       x={-NODO_ANCHO / 2}
                       y={-NODO_ALTO / 2}
                       width={NODO_ANCHO}
                       height={NODO_ALTO}
-                      fill={origen ? 'var(--color-accent-100)' : 'var(--color-bg)'}
-                      stroke={origen ? 'var(--color-accent)' : 'var(--color-neutral-400)'}
-                      strokeWidth={origen ? 2 : 1.5}
+                      fill="transparent"
                     />
                     <rect x={NODO_ANCHO / 2 - 9} y={-NODO_ALTO / 2 + 3} width={6} height={6} fill={c} />
                     {icono && (
@@ -206,12 +226,21 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                         stroke="currentColor"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        style={{ color: origen ? 'var(--color-accent-800)' : 'var(--color-neutral-700)' }}
+                        style={{ color: colorGlifo }}
                       >
                         {icono.svg}
                       </svg>
                     )}
-                    <text x={0} y={22} textAnchor="middle" fontSize={10} fontFamily="Barlow Condensed" fontWeight={600} letterSpacing="0.02em" fill="var(--color-text)">
+                    <text
+                      x={0}
+                      y={22}
+                      textAnchor="middle"
+                      fontSize={10}
+                      fontFamily="Barlow Condensed"
+                      fontWeight={600}
+                      letterSpacing="0.02em"
+                      fill={origen ? 'var(--color-accent-700)' : 'var(--color-text)'}
+                    >
                       {eq.tag}
                     </text>
                   </g>
