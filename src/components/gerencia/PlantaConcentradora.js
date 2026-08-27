@@ -11,6 +11,9 @@ const CANVAS_HEIGHT = 460;
 const NODO_ANCHO = 64;
 const NODO_ALTO = 56;
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
+const CUADRICULA = 20; // px por celda — al mover un equipo, su posición se ajusta a este tamaño
+
+const ajustarACuadricula = (v) => Math.round(v / CUADRICULA) * CUADRICULA;
 
 // Conector ortogonal (en ángulo recto, no diagonal) con un quiebre a medio camino
 // en X — mismo lenguaje visual que los conectores del demo original. Los extremos
@@ -83,8 +86,8 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
     if (arrastre) {
       setPosicionArrastre({
         id: arrastre.id,
-        x: Math.max(0, Math.round(p.x - arrastre.offsetX)),
-        y: Math.max(0, Math.round(p.y - arrastre.offsetY)),
+        x: Math.max(0, ajustarACuadricula(p.x - arrastre.offsetX)),
+        y: Math.max(0, ajustarACuadricula(p.y - arrastre.offsetY)),
       });
     }
     if (modoConectar && origenConexion) {
@@ -217,6 +220,15 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               onMouseUp={onMouseUp}
               onMouseLeave={onMouseUp}
             >
+              <defs>
+                <pattern id="cuadricula" width={CUADRICULA} height={CUADRICULA} patternUnits="userSpaceOnUse">
+                  <circle cx={1} cy={1} r={1} fill="var(--color-neutral-300)" />
+                </pattern>
+              </defs>
+              {modoEdicion && (
+                <rect x={0} y={0} width={CANVAS_WIDTH} height={CANVAS_HEIGHT} fill="url(#cuadricula)" pointerEvents="none" />
+              )}
+
               {conexionesDePlanta.map((c) => {
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
