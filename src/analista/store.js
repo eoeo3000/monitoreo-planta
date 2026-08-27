@@ -1,16 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  SEED_PLANTAS,
-  SEED_AREAS,
-  SEED_EQUIPOS,
-  SEED_DIAGNOSTICOS,
-  SEED_AVISOS,
-  AREA_ZONAS,
-} from './mockData';
+import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS } from './mockData';
 
-const STORAGE_KEY = 'condicion-activos-analista-v4';
+const STORAGE_KEY = 'condicion-activos-analista-v5';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
-const ZONA_DEFAULT = { x: 40, y: 300, width: 300, height: 180 };
 
 function datosSemilla() {
   return {
@@ -20,7 +12,6 @@ function datosSemilla() {
     diagnosticos: SEED_DIAGNOSTICOS,
     avisos: SEED_AVISOS,
     evidencias: [],
-    zonas: { ...AREA_ZONAS },
   };
 }
 
@@ -130,36 +121,6 @@ export function useAnalistaData() {
     setData(datosSemilla());
   }, []);
 
-  const crearArea = useCallback((plantaId, nombre) => {
-    const id = `area_${Date.now()}`;
-    setData((d) => ({
-      ...d,
-      areas: [...d.areas, { id, plantaId, nombre }],
-      zonas: { ...d.zonas, [id]: { ...ZONA_DEFAULT } },
-    }));
-    return id;
-  }, []);
-
-  const actualizarZonaArea = useCallback((areaId, zona) => {
-    setData((d) => ({ ...d, zonas: { ...d.zonas, [areaId]: zona } }));
-  }, []);
-
-  const crearEquipo = useCallback((areaId, { tag, tipo, descripcion, posicion }) => {
-    const id = `eq_${Date.now()}`;
-    setData((d) => ({
-      ...d,
-      equipos: [...d.equipos, { id, areaId, tag, tipo, descripcion: descripcion || '', posicion }],
-    }));
-    return id;
-  }, []);
-
-  const moverEquipo = useCallback((equipoId, posicion) => {
-    setData((d) => ({
-      ...d,
-      equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, posicion } : eq)),
-    }));
-  }, []);
-
   return {
     data,
     usuarioActual: USUARIO_ACTUAL,
@@ -167,9 +128,5 @@ export function useAnalistaData() {
     crearDiagnostico,
     solicitarAviso,
     resetearDatos,
-    crearArea,
-    actualizarZonaArea,
-    crearEquipo,
-    moverEquipo,
   };
 }

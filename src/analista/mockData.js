@@ -22,41 +22,28 @@ export const SEED_AREAS = [
   { id: 'area-secado', plantaId: 'planta1', nombre: 'Área de Secado' },
 ];
 
-// Zonas del diagrama HMI (rectángulos placeholder), ordenadas en secuencia de proceso
-// de izquierda a derecha: Bombeo -> Agitación -> Clarificación -> Secado. Reemplazar por
-// el layout real de planta cuando esté disponible (sección 7 del documento fuente).
-export const AREA_ZONAS = {
-  'area-bombeo': { x: 20, y: 50, width: 230, height: 340 },
-  'area-agitacion': { x: 270, y: 50, width: 230, height: 340 },
-  'area-clarificacion': { x: 520, y: 50, width: 150, height: 340 },
-  'area-secado': { x: 690, y: 50, width: 150, height: 340 },
-};
-
 export const SEED_EQUIPOS = [
   // Área de Bombeo — 6 bombas
-  { id: 'eq-b101', areaId: 'area-bombeo', tag: 'B-101', tipo: 'bomba', descripcion: 'Bomba de alimentación primaria', posicion: { x: 90, y: 130 } },
-  { id: 'eq-b102', areaId: 'area-bombeo', tag: 'B-102', tipo: 'bomba', descripcion: 'Bomba de alimentación secundaria', posicion: { x: 190, y: 130 } },
-  { id: 'eq-b103', areaId: 'area-bombeo', tag: 'B-103', tipo: 'bomba', descripcion: 'Bomba de traspaso', posicion: { x: 90, y: 220 } },
-  { id: 'eq-b104', areaId: 'area-bombeo', tag: 'B-104', tipo: 'bomba', descripcion: 'Bomba de recirculación', posicion: { x: 190, y: 220 } },
-  { id: 'eq-b105', areaId: 'area-bombeo', tag: 'B-105', tipo: 'bomba', descripcion: 'Bomba de refuerzo', posicion: { x: 90, y: 310 } },
-  { id: 'eq-b106', areaId: 'area-bombeo', tag: 'B-106', tipo: 'bomba', descripcion: 'Bomba de reserva', posicion: { x: 190, y: 310 } },
+  { id: 'eq-b101', areaId: 'area-bombeo', tag: 'B-101', tipo: 'bomba', descripcion: 'Bomba de alimentación primaria' },
+  { id: 'eq-b102', areaId: 'area-bombeo', tag: 'B-102', tipo: 'bomba', descripcion: 'Bomba de alimentación secundaria' },
+  { id: 'eq-b103', areaId: 'area-bombeo', tag: 'B-103', tipo: 'bomba', descripcion: 'Bomba de traspaso' },
+  { id: 'eq-b104', areaId: 'area-bombeo', tag: 'B-104', tipo: 'bomba', descripcion: 'Bomba de recirculación' },
+  { id: 'eq-b105', areaId: 'area-bombeo', tag: 'B-105', tipo: 'bomba', descripcion: 'Bomba de refuerzo' },
+  { id: 'eq-b106', areaId: 'area-bombeo', tag: 'B-106', tipo: 'bomba', descripcion: 'Bomba de reserva' },
 
   // Área de Agitación — 5 agitadores
-  { id: 'eq-ag201', areaId: 'area-agitacion', tag: 'AG-201', tipo: 'agitador', descripcion: 'Agitador línea 1', posicion: { x: 340, y: 130 } },
-  { id: 'eq-ag202', areaId: 'area-agitacion', tag: 'AG-202', tipo: 'agitador', descripcion: 'Agitador línea 2', posicion: { x: 440, y: 130 } },
-  { id: 'eq-ag203', areaId: 'area-agitacion', tag: 'AG-203', tipo: 'agitador', descripcion: 'Agitador línea 3', posicion: { x: 340, y: 220 } },
-  { id: 'eq-ag204', areaId: 'area-agitacion', tag: 'AG-204', tipo: 'agitador', descripcion: 'Agitador línea 4', posicion: { x: 440, y: 220 } },
-  { id: 'eq-ag205', areaId: 'area-agitacion', tag: 'AG-205', tipo: 'agitador', descripcion: 'Agitador línea 5', posicion: { x: 390, y: 310 } },
+  { id: 'eq-ag201', areaId: 'area-agitacion', tag: 'AG-201', tipo: 'agitador', descripcion: 'Agitador línea 1' },
+  { id: 'eq-ag202', areaId: 'area-agitacion', tag: 'AG-202', tipo: 'agitador', descripcion: 'Agitador línea 2' },
+  { id: 'eq-ag203', areaId: 'area-agitacion', tag: 'AG-203', tipo: 'agitador', descripcion: 'Agitador línea 3' },
+  { id: 'eq-ag204', areaId: 'area-agitacion', tag: 'AG-204', tipo: 'agitador', descripcion: 'Agitador línea 4' },
+  { id: 'eq-ag205', areaId: 'area-agitacion', tag: 'AG-205', tipo: 'agitador', descripcion: 'Agitador línea 5' },
 
   // Área de Clarificación — 1 clarificador
-  { id: 'eq-cl301', areaId: 'area-clarificacion', tag: 'CL-301', tipo: 'clarificador', descripcion: 'Clarificador primario', posicion: { x: 595, y: 220 } },
+  { id: 'eq-cl301', areaId: 'area-clarificacion', tag: 'CL-301', tipo: 'clarificador', descripcion: 'Clarificador primario' },
 
   // Área de Secado — 1 secador
-  { id: 'eq-sc401', areaId: 'area-secado', tag: 'SC-401', tipo: 'secador', descripcion: 'Secador rotatorio', posicion: { x: 765, y: 220 } },
+  { id: 'eq-sc401', areaId: 'area-secado', tag: 'SC-401', tipo: 'secador', descripcion: 'Secador rotatorio' },
 ];
-
-// Orden de la secuencia de proceso, usado para dibujar las flechas de flujo entre zonas.
-export const SECUENCIA_AREAS = ['area-bombeo', 'area-agitacion', 'area-clarificacion', 'area-secado'];
 
 export const SEED_DIAGNOSTICOS = [
   {

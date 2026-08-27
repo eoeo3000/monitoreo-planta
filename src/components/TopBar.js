@@ -2,8 +2,6 @@ import React from 'react';
 
 const VISTAS = [
   { id: 'analista', label: 'Analista' },
-  { id: 'gerencia', label: 'Gerencia (HMI)' },
-  { id: 'catalogo', label: 'Catálogo de íconos' },
   { id: 'catalogoHMI', label: 'Catálogo HMI' },
   { id: 'plantaConcentradora', label: 'Planta' },
 ];
