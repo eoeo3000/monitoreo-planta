@@ -12,19 +12,20 @@ const NODO_ANCHO = 64;
 const NODO_ALTO = 56;
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
 
-// Acorta la línea desde ambos extremos para que la flecha no quede tapada por el
-// nodo (rectangular) ni nazca desde su centro.
-function acortarLinea(p1, p2, margen) {
-  const dx = p2.x - p1.x;
-  const dy = p2.y - p1.y;
-  const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-  const ux = dx / dist;
-  const uy = dy / dist;
+// Conector ortogonal (en ángulo recto, no diagonal) con un quiebre a medio camino
+// en X — mismo lenguaje visual que los conectores del demo original. Los extremos
+// se corren un poco hacia el quiebre para que el punto no quede tapado por el nodo.
+function rutaOrtogonal(p1, p2, margen) {
+  const midX = (p1.x + p2.x) / 2;
+  const dir1 = Math.sign(midX - p1.x);
+  const dir2 = Math.sign(p2.x - midX);
+  const inicio = { x: p1.x + dir1 * margen, y: p1.y };
+  const fin = { x: p2.x - dir2 * margen, y: p2.y };
   return {
-    x1: p1.x + ux * margen,
-    y1: p1.y + uy * margen,
-    x2: p2.x - ux * margen,
-    y2: p2.y - uy * margen,
+    d: `M ${inicio.x} ${inicio.y} H ${midX} V ${p2.y} H ${fin.x}`,
+    inicio,
+    fin,
+    medio: { x: midX, y: (p1.y + p2.y) / 2 },
   };
 }
 
@@ -32,7 +33,7 @@ function acortarLinea(p1, p2, margen) {
 // equipos coloreados por condición actual, posicionables y conectables con flechas
 // de flujo de proceso (puramente visuales). Reemplaza el mock "Planta Concentradora"
 // del handoff, que quedó en el historial de git si se necesita como referencia.
-export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, crearConexion }) {
+export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, crearConexion, eliminarConexion }) {
   const svgRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
   const [modoEdicion, setModoEdicion] = useState(false);
@@ -220,12 +221,26 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const linea = acortarLinea(posicionDe(de), posicionDe(a), NODO_ANCHO / 2);
+                const ruta = rutaOrtogonal(posicionDe(de), posicionDe(a), NODO_ANCHO / 2);
                 return (
                   <g key={c.id}>
-                    <line x1={linea.x1} y1={linea.y1} x2={linea.x2} y2={linea.y2} stroke="var(--color-accent)" strokeWidth={1} />
-                    <circle cx={linea.x1} cy={linea.y1} r={2.5} fill="var(--color-accent)" />
-                    <circle cx={linea.x2} cy={linea.y2} r={2.5} fill="var(--color-accent)" />
+                    <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={1} />
+                    <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={2.5} fill="var(--color-accent)" />
+                    <circle cx={ruta.fin.x} cy={ruta.fin.y} r={2.5} fill="var(--color-accent)" />
+                    {modoEdicion && (
+                      <g
+                        transform={`translate(${ruta.medio.x}, ${ruta.medio.y})`}
+                        onClick={() => {
+                          if (window.confirm('¿Eliminar esta conexión?')) eliminarConexion(c.id);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <circle r={7} fill="var(--color-bg)" stroke="var(--color-accent)" strokeWidth={1} />
+                        <text textAnchor="middle" dominantBaseline="central" fontSize={9} fill="var(--color-accent-700)">
+                          ×
+                        </text>
+                      </g>
+                    )}
                   </g>
                 );
               })}
@@ -233,19 +248,8 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               {modoConectar && origenConexion && mousePos && (() => {
                 const eqOrigen = equiposDePlanta.find((eq) => eq.id === origenConexion);
                 if (!eqOrigen) return null;
-                const p1 = posicionDe(eqOrigen);
-                return (
-                  <line
-                    x1={p1.x}
-                    y1={p1.y}
-                    x2={mousePos.x}
-                    y2={mousePos.y}
-                    stroke="var(--color-accent)"
-                    strokeWidth={1}
-                    strokeDasharray="4 3"
-                    pointerEvents="none"
-                  />
-                );
+                const ruta = rutaOrtogonal(posicionDe(eqOrigen), mousePos, 0);
+                return <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={1} strokeDasharray="4 3" pointerEvents="none" />;
               })()}
 
               {equiposDePlanta.map((eq) => {
