@@ -11,6 +11,13 @@
 // base) — ajustable acá sin tocar la lógica de dibujo en PlantaConcentradora.js.
 // Un estanque real es más grande que una bomba, así que no todos dibujan igual.
 //
+// Proporciones fijadas a partir de referencias reales del usuario (medidas
+// exactas en PowerPoint para agitador/bomba; relaciones dadas directamente
+// para el resto), con el tanque como ancla (escala 2, ya confirmada antes):
+// agitador = tanque; clarificador = secador = 2× tanque; compresor = 0.5×
+// tanque; bomba = tanque / 4.37 (agitador/bomba medido, 2.23"/0.51"); motor =
+// bomba.
+//
 // `puertos`: puntos de conexión declarados en coordenadas del propio viewBox
 // (handoff §9.1) — cada uno cae exactamente sobre el trazo del glifo (borde
 // del círculo, muro del rectángulo, vértice del cono), nunca en el aire. `dir`
@@ -21,7 +28,7 @@
 export const EQUIPO_ICONOS = {
   motor: {
     viewBox: '0 0 48 32',
-    escala: 0.6,
+    escala: 0.46,
     puertos: {
       norte: { x: 24, y: 5, dir: 'N' },
       sur: { x: 24, y: 27, dir: 'S' },
@@ -37,7 +44,7 @@ export const EQUIPO_ICONOS = {
   },
   bomba: {
     viewBox: '0 0 48 32',
-    escala: 0.85,
+    escala: 0.46,
     puertos: {
       succion: { x: 14, y: 16, dir: 'W' },
       descarga: { x: 31, y: 16, dir: 'E' },
@@ -67,7 +74,7 @@ export const EQUIPO_ICONOS = {
   },
   agitador: {
     viewBox: '0 0 48 32',
-    escala: 1.15,
+    escala: 2,
     puertos: {
       accionador: { x: 24, y: 2, dir: 'N' },
       salidaInf: { x: 24, y: 29, dir: 'S' },
@@ -99,7 +106,7 @@ export const EQUIPO_ICONOS = {
   },
   clarificador: {
     viewBox: '0 0 48 32',
-    escala: 1.2,
+    escala: 4,
     puertos: {
       entrada: { x: 24, y: 6, dir: 'N' },
       overflowIzq: { x: 9, y: 6, dir: 'W' },
@@ -114,7 +121,7 @@ export const EQUIPO_ICONOS = {
   },
   secador: {
     viewBox: '0 0 48 32',
-    escala: 1.2,
+    escala: 4,
     puertos: {
       entrada: { x: 7, y: 15.5, dir: 'W' },
       salida: { x: 41, y: 15.5, dir: 'E' },
