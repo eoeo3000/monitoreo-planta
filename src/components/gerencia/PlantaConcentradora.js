@@ -330,22 +330,29 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                       fill="transparent"
                     />
                     <rect x={NODO_ANCHO / 2 - 13} y={-NODO_ALTO / 2 + 4} width={10} height={10} fill={c} />
-                    {icono && (
-                      <svg
-                        x={-26}
-                        y={-30}
-                        width={52}
-                        height={35}
-                        viewBox={icono.viewBox}
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{ color: colorGlifo }}
-                      >
-                        {icono.svg}
-                      </svg>
-                    )}
+                    {icono && (() => {
+                      // Ancho/alto base 52x35 a escala 1; cada tipo tiene su propio
+                      // tamaño relativo (editable en equipoIcons.js) — el borde
+                      // inferior queda fijo así el TAG de abajo no se mueve.
+                      const anchoIcono = 52 * (icono.escala || 1);
+                      const altoIcono = 35 * (icono.escala || 1);
+                      return (
+                        <svg
+                          x={-anchoIcono / 2}
+                          y={5 - altoIcono}
+                          width={anchoIcono}
+                          height={altoIcono}
+                          viewBox={icono.viewBox}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          style={{ color: colorGlifo }}
+                        >
+                          {icono.svg}
+                        </svg>
+                      );
+                    })()}
                     <text
                       x={0}
                       y={32}

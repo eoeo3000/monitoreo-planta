@@ -2,9 +2,14 @@
 // equipo (CATALOGO_MODO_FALLA): geometría austera, formas cerradas, sin adorno —
 // el triángulo relleno de la bomba marca sentido de flujo, como en el estándar.
 // viewBox unificado 0 0 48 32 para que todos los glifos compartan proporción.
+//
+// `escala` es el tamaño relativo de cada tipo frente al glifo base (1 = tamaño
+// base) — ajustable acá sin tocar la lógica de dibujo en PlantaConcentradora.js.
+// Un estanque real es más grande que una bomba, así que no todos dibujan igual.
 export const EQUIPO_ICONOS = {
   bomba: {
     viewBox: '0 0 48 32',
+    escala: 0.85,
     svg: (
       <>
         <circle cx="24" cy="16" r="10" />
@@ -14,6 +19,7 @@ export const EQUIPO_ICONOS = {
   },
   tanque: {
     viewBox: '0 0 48 32',
+    escala: 1.25,
     svg: (
       <>
         <rect x="15" y="3" width="18" height="26" />
@@ -22,6 +28,7 @@ export const EQUIPO_ICONOS = {
   },
   agitador: {
     viewBox: '0 0 48 32',
+    escala: 1.15,
     svg: (
       <>
         <rect x="20" y="2" width="8" height="6" />
@@ -33,6 +40,7 @@ export const EQUIPO_ICONOS = {
   },
   compresor: {
     viewBox: '0 0 48 32',
+    escala: 1,
     svg: (
       <>
         <path d="M11 8 L37 13 V19 L11 24 Z" />
@@ -41,6 +49,7 @@ export const EQUIPO_ICONOS = {
   },
   clarificador: {
     viewBox: '0 0 48 32',
+    escala: 1.2,
     svg: (
       <>
         <path d="M9 6 H39 L24 27 Z" />
@@ -49,6 +58,7 @@ export const EQUIPO_ICONOS = {
   },
   secador: {
     viewBox: '0 0 48 32',
+    escala: 1.2,
     svg: (
       <>
         <rect x="7" y="9" width="34" height="13" />
