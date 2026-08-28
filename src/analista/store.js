@@ -23,6 +23,10 @@ function datosSemilla() {
     avisos: SEED_AVISOS,
     evidencias: [],
     conexiones: SEED_CONEXIONES,
+    // Sobrescribe, por tipo, el `escala` por defecto de EQUIPO_ICONOS — vacío
+    // significa "usar el valor de fábrica". Se edita desde el panel "Tamaños
+    // de equipo" del editor de Planta, sin tocar código.
+    escalasPorTipo: {},
   };
 }
 
@@ -163,6 +167,32 @@ export function useAnalistaData() {
     }));
   }, []);
 
+  const renombrarEquipo = useCallback((equipoId, tag) => {
+    setData((d) => ({
+      ...d,
+      equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, tag } : eq)),
+    }));
+  }, []);
+
+  // Copia un equipo tal cual (tipo, área, descripción) desplazada dos celdas de
+  // cuadrícula (40px) para que no quede exactamente encima del original — el
+  // flujo pensado es: duplicar y de inmediato escribir el TAG nuevo encima.
+  const duplicarEquipo = useCallback((equipoId) => {
+    const id = nuevoId('eq');
+    setData((d) => {
+      const original = d.equipos.find((eq) => eq.id === equipoId);
+      if (!original) return d;
+      const posBase = original.posicion || POSICION_DEFAULT;
+      const copia = { ...original, id, posicion: { x: posBase.x + 40, y: posBase.y + 40 } };
+      return { ...d, equipos: [...d.equipos, copia] };
+    });
+    return id;
+  }, []);
+
+  const cambiarEscalaTipo = useCallback((tipo, escala) => {
+    setData((d) => ({ ...d, escalasPorTipo: { ...d.escalasPorTipo, [tipo]: escala } }));
+  }, []);
+
   // Conexiones = flechas de flujo entre equipos en el editor de Planta. Puramente
   // visuales/informativas por ahora (no representan un dato de proceso consultable
   // en otras pantallas), tal como se acordó al construirlas.
@@ -192,6 +222,9 @@ export function useAnalistaData() {
     crearArea,
     crearEquipo,
     moverEquipo,
+    renombrarEquipo,
+    duplicarEquipo,
+    cambiarEscalaTipo,
     crearConexion,
     eliminarConexion,
   };

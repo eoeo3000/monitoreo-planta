@@ -19,12 +19,22 @@ const ZOOM_PASO = 0.15;
 
 const ajustarACuadricula = (v) => Math.round(v / CUADRICULA) * CUADRICULA;
 
+// El panel "Tamaños de equipo" guarda, por tipo, una sobrescritura de `escala`
+// en el store (data.escalasPorTipo) — cuando no hay una guardada, se usa el
+// valor de fábrica de equipoIcons.js.
+function iconoConEscala(tipo, escalasPorTipo) {
+  const base = EQUIPO_ICONOS[tipo];
+  if (!base) return null;
+  const escala = escalasPorTipo?.[tipo] ?? base.escala;
+  return { ...base, escala };
+}
+
 // Ruta de una conexión real entre dos equipos: cada extremo usa el puerto de
 // su glifo mejor orientado hacia el otro equipo (handoff §9) — el trazo nace
 // y muere exactamente sobre el dibujo, sin margen ni holgura inventados.
-function rutaEntreEquipos(deEq, aEq, posDe, posA) {
-  const iconoDe = EQUIPO_ICONOS[deEq.tipo];
-  const iconoA = EQUIPO_ICONOS[aEq.tipo];
+function rutaEntreEquipos(deEq, aEq, posDe, posA, escalasPorTipo) {
+  const iconoDe = iconoConEscala(deEq.tipo, escalasPorTipo);
+  const iconoA = iconoConEscala(aEq.tipo, escalasPorTipo);
   const puertoDe = puertoHacia(posDe, iconoDe, posA);
   const puertoA = puertoHacia(posA, iconoA, posDe);
   if (!puertoDe || !puertoA) return null;
@@ -35,12 +45,14 @@ function rutaEntreEquipos(deEq, aEq, posDe, posA) {
 // equipos coloreados por condición actual, posicionables y conectables con flechas
 // de flujo de proceso (puramente visuales). Reemplaza el mock "Planta Concentradora"
 // del handoff, que quedó en el historial de git si se necesita como referencia.
-export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, crearConexion, eliminarConexion }) {
+export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, crearConexion, eliminarConexion, renombrarEquipo, duplicarEquipo, cambiarEscalaTipo }) {
   const svgRef = useRef(null);
+  const tagInputRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
+  const [equipoSeleccionado, setEquipoSeleccionado] = useState(null);
   const [mousePos, setMousePos] = useState(null);
   const [mousedownInfo, setMousedownInfo] = useState(null); // { id, startX, startY, offsetX, offsetY } — desde el mousedown, antes de saber si es clic o arrastre
   const [arrastre, setArrastre] = useState(null); // { id, offsetX, offsetY } — se confirma solo si hay movimiento real
@@ -109,6 +121,10 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
       // Sin movimiento real: fue un clic, no un arrastre.
       const eq = equiposDePlanta.find((e) => e.id === mousedownInfo.id);
       if (eq) onClickNodo(eq);
+    } else if (mousedownInfo) {
+      // Clic simple fuera del flujo de conexión: selecciona el equipo para
+      // mostrar el panel de "Equipo seleccionado" (renombrar TAG / duplicar).
+      setEquipoSeleccionado((sel) => (sel === mousedownInfo.id ? null : mousedownInfo.id));
     }
     setMousedownInfo(null);
     setArrastre(null);
@@ -132,22 +148,35 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   const alternarModoConectar = () => {
     setModoConectar((m) => !m);
     setOrigenConexion(null);
+    setEquipoSeleccionado(null);
   };
 
   useEffect(() => {
-    if (!modoConectar) return;
+    if (!modoEdicion) return;
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') setOrigenConexion(null);
+      if (e.key !== 'Escape') return;
+      setOrigenConexion(null);
+      setEquipoSeleccionado(null);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [modoConectar]);
+  }, [modoEdicion]);
+
+  // Al duplicar, o al hacer clic en un equipo distinto, el campo de TAG queda
+  // enfocado y con el texto seleccionado — listo para escribir encima.
+  useEffect(() => {
+    if (equipoSeleccionado && tagInputRef.current) {
+      tagInputRef.current.focus();
+      tagInputRef.current.select();
+    }
+  }, [equipoSeleccionado]);
 
   const agregarPlanta = () => {
     const nombre = window.prompt('Nombre de la nueva planta:');
     if (nombre && nombre.trim()) {
       const id = crearPlanta(nombre.trim());
       setPlantaId(id);
+      setEquipoSeleccionado(null);
     }
   };
 
@@ -163,7 +192,10 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
           {data.plantas.map((p) => (
             <div
               key={p.id}
-              onClick={() => setPlantaId(p.id)}
+              onClick={() => {
+                setPlantaId(p.id);
+                setEquipoSeleccionado(null);
+              }}
               style={{
                 cursor: 'pointer',
                 padding: 'var(--space-2) var(--space-3)',
@@ -200,6 +232,32 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
           </div>
         </div>
 
+        <details>
+          <summary style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)', cursor: 'pointer' }}>
+            Tamaños de equipo
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 'var(--space-2)' }}>
+            {Object.keys(EQUIPO_ICONOS).map((tipo) => {
+              const escalaActual = data.escalasPorTipo?.[tipo] ?? EQUIPO_ICONOS[tipo].escala;
+              const cambiar = (delta) => cambiarEscalaTipo(tipo, Math.min(6, Math.max(0.2, Math.round((escalaActual + delta) * 100) / 100)));
+              return (
+                <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 1, background: 'var(--color-neutral-300)' }}>
+                  <span style={{ flexGrow: 1, fontSize: 12, textTransform: 'capitalize', padding: '4px 6px', background: 'var(--color-bg)' }}>{tipo}</span>
+                  <button className="btn btn-secondary" onClick={() => cambiar(-0.1)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 26, padding: 0 }}>
+                    −
+                  </button>
+                  <span style={{ width: 34, textAlign: 'center', fontSize: 12, background: 'var(--color-bg)', fontVariantNumeric: 'tabular-nums' }}>
+                    {escalaActual.toFixed(2)}
+                  </span>
+                  <button className="btn btn-secondary" onClick={() => cambiar(0.1)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 26, padding: 0 }}>
+                    +
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <label className="seg-opt" style={{ border: '1px solid var(--color-divider)' }}>
             <input
@@ -227,8 +285,35 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                   ? origenConexion
                     ? 'Haz clic en el equipo de destino. Clic de nuevo en el origen, o Esc, para cancelar. Arrastrar sigue funcionando igual.'
                     : 'Haz clic en el equipo de origen. Puedes conectar varios pares seguidos sin volver a activar el botón.'
-                  : 'Arrastra un equipo para reposicionarlo, o activa "Conectar equipos" para dibujar flechas de flujo.'}
+                  : 'Arrastra un equipo para reposicionarlo, haz clic para seleccionarlo, o activa "Conectar equipos" para dibujar flechas de flujo.'}
               </p>
+              {!modoConectar && equipoSeleccionado && (() => {
+                const eqSel = equiposDePlanta.find((eq) => eq.id === equipoSeleccionado);
+                if (!eqSel) return null;
+                return (
+                  <div style={{ borderTop: '1px solid var(--color-divider)', paddingTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>
+                      Equipo seleccionado · {eqSel.tipo}
+                    </div>
+                    <input
+                      key={eqSel.id}
+                      ref={tagInputRef}
+                      className="input"
+                      defaultValue={eqSel.tag}
+                      onBlur={(e) => renombrarEquipo(eqSel.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.target.blur();
+                      }}
+                    />
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => setEquipoSeleccionado(duplicarEquipo(eqSel.id))}
+                    >
+                      Duplicar equipo
+                    </button>
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
@@ -268,7 +353,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const ruta = rutaEntreEquipos(de, a, posicionDe(de), posicionDe(a));
+                const ruta = rutaEntreEquipos(de, a, posicionDe(de), posicionDe(a), data.escalasPorTipo);
                 if (!ruta) return null;
                 return (
                   <g key={c.id}>
@@ -297,7 +382,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const eqOrigen = equiposDePlanta.find((eq) => eq.id === origenConexion);
                 if (!eqOrigen) return null;
                 const posOrigen = posicionDe(eqOrigen);
-                const puertoOrigen = puertoHacia(posOrigen, EQUIPO_ICONOS[eqOrigen.tipo], mousePos);
+                const puertoOrigen = puertoHacia(posOrigen, iconoConEscala(eqOrigen.tipo, data.escalasPorTipo), mousePos);
                 if (!puertoOrigen) return null;
                 const ruta = rutaHaciaPunto(puertoOrigen, mousePos);
                 return <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinecap="round" strokeDasharray="4 3" pointerEvents="none" />;
@@ -308,7 +393,8 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const c = cond ? color(cond.severidad) : 'var(--color-neutral-400)';
                 const pos = posicionDe(eq);
                 const origen = origenConexion === eq.id;
-                const icono = EQUIPO_ICONOS[eq.tipo];
+                const seleccionado = equipoSeleccionado === eq.id;
+                const icono = iconoConEscala(eq.tipo, data.escalasPorTipo);
                 const colorGlifo = origen ? 'var(--color-accent-800)' : 'var(--color-neutral-700)';
                 return (
                   <g
@@ -324,6 +410,8 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                       width={NODO_ANCHO}
                       height={NODO_ALTO}
                       fill="transparent"
+                      stroke={seleccionado ? 'var(--color-accent)' : 'none'}
+                      strokeWidth={seleccionado ? 1 : 0}
                     />
                     <rect x={NODO_ANCHO / 2 - 13} y={-NODO_ALTO / 2 + 4} width={10} height={10} fill={c} />
                     {icono && (() => {
