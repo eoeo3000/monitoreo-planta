@@ -120,3 +120,19 @@ export function puntoPerimetroDeFormas(formas, punto) {
   }
   return mejor;
 }
+
+// Al armar un tipo de equipo con varias formas (p. ej. un eje que debe tocar
+// el cuerpo del agitador), esto encuentra el punto de OTRA forma más
+// cercano a donde se soltó un extremo — si está a `umbral` unidades o menos,
+// se puede ajustar (snap) ahí para que quede pegado sin dejar hueco.
+// `indiceExcluir` es la forma que se está arrastrando (para no pegarla
+// consigo misma).
+export function puntoDeContactoCercano(formas, punto, indiceExcluir, umbral = 4) {
+  let mejor = null;
+  (formas || []).forEach((forma, i) => {
+    if (i === indiceExcluir) return;
+    const cand = puntoEnForma(forma, punto);
+    if (cand && cand.dist <= umbral && (!mejor || cand.dist < mejor.dist)) mejor = cand;
+  });
+  return mejor;
+}

@@ -3,6 +3,7 @@ import Blueprint from '../../theme/Blueprint';
 import { CATALOGO_MODO_FALLA } from '../../analista/mockData';
 import { CATALOGO_SIMBOLOS, GRUPOS_SIMBOLOS, GRUPOS_INFO } from '../../gerencia/simbolosHMI';
 import { formaAJsx } from '../../gerencia/tiposPersonalizados';
+import { puntoDeContactoCercano } from '../../gerencia/formas';
 import { descargarDisposicionPlanta, importarDisposicionPlanta } from '../../analista/plantaCsv';
 import './gerenciaHMI.css';
 
@@ -181,6 +182,18 @@ function SeccionPlanta({ data, crearPlanta, crearArea, crearEquipo, crearConexio
   );
 }
 
+// Punto visible chico (no tapa el dibujo) + área de clic invisible más
+// grande alrededor, para poder agarrarlo sin que las manijas se vean
+// enormes ni se encimen entre sí cuando quedan varias juntas.
+function Manija({ x, y, onMouseDown, onDoubleClick }) {
+  return (
+    <g style={{ cursor: 'grab' }} onMouseDown={onMouseDown} onDoubleClick={onDoubleClick}>
+      <circle cx={x} cy={y} r={6} fill="transparent" />
+      <circle cx={x} cy={y} r={1.8} fill="#00a2e8" />
+    </g>
+  );
+}
+
 function CampoMini({ label, valor, onChange }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }}>
@@ -255,6 +268,11 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
     }
     setFormaArrastre({ indice, modo, offsetX, offsetY });
   };
+  // En los extremos de línea y el punto del texto (formas "de punto"), si el
+  // punto queda a 4 unidades o menos del borde de OTRA forma, se ajusta
+  // (snap) justo a ese borde — así un eje puede quedar pegado al cuerpo de
+  // un agitador, sin dejar un hueco, para cuando haga falta que se vean
+  // conectados.
   const onMouseMovePreview = (event) => {
     if (!formaArrastre) return;
     const p = puntoSvg(event);
@@ -263,14 +281,28 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
       fs.map((f, idx) => {
         if (idx !== indice) return f;
         if (modo === 'circulo') return { ...f, cx: p.x - offsetX, cy: p.y - offsetY };
-        if (modo === 'rectangulo' || modo === 'texto') return { ...f, x: p.x - offsetX, y: p.y - offsetY };
-        if (modo === 'linea1') return { ...f, x1: p.x, y1: p.y };
-        if (modo === 'linea2') return { ...f, x2: p.x, y2: p.y };
+        if (modo === 'rectangulo') return { ...f, x: p.x - offsetX, y: p.y - offsetY };
+        if (modo === 'texto') {
+          const libre = { x: p.x - offsetX, y: p.y - offsetY };
+          const contacto = puntoDeContactoCercano(fs, libre, indice);
+          return contacto ? { ...f, x: contacto.x, y: contacto.y } : { ...f, x: libre.x, y: libre.y };
+        }
+        if (modo === 'linea1' || modo === 'linea2') {
+          const contacto = puntoDeContactoCercano(fs, p, indice);
+          const punto = contacto || p;
+          return modo === 'linea1' ? { ...f, x1: punto.x, y1: punto.y } : { ...f, x2: punto.x, y2: punto.y };
+        }
         return f;
       })
     );
   };
   const onMouseUpPreview = () => setFormaArrastre(null);
+
+  const editarTexto = (i, contenidoActual) => {
+    const nuevo = window.prompt('Texto:', contenidoActual);
+    if (nuevo === null) return;
+    setFormas((fs) => fs.map((f, idx) => (idx === i ? { ...f, contenido: nuevo } : f)));
+  };
 
   const agregarPuerto = () => setPuertos((ps) => [...ps, { nombre: `puerto${ps.length + 1}`, x: 0, y: Math.round(altoBase / 2), dir: 'W' }]);
   const actualizarPuerto = (i, campo, valor) => setPuertos((ps) => ps.map((p, idx) => (idx === i ? { ...p, [campo]: campo === 'x' || campo === 'y' ? Number(valor) : valor } : p)));
@@ -447,30 +479,27 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
                 if (f.tipo === 'linea') {
                   return (
                     <g key={`manijas-${i}`}>
-                      <circle cx={f.x1} cy={f.y1} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea1')} />
-                      <circle cx={f.x2} cy={f.y2} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea2')} />
+                      <Manija x={f.x1} y={f.y1} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea1')} />
+                      <Manija x={f.x2} y={f.y2} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea2')} />
                     </g>
                   );
                 }
                 if (f.tipo === 'circulo') {
-                  return <circle key={`manija-${i}`} cx={f.cx} cy={f.cy} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'circulo')} />;
+                  return <Manija key={`manija-${i}`} x={f.cx} y={f.cy} onMouseDown={(e) => onMouseDownForma(e, i, f, 'circulo')} />;
                 }
                 if (f.tipo === 'rectangulo') {
-                  return (
-                    <rect
-                      key={`manija-${i}`}
-                      x={f.x + f.ancho / 2 - 4}
-                      y={f.y + f.alto / 2 - 4}
-                      width={8}
-                      height={8}
-                      fill="#00a2e8"
-                      style={{ cursor: 'grab' }}
-                      onMouseDown={(e) => onMouseDownForma(e, i, f, 'rectangulo')}
-                    />
-                  );
+                  return <Manija key={`manija-${i}`} x={f.x + f.ancho / 2} y={f.y + f.alto / 2} onMouseDown={(e) => onMouseDownForma(e, i, f, 'rectangulo')} />;
                 }
                 if (f.tipo === 'texto') {
-                  return <circle key={`manija-${i}`} cx={f.x} cy={f.y} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'texto')} />;
+                  return (
+                    <Manija
+                      key={`manija-${i}`}
+                      x={f.x}
+                      y={f.y}
+                      onMouseDown={(e) => onMouseDownForma(e, i, f, 'texto')}
+                      onDoubleClick={() => editarTexto(i, f.contenido)}
+                    />
+                  );
                 }
                 return null;
               })}
