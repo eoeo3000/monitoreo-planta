@@ -96,7 +96,7 @@ export function importarDisposicionPlanta(texto, { data, crearPlanta, crearArea,
     return { creados: 0, conexiones: 0, errores: ['Faltan columnas obligatorias: TAG, Planta, Área, Tipo.'] };
   }
 
-  const tiposValidos = Object.keys(CATALOGO_MODO_FALLA);
+  const tiposValidos = [...Object.keys(CATALOGO_MODO_FALLA), ...(data.tiposPersonalizados || []).map((t) => t.clave)];
   const errores = [];
   let creados = 0;
 

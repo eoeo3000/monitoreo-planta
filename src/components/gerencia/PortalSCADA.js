@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
+import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
 import { puertoHacia, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
 import './portalScada.css';
 
@@ -19,19 +20,28 @@ const TIPOS_VASIJA = ['tanque', 'agitador'];
 
 const ajustarACuadricula = (v) => Math.round(v / CUADRICULA) * CUADRICULA;
 
+// Resuelve el ícono de un tipo tanto si es de fábrica (scadaIconos.js) como
+// si fue creado por el usuario (data.tiposPersonalizados) — el resto del
+// componente no distingue entre ambos casos.
+function iconoBaseDe(tipo, data) {
+  if (SCADA_ICONOS[tipo]) return SCADA_ICONOS[tipo];
+  const personalizado = (data.tiposPersonalizados || []).find((t) => t.clave === tipo);
+  return personalizado ? iconoDeTipoPersonalizado(personalizado) : null;
+}
+
 // El panel "Tamaños de equipo" sobrescribe, por tipo, un multiplicador de
-// escala sobre el tamaño base de scadaIconos.js — mismo dato del store
+// escala sobre el tamaño base del ícono — mismo dato del store
 // (data.escalasPorTipo) que usaba el editor de Planta.
-function iconoConEscala(tipo, escalasPorTipo) {
-  const base = SCADA_ICONOS[tipo];
+function iconoConEscala(tipo, data) {
+  const base = iconoBaseDe(tipo, data);
   if (!base) return null;
-  const escala = escalasPorTipo?.[tipo] ?? 1;
+  const escala = data.escalasPorTipo?.[tipo] ?? 1;
   return { ...base, escala };
 }
 
-function rutaEntreEquiposScada(deEq, aEq, posDe, posA, escalasPorTipo) {
-  const iconoDe = iconoConEscala(deEq.tipo, escalasPorTipo);
-  const iconoA = iconoConEscala(aEq.tipo, escalasPorTipo);
+function rutaEntreEquiposScada(deEq, aEq, posDe, posA, data) {
+  const iconoDe = iconoConEscala(deEq.tipo, data);
+  const iconoA = iconoConEscala(aEq.tipo, data);
   if (!iconoDe || !iconoA) return null;
   const puertoDe = puertoHacia(posDe, iconoDe, posA);
   const puertoA = puertoHacia(posA, iconoA, posDe);
@@ -313,7 +323,7 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
               <details>
                 <summary style={{ ...tituloSeccion, marginBottom: 0, cursor: 'pointer' }}>Tamaños de equipo</summary>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 6 }}>
-                  {Object.keys(SCADA_ICONOS).map((tipo) => {
+                  {[...Object.keys(SCADA_ICONOS), ...(data.tiposPersonalizados || []).map((t) => t.clave)].map((tipo) => {
                     const escalaActual = data.escalasPorTipo?.[tipo] ?? 1;
                     const cambiar = (delta) => cambiarEscalaTipo(tipo, Math.min(4, Math.max(0.3, Math.round((escalaActual + delta) * 100) / 100)));
                     return (
@@ -407,7 +417,7 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const ruta = rutaEntreEquiposScada(de, a, posicionDe(de), posicionDe(a), data.escalasPorTipo);
+                const ruta = rutaEntreEquiposScada(de, a, posicionDe(de), posicionDe(a), data);
                 if (!ruta) return null;
                 return (
                   <g key={c.id}>
@@ -439,7 +449,7 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
                   const eqOrigen = equiposDePlanta.find((eq) => eq.id === origenConexion);
                   if (!eqOrigen) return null;
                   const posOrigen = posicionDe(eqOrigen);
-                  const iconoOrigen = iconoConEscala(eqOrigen.tipo, data.escalasPorTipo);
+                  const iconoOrigen = iconoConEscala(eqOrigen.tipo, data);
                   const puertoOrigen = puertoHacia(posOrigen, iconoOrigen, mousePos);
                   if (!puertoOrigen) return null;
                   const ruta = rutaHaciaPunto(puertoOrigen, mousePos);
@@ -447,7 +457,7 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
                 })()}
 
               {equiposDePlanta.map((eq) => {
-                const icono = iconoConEscala(eq.tipo, data.escalasPorTipo);
+                const icono = iconoConEscala(eq.tipo, data);
                 if (!icono) return null;
                 const pos = posicionDe(eq);
                 const estado = estadoDe(eq);

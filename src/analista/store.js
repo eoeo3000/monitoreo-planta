@@ -27,6 +27,10 @@ function datosSemilla() {
     // scadaIconos.js — vacío significa "tamaño de fábrica (x1)". Se edita
     // desde el panel "Tamaños de equipo" del Portal SCADA, sin tocar código.
     escalasPorTipo: {},
+    // Tipos de equipo creados desde Administración > Equipos (formas simples
+    // + puertos), para equipos que no están en el catálogo fijo de
+    // mockData.js. Solo visuales por ahora: no tienen modoFalla propio.
+    tiposPersonalizados: [],
   };
 }
 
@@ -193,6 +197,14 @@ export function useAnalistaData() {
     setData((d) => ({ ...d, escalasPorTipo: { ...d.escalasPorTipo, [tipo]: escala } }));
   }, []);
 
+  // La validación de nombre/clave única vive en el formulario (Administración),
+  // igual que crearEquipo: esta acción solo agrega el tipo tal como llega.
+  const crearTipoPersonalizado = useCallback((tipoData) => {
+    const id = nuevoId('tipo');
+    setData((d) => ({ ...d, tiposPersonalizados: [...(d.tiposPersonalizados || []), { id, ...tipoData }] }));
+    return id;
+  }, []);
+
   // Conexiones = flechas de flujo entre equipos, editadas desde el Portal SCADA.
   // Puramente visuales/informativas por ahora (no representan un dato de proceso
   // consultable en otras pantallas), tal como se acordó al construirlas.
@@ -225,6 +237,7 @@ export function useAnalistaData() {
     renombrarEquipo,
     duplicarEquipo,
     cambiarEscalaTipo,
+    crearTipoPersonalizado,
     crearConexion,
     eliminarConexion,
   };

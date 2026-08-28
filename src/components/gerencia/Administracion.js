@@ -2,12 +2,15 @@ import React, { useRef, useState } from 'react';
 import Blueprint from '../../theme/Blueprint';
 import { CATALOGO_MODO_FALLA } from '../../analista/mockData';
 import { CATALOGO_SIMBOLOS, GRUPOS_SIMBOLOS, GRUPOS_INFO } from '../../gerencia/simbolosHMI';
+import { formaAJsx } from '../../gerencia/tiposPersonalizados';
 import { descargarDisposicionPlanta, importarDisposicionPlanta } from '../../analista/plantaCsv';
 import './gerenciaHMI.css';
 
 const MOSTRAR_CODIGOS = true; // handoff §4 prop "mostrarCodigos"
 const SELECCION_MULTIPLE = true; // handoff §4 prop "seleccionMultiple"
 const GROSOR_TRAZO = 1.5; // handoff §4 prop "grosorTrazo" (1–2)
+const TIPOS_FORMA_LABEL = { circulo: 'Círculo', rectangulo: 'Rectángulo', linea: 'Línea' };
+const DIRECCIONES_PUERTO = ['N', 'S', 'E', 'W'];
 
 const kicker = { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' };
 const SECCIONES = [
@@ -178,12 +181,201 @@ function SeccionPlanta({ data, crearPlanta, crearArea, crearEquipo, crearConexio
   );
 }
 
+function CampoMini({ label, valor, onChange }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }}>
+      <span style={{ color: 'var(--color-neutral-500)' }}>{label}</span>
+      <input className="input" type="number" style={{ width: 52, padding: '2px 4px' }} value={valor} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+// Crea un tipo de equipo nuevo (fuera del catálogo fijo de mockData.js) a
+// partir de formas simples (círculo/rectángulo/línea) + puertos de conexión
+// opcionales. Solo visual por ahora: no tiene modos de falla propios, así que
+// el Analista todavía no puede diagnosticar equipos de este tipo.
+function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
+  const [nombre, setNombre] = useState('');
+  const [anchoBase, setAnchoBase] = useState(40);
+  const [altoBase, setAltoBase] = useState(40);
+  const [formas, setFormas] = useState([]);
+  const [puertos, setPuertos] = useState([]);
+  const [mensaje, setMensaje] = useState(null);
+
+  const agregarForma = (tipoForma) => {
+    setMensaje(null);
+    if (tipoForma === 'circulo') {
+      setFormas((f) => [...f, { tipo: tipoForma, cx: Math.round(anchoBase / 2), cy: Math.round(altoBase / 2), r: Math.round(Math.min(anchoBase, altoBase) / 3) }]);
+    } else if (tipoForma === 'rectangulo') {
+      setFormas((f) => [...f, { tipo: tipoForma, x: Math.round(anchoBase * 0.2), y: Math.round(altoBase * 0.2), ancho: Math.round(anchoBase * 0.6), alto: Math.round(altoBase * 0.6) }]);
+    } else if (tipoForma === 'linea') {
+      setFormas((f) => [...f, { tipo: tipoForma, x1: 0, y1: Math.round(altoBase / 2), x2: anchoBase, y2: Math.round(altoBase / 2) }]);
+    }
+  };
+  const actualizarForma = (i, campo, valor) => setFormas((fs) => fs.map((f, idx) => (idx === i ? { ...f, [campo]: Number(valor) } : f)));
+  const quitarForma = (i) => setFormas((fs) => fs.filter((_, idx) => idx !== i));
+
+  const agregarPuerto = () => setPuertos((ps) => [...ps, { nombre: `puerto${ps.length + 1}`, x: 0, y: Math.round(altoBase / 2), dir: 'W' }]);
+  const actualizarPuerto = (i, campo, valor) => setPuertos((ps) => ps.map((p, idx) => (idx === i ? { ...p, [campo]: campo === 'x' || campo === 'y' ? Number(valor) : valor } : p)));
+  const quitarPuerto = (i) => setPuertos((ps) => ps.filter((_, idx) => idx !== i));
+
+  const crear = () => {
+    const nombreLimpio = nombre.trim();
+    if (!nombreLimpio) return setMensaje({ tipo: 'error', texto: 'El nombre es obligatorio.' });
+    const clave = nombreLimpio
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '');
+    if (!clave) return setMensaje({ tipo: 'error', texto: 'El nombre debe tener al menos una letra o número.' });
+    const tiposExistentes = [...Object.keys(CATALOGO_MODO_FALLA), ...(data.tiposPersonalizados || []).map((t) => t.clave)];
+    if (tiposExistentes.includes(clave)) return setMensaje({ tipo: 'error', texto: `Ya existe un tipo de equipo "${clave}".` });
+    if (formas.length === 0) return setMensaje({ tipo: 'error', texto: 'Agrega al menos una forma.' });
+
+    const puertosObj = {};
+    puertos.forEach((p) => {
+      if (p.nombre.trim()) puertosObj[p.nombre.trim()] = { x: p.x, y: p.y, dir: p.dir };
+    });
+
+    crearTipoPersonalizado({ clave, nombre: nombreLimpio, anchoBase, altoBase, formas, puertos: puertosObj });
+    setMensaje({ tipo: 'ok', texto: `Tipo "${nombreLimpio}" creado — ya aparece en "Tipo" y en el Portal SCADA.` });
+    setNombre('');
+    setFormas([]);
+    setPuertos([]);
+  };
+
+  return (
+    <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>Alta de recursos</div>
+      <h3 style={{ fontSize: 20, margin: 0 }}>Crear tipo de equipo</h3>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-700)' }}>
+        Para equipos que no están en el catálogo fijo (motor, bomba, tanque, agitador, compresor, clarificador, secador). Solo
+        visual por ahora: no tiene modos de falla propios, así que el Analista todavía no puede diagnosticarlo.
+      </p>
+      <Mensaje mensaje={mensaje} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 200px', gap: 'var(--space-4)', alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'flex-end' }}>
+            <label className="field" style={{ minWidth: 180 }}>
+              <span style={kicker}>Nombre</span>
+              <input className="input" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Mezclador" />
+            </label>
+            <label className="field" style={{ width: 100 }}>
+              <span style={kicker}>Ancho</span>
+              <input className="input" type="number" min={10} value={anchoBase} onChange={(e) => setAnchoBase(Number(e.target.value) || 10)} />
+            </label>
+            <label className="field" style={{ width: 100 }}>
+              <span style={kicker}>Alto</span>
+              <input className="input" type="number" min={10} value={altoBase} onChange={(e) => setAltoBase(Number(e.target.value) || 10)} />
+            </label>
+          </div>
+
+          <div>
+            <div style={{ ...kicker, marginBottom: 6 }}>Formas</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {formas.map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ width: 80, fontSize: 11, textTransform: 'uppercase', color: 'var(--color-neutral-600)' }}>{TIPOS_FORMA_LABEL[f.tipo]}</span>
+                  {f.tipo === 'circulo' && (
+                    <>
+                      <CampoMini label="cx" valor={f.cx} onChange={(v) => actualizarForma(i, 'cx', v)} />
+                      <CampoMini label="cy" valor={f.cy} onChange={(v) => actualizarForma(i, 'cy', v)} />
+                      <CampoMini label="r" valor={f.r} onChange={(v) => actualizarForma(i, 'r', v)} />
+                    </>
+                  )}
+                  {f.tipo === 'rectangulo' && (
+                    <>
+                      <CampoMini label="x" valor={f.x} onChange={(v) => actualizarForma(i, 'x', v)} />
+                      <CampoMini label="y" valor={f.y} onChange={(v) => actualizarForma(i, 'y', v)} />
+                      <CampoMini label="ancho" valor={f.ancho} onChange={(v) => actualizarForma(i, 'ancho', v)} />
+                      <CampoMini label="alto" valor={f.alto} onChange={(v) => actualizarForma(i, 'alto', v)} />
+                    </>
+                  )}
+                  {f.tipo === 'linea' && (
+                    <>
+                      <CampoMini label="x1" valor={f.x1} onChange={(v) => actualizarForma(i, 'x1', v)} />
+                      <CampoMini label="y1" valor={f.y1} onChange={(v) => actualizarForma(i, 'y1', v)} />
+                      <CampoMini label="x2" valor={f.x2} onChange={(v) => actualizarForma(i, 'x2', v)} />
+                      <CampoMini label="y2" valor={f.y2} onChange={(v) => actualizarForma(i, 'y2', v)} />
+                    </>
+                  )}
+                  <button className="btn btn-ghost" onClick={() => quitarForma(i)} style={{ fontSize: 12 }}>
+                    Quitar
+                  </button>
+                </div>
+              ))}
+              {formas.length === 0 && <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>Sin formas todavía.</p>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button className="btn btn-secondary" onClick={() => agregarForma('circulo')}>
+                + Círculo
+              </button>
+              <button className="btn btn-secondary" onClick={() => agregarForma('rectangulo')}>
+                + Rectángulo
+              </button>
+              <button className="btn btn-secondary" onClick={() => agregarForma('linea')}>
+                + Línea
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ ...kicker, marginBottom: 6 }}>Puertos de conexión (opcional)</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {puertos.map((p, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <input className="input" style={{ width: 110 }} value={p.nombre} onChange={(e) => actualizarPuerto(i, 'nombre', e.target.value)} />
+                  <CampoMini label="x" valor={p.x} onChange={(v) => actualizarPuerto(i, 'x', v)} />
+                  <CampoMini label="y" valor={p.y} onChange={(v) => actualizarPuerto(i, 'y', v)} />
+                  <select className="input" style={{ width: 64 }} value={p.dir} onChange={(e) => actualizarPuerto(i, 'dir', e.target.value)}>
+                    {DIRECCIONES_PUERTO.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="btn btn-ghost" onClick={() => quitarPuerto(i)} style={{ fontSize: 12 }}>
+                    Quitar
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button className="btn btn-secondary" onClick={agregarPuerto} style={{ marginTop: 6 }}>
+              + Puerto
+            </button>
+          </div>
+
+          <button className="btn btn-primary" onClick={crear} style={{ alignSelf: 'flex-start' }}>
+            Crear tipo
+          </button>
+        </div>
+
+        <div>
+          <div style={{ ...kicker, marginBottom: 6 }}>Vista previa</div>
+          <div style={{ border: '1px solid var(--color-divider)', background: '#001830', padding: 8 }}>
+            <svg viewBox={`-4 -4 ${anchoBase + 8} ${altoBase + 8}`} width="100%" height={160}>
+              <g fill="#a2a29d" stroke="#000" strokeWidth={1}>
+                {formas.map((f, i) => formaAJsx(f, i))}
+              </g>
+              {puertos.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#00a2e8" />
+              ))}
+            </svg>
+          </div>
+        </div>
+      </div>
+    </Blueprint>
+  );
+}
+
 // "Equipos": alta y listado de equipos (la ubicación/planta se elige, no se crea acá).
-function SeccionEquipos({ data, crearEquipo }) {
+function SeccionEquipos({ data, crearEquipo, crearTipoPersonalizado }) {
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || '');
   const [areaId, setAreaId] = useState('');
   const [tag, setTag] = useState('');
-  const [tipo, setTipo] = useState(Object.keys(CATALOGO_MODO_FALLA)[0]);
+  const tiposDisponibles = [...Object.keys(CATALOGO_MODO_FALLA), ...(data.tiposPersonalizados || []).map((t) => t.clave)];
+  const [tipo, setTipo] = useState(tiposDisponibles[0]);
   const [descripcion, setDescripcion] = useState('');
   const [mensaje, setMensaje] = useState(null);
 
@@ -248,7 +440,7 @@ function SeccionEquipos({ data, crearEquipo }) {
           <label className="field" style={{ minWidth: 140 }}>
             <span style={kicker}>Tipo</span>
             <select className="input" value={tipo} onChange={(e) => setTipo(e.target.value)}>
-              {Object.keys(CATALOGO_MODO_FALLA).map((t) => (
+              {tiposDisponibles.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
@@ -266,6 +458,8 @@ function SeccionEquipos({ data, crearEquipo }) {
           </button>
         </div>
       </Blueprint>
+
+      <CrearTipoEquipo data={data} crearTipoPersonalizado={crearTipoPersonalizado} />
 
       <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
         <h3 style={{ fontSize: 20, margin: 0 }}>Equipos existentes ({data.equipos.length})</h3>
@@ -482,7 +676,7 @@ function CatalogoSimbolos() {
   );
 }
 
-export default function Administracion({ data, crearPlanta, crearArea, crearEquipo, crearConexion }) {
+export default function Administracion({ data, crearPlanta, crearArea, crearEquipo, crearConexion, crearTipoPersonalizado }) {
   const [seccion, setSeccion] = useState('equipos');
 
   return (
@@ -530,7 +724,7 @@ export default function Administracion({ data, crearPlanta, crearArea, crearEqui
         )}
         {seccion === 'equipos' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <SeccionEquipos data={data} crearEquipo={crearEquipo} />
+            <SeccionEquipos data={data} crearEquipo={crearEquipo} crearTipoPersonalizado={crearTipoPersonalizado} />
             <CatalogoSimbolos />
           </div>
         )}
