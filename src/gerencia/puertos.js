@@ -62,33 +62,71 @@ export function puertoHacia(posicion, icono, posicionOtro) {
   return nombre ? puntoAbsoluto(posicion, icono, nombre) : null;
 }
 
-// Igual que puertoHacia, pero si la conexión tiene un puerto fijado a mano
-// (arrastrando el extremo de la línea) se respeta ese en vez de recalcularlo
-// automáticamente — así el usuario puede elegir, por ejemplo, siempre la
-// salida lateral derecha aunque el otro equipo termine quedando al oeste.
-export function puertoElegido(posicion, icono, posicionOtro, nombreManual) {
-  if (!icono) return null;
-  if (nombreManual && icono.puertos?.[nombreManual]) return puntoAbsoluto(posicion, icono, nombreManual);
-  return puertoHacia(posicion, icono, posicionOtro);
+function dimensionesIcono(icono) {
+  const escala = icono.escala || 1;
+  const anchoIcono = (icono.anchoBase || ANCHO_BASE) * escala;
+  const altoIcono = (icono.altoBase || ALTO_BASE) * escala;
+  return { anchoIcono, altoIcono };
 }
 
-// De los puertos declarados de un ícono, el nombre del más cercano a un punto
-// del lienzo — usado al soltar el extremo de una conexión arrastrado a mano:
-// nunca se deja un punto suelto, se ajusta (snap) al puerto real más próximo.
-export function puertoMasCercano(posicion, icono, punto) {
-  const nombres = Object.keys(icono?.puertos || {});
-  if (nombres.length === 0) return null;
-  let mejor = nombres[0];
-  let mejorDist = Infinity;
-  for (const nombre of nombres) {
-    const p = puntoAbsoluto(posicion, icono, nombre);
-    const dist = Math.hypot(p.x - punto.x, p.y - punto.y);
-    if (dist < mejorDist) {
-      mejorDist = dist;
-      mejor = nombre;
-    }
+// Punto exacto sobre un lado (N/S/E/W) del rectángulo que envuelve al glifo,
+// a una fracción `t` (0..1) de una esquina a la otra. A diferencia de un
+// puerto declarado (semántico, fijo en la geometría exacta del dibujo), esto
+// es "cualquier parte del perímetro" — el rectángulo envolvente, no la
+// silueta exacta, para no necesitar geometría distinta por cada forma o tipo
+// creado por el usuario.
+export function puntoDeLado(posicion, icono, lado, t) {
+  const { anchoIcono, altoIcono } = dimensionesIcono(icono);
+  const origenX = posicion.x - anchoIcono / 2;
+  const origenY = posicion.y - altoIcono;
+  const tc = Math.max(0, Math.min(1, t));
+  if (lado === 'N') return { x: origenX + tc * anchoIcono, y: origenY, dir: 'N' };
+  if (lado === 'S') return { x: origenX + tc * anchoIcono, y: origenY + altoIcono, dir: 'S' };
+  if (lado === 'W') return { x: origenX, y: origenY + tc * altoIcono, dir: 'W' };
+  return { x: origenX + anchoIcono, y: origenY + tc * altoIcono, dir: 'E' };
+}
+
+// El punto del perímetro (rectángulo envolvente) más cercano a un punto
+// cualquiera del lienzo — usado al soltar el extremo de una conexión
+// arrastrado a mano: nunca queda un punto suelto en el aire, pero ya no está
+// limitado a los puertos declarados, cualquier lugar del contorno vale.
+export function puntoPerimetroCercano(posicion, icono, punto) {
+  const { anchoIcono, altoIcono } = dimensionesIcono(icono);
+  const origenX = posicion.x - anchoIcono / 2;
+  const origenY = posicion.y - altoIcono;
+  let lx = punto.x - origenX;
+  let ly = punto.y - origenY;
+
+  const dentro = lx >= 0 && lx <= anchoIcono && ly >= 0 && ly <= altoIcono;
+  if (dentro) {
+    // Ya está sobre el equipo: el lado libre más cercano de los cuatro.
+    const distIzq = lx, distDer = anchoIcono - lx, distArriba = ly, distAbajo = altoIcono - ly;
+    const minDist = Math.min(distIzq, distDer, distArriba, distAbajo);
+    if (minDist === distIzq) lx = 0;
+    else if (minDist === distDer) lx = anchoIcono;
+    else if (minDist === distArriba) ly = 0;
+    else ly = altoIcono;
+  } else {
+    // Afuera: recortar (clamp) a la caja ya deja el punto exactamente sobre
+    // el borde que quedó del lado de afuera.
+    lx = Math.max(0, Math.min(anchoIcono, lx));
+    ly = Math.max(0, Math.min(altoIcono, ly));
   }
-  return mejor;
+
+  if (lx <= 0) return { lado: 'W', t: altoIcono ? ly / altoIcono : 0 };
+  if (lx >= anchoIcono) return { lado: 'E', t: altoIcono ? ly / altoIcono : 0 };
+  if (ly <= 0) return { lado: 'N', t: anchoIcono ? lx / anchoIcono : 0 };
+  return { lado: 'S', t: anchoIcono ? lx / anchoIcono : 0 };
+}
+
+// Igual que puertoHacia, pero respeta un extremo fijado a mano cuando existe:
+// un nombre de puerto declarado (string) o un punto libre del perímetro
+// ({lado, t}) — el que se guarda al arrastrar un extremo de la conexión.
+export function puertoElegido(posicion, icono, posicionOtro, manual) {
+  if (!icono) return null;
+  if (manual && typeof manual === 'object') return puntoDeLado(posicion, icono, manual.lado, manual.t);
+  if (typeof manual === 'string' && icono.puertos?.[manual]) return puntoAbsoluto(posicion, icono, manual);
+  return puertoHacia(posicion, icono, posicionOtro);
 }
 
 // Ruta ortogonal entre dos puertos {x,y,dir}: sale perpendicular al glifo con

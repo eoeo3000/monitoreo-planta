@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
-import { puertoHacia, puertoElegido, puertoMasCercano, puntoAbsoluto, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
+import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeLado, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
 import './portalScada.css';
 
 const PAD_LIENZO = 100; // margen alrededor de los equipos: el glifo más alto (tanque/agitador) mide 90
@@ -186,9 +186,8 @@ export default function PortalSCADA({
     }
     const eq = arr.extremo === 'de' ? de : a;
     const icono = iconoConEscala(eq.tipo, data);
-    const nombrePuerto = puertoMasCercano(posicionDe(eq), icono, pMouse);
-    if (!nombrePuerto) return;
-    actualizarConexion(conexion.id, arr.extremo === 'de' ? { puertoDe: nombrePuerto } : { puertoA: nombrePuerto });
+    const puntoLibre = puntoPerimetroCercano(posicionDe(eq), icono, pMouse);
+    actualizarConexion(conexion.id, arr.extremo === 'de' ? { puertoDe: puntoLibre } : { puertoA: puntoLibre });
   };
 
   const onMouseMove = (event) => {
@@ -556,9 +555,8 @@ export default function PortalSCADA({
                   }
                   const eq = conexionArrastre.extremo === 'de' ? de : a;
                   const icono = iconoConEscala(eq.tipo, data);
-                  const nombreCandidato = puertoMasCercano(posicionDe(eq), icono, mousePos);
-                  if (!nombreCandidato) return null;
-                  const puntoCandidato = puntoAbsoluto(posicionDe(eq), icono, nombreCandidato);
+                  const candidato = puntoPerimetroCercano(posicionDe(eq), icono, mousePos);
+                  const puntoCandidato = puntoDeLado(posicionDe(eq), icono, candidato.lado, candidato.t);
                   return <circle cx={puntoCandidato.x} cy={puntoCandidato.y} r={6} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} pointerEvents="none" />;
                 })()}
 
