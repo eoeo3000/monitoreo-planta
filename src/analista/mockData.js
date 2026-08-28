@@ -91,7 +91,7 @@ export const SEED_DIAGNOSTICOS = [
   },
 ];
 
-// Flechas de flujo de proceso para el editor de Planta (puramente visuales).
+// Flechas de flujo de proceso para el Portal SCADA (puramente visuales).
 export const SEED_CONEXIONES = [
   { id: 'con1', plantaId: 'planta1', deId: 'eq-b101', aId: 'eq-ag201' },
   { id: 'con2', plantaId: 'planta1', deId: 'eq-ag201', aId: 'eq-cl301' },

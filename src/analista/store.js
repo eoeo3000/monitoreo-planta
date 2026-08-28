@@ -23,9 +23,9 @@ function datosSemilla() {
     avisos: SEED_AVISOS,
     evidencias: [],
     conexiones: SEED_CONEXIONES,
-    // Sobrescribe, por tipo, el `escala` por defecto de EQUIPO_ICONOS — vacío
-    // significa "usar el valor de fábrica". Se edita desde el panel "Tamaños
-    // de equipo" del editor de Planta, sin tocar código.
+    // Sobrescribe, por tipo, el multiplicador de escala por defecto de
+    // scadaIconos.js — vacío significa "tamaño de fábrica (x1)". Se edita
+    // desde el panel "Tamaños de equipo" del Portal SCADA, sin tocar código.
     escalasPorTipo: {},
   };
 }
@@ -193,9 +193,9 @@ export function useAnalistaData() {
     setData((d) => ({ ...d, escalasPorTipo: { ...d.escalasPorTipo, [tipo]: escala } }));
   }, []);
 
-  // Conexiones = flechas de flujo entre equipos en el editor de Planta. Puramente
-  // visuales/informativas por ahora (no representan un dato de proceso consultable
-  // en otras pantallas), tal como se acordó al construirlas.
+  // Conexiones = flechas de flujo entre equipos, editadas desde el Portal SCADA.
+  // Puramente visuales/informativas por ahora (no representan un dato de proceso
+  // consultable en otras pantallas), tal como se acordó al construirlas.
   const crearConexion = useCallback((plantaId, deId, aId) => {
     if (deId === aId) return;
     const id = nuevoId('conexion');

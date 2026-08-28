@@ -1,17 +1,17 @@
-// Glifos "con volumen" para el Portal de gerencia SCADA (handoff §10.2) — figuras
-// rellenas, no íconos de trazo. El catálogo de línea fina de equipoIcons.js NO se
-// usa acá: es la gramática visual opuesta (ver PortalSCADA.js).
+// Glifos "con volumen" para el Portal de gerencia SCADA — figuras rellenas,
+// no íconos de trazo. Es la única gramática de equipos que usa la app; ver
+// PortalSCADA.js.
 //
-// Cada tipo expone `silueta` (las formas SIN fill/stroke propio — se pintan dos
-// veces: como glifo relleno con el degradado metálico, y como <clipPath> para
-// recortar el teñido de severidad) y `decoracion` (detalles que van encima, sin
-// recortar, como el eje del agitador o la letra "M" del motor).
+// Cada tipo expone `silueta` (las formas SIN fill/stroke propio, para que
+// PortalSCADA.js decida cómo pintarlas: degradado metálico + insignia de
+// estado en tanque/agitador, relleno plano en el color de estado para el
+// resto) y `decoracion` (detalles que van encima, como el eje del agitador o
+// la letra "M" del motor). `anchoBase`/`altoBase`/`bordeInferior` y `puertos`
+// alimentan el modelo de puertos de puertos.js.
 //
-// El tamaño relativo entre tipos replica el mismo orden ya acordado para
-// equipoIcons.js (tanque = agitador > clarificador = secador > compresor >
-// bomba = motor), pero en la escala de píxeles propia de este lienzo — no son
-// los mismos números porque es un lienzo de circuito completo, no un ícono por
-// nodo con zoom.
+// El tamaño relativo entre tipos (tanque = agitador > clarificador = secador
+// > compresor > bomba = motor) sigue el mismo orden acordado con el usuario,
+// ajustable en vivo por tipo desde el panel "Tamaños de equipo" del Portal.
 export const SCADA_ICONOS = {
   tanque: {
     viewBox: '0 0 44 90',

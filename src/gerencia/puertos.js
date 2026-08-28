@@ -1,14 +1,12 @@
-// Modelo de puertos declarados (handoff §9): convierte los puertos de
-// equipoIcons.js — expresados en coordenadas del viewBox del glifo — a
-// coordenadas absolutas del lienzo, y rutea las conexiones entre ellos sin
-// holgura, con tramos ortogonales y un mínimo de 8px perpendicular al glifo
-// antes del primer giro.
+// Modelo de puertos declarados (handoff §9): convierte los puertos de un
+// ícono — expresados en coordenadas de su propio viewBox — a coordenadas
+// absolutas del lienzo, y rutea las conexiones entre ellos sin holgura, con
+// tramos ortogonales y un mínimo de 8px perpendicular al glifo antes del
+// primer giro. Usado por PortalSCADA.js con los glifos de scadaIconos.js.
 
-// Tamaño base y anclaje (borde inferior fijo) por defecto — coincide con el
-// renderizado del glifo en PlantaConcentradora.js. Un ícono puede pisar estos
-// valores con sus propios `anchoBase`/`altoBase`/`bordeInferior` cuando su
-// gramática visual usa otra proporción (p. ej. los glifos con volumen del
-// Portal SCADA, más altos que anchos) sin afectar a los íconos existentes.
+// Tamaño base y anclaje (borde inferior fijo) por defecto. Un ícono puede
+// pisar estos valores con sus propios `anchoBase`/`altoBase`/`bordeInferior`
+// cuando su gramática visual usa otra proporción.
 const ANCHO_BASE = 52;
 const ALTO_BASE = 35;
 const BORDE_INFERIOR = 5;
