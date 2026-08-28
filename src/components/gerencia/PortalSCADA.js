@@ -9,6 +9,10 @@ const PAD_LIENZO = 100; // margen alrededor de los equipos: el glifo más alto (
 const PAD_ZONA = 70;
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };
 const SIN_DIAGNOSTICO = 'var(--e-sindiagnostico)';
+// Regla dura de la piel "Overlook HMI": el único elemento con relieve/degradado
+// permitido es el estanque metálico (tanque/agitador) — todo lo demás va plano,
+// teñido directamente en el color de estado, sin gradiente ni mezcla.
+const TIPOS_VASIJA = ['tanque', 'agitador'];
 
 function rutaEntreEquiposScada(deEq, aEq, posDe, posA) {
   const iconoDe = SCADA_ICONOS[deEq.tipo];
@@ -101,7 +105,7 @@ export default function PortalSCADA({ data }) {
 
       <div style={{ display: 'flex', flexGrow: 1, minHeight: 0 }}>
         <div style={{ width: 150, flexShrink: 0, borderRight: '1px solid var(--scada-borde)', padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-          <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--scada-texto-2)', marginBottom: 6 }}>Sistemas</div>
+          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--scada-titulo)', marginBottom: 6 }}>Sistemas</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
             {areasDePlanta.map((area) => {
               const peor = peorEstadoDeArea(area);
@@ -115,7 +119,7 @@ export default function PortalSCADA({ data }) {
           </div>
 
           <div style={{ marginTop: 'auto', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--scada-borde)' }}>
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--scada-texto-2)', marginBottom: 6 }}>Estado</div>
+            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--scada-titulo)', marginBottom: 6 }}>Estado</div>
             {SEVERIDAD_ORDEN.map((s) => (
               <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 4 }}>
                 <span style={{ width: 8, height: 8, flexShrink: 0, background: ESTADO_COLOR[s] }} />
@@ -129,7 +133,7 @@ export default function PortalSCADA({ data }) {
           </div>
         </div>
 
-        <div style={{ flexGrow: 1, minWidth: 0, padding: 'var(--space-3)' }}>
+        <div style={{ flexGrow: 1, minWidth: 0, padding: 'var(--space-3)', background: 'var(--scada-subpanel)' }}>
           {!plantaId ? (
             <p style={{ color: 'var(--scada-texto-2)' }}>No hay plantas creadas todavía.</p>
           ) : (
@@ -141,11 +145,6 @@ export default function PortalSCADA({ data }) {
                   <stop offset="70%" stopColor="#b0b4b6" />
                   <stop offset="100%" stopColor="#6f7477" />
                 </linearGradient>
-                {Object.entries(SCADA_ICONOS).map(([tipo, icono]) => (
-                  <clipPath key={tipo} id={`scada-clip-${tipo}`}>
-                    {icono.silueta}
-                  </clipPath>
-                ))}
               </defs>
 
               {areasDePlanta.map((area) => {
@@ -154,7 +153,7 @@ export default function PortalSCADA({ data }) {
                 return (
                   <g key={area.id}>
                     <rect className="scada-zona" x={caja.x} y={caja.y} width={caja.width} height={caja.height} fill="none" stroke="var(--scada-zona)" strokeWidth={1} strokeDasharray="4 3" />
-                    <text x={caja.x + 8} y={caja.y + 14} fontSize={11} fontFamily="Barlow Condensed" fontWeight={600} letterSpacing="0.04em" fill="var(--scada-texto-2)">
+                    <text x={caja.x + 8} y={caja.y + 14} fontSize={13} fontWeight={700} letterSpacing="0.04em" fill="var(--scada-titulo)">
                       {area.nombre.toUpperCase()}
                     </text>
                   </g>
@@ -176,22 +175,31 @@ export default function PortalSCADA({ data }) {
                 const pos = posicionDe(eq);
                 const estado = estadoDe(eq);
                 const colorEstado = estado ? ESTADO_COLOR[estado] : SIN_DIAGNOSTICO;
+                const esVasija = TIPOS_VASIJA.includes(eq.tipo);
                 return (
                   <g key={eq.id} transform={`translate(${pos.x - icono.anchoBase / 2}, ${pos.y - icono.altoBase})`}>
-                    <g fill="url(#scadaGradMetal)" stroke="#23262a" strokeWidth={1}>
-                      {icono.silueta}
-                    </g>
-                    <g clipPath={`url(#scada-clip-${eq.tipo})`} style={{ mixBlendMode: 'multiply' }}>
-                      <rect x={0} y={0} width={icono.anchoBase} height={icono.altoBase} fill={colorEstado} opacity={0.45} />
-                    </g>
+                    {esVasija ? (
+                      <>
+                        {/* Único elemento con relieve permitido: el silo/estanque metálico. */}
+                        <g fill="url(#scadaGradMetal)" stroke="var(--scada-subpanel)" strokeWidth={1}>
+                          {icono.silueta}
+                        </g>
+                        <rect x={4} y={-10} width={icono.anchoBase - 8} height={8} fill={colorEstado} stroke="var(--scada-subpanel)" strokeWidth={1} />
+                      </>
+                    ) : (
+                      // Plano, teñido directamente en el color de estado — nada de gradiente
+                      // ni relieve: la jerarquía la da solo el color (regla dura del prompt).
+                      <g fill={colorEstado} stroke="var(--scada-subpanel)" strokeWidth={1}>
+                        {icono.silueta}
+                      </g>
+                    )}
                     {icono.decoracion}
                     <text
                       x={icono.anchoBase / 2}
                       y={icono.altoBase + 13}
                       textAnchor="middle"
-                      fontSize={10}
-                      fontFamily="Barlow Condensed"
-                      fontWeight={600}
+                      fontSize={11}
+                      fontWeight={700}
                       letterSpacing="0.02em"
                       fill="var(--scada-texto)"
                       style={{ fontVariantNumeric: 'tabular-nums' }}
@@ -213,7 +221,7 @@ function KpiTile({ label, valor, color }) {
   return (
     <div style={{ background: 'var(--scada-panel)', padding: '4px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 72 }}>
       <span style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--scada-texto-2)' }}>{label}</span>
-      <span style={{ fontSize: 22, fontFamily: 'Barlow Condensed', fontWeight: 600, color: color || 'var(--scada-texto)', fontVariantNumeric: 'tabular-nums' }}>{valor}</span>
+      <span style={{ fontSize: 22, fontWeight: 700, color: color || 'var(--scada-texto)', fontVariantNumeric: 'tabular-nums' }}>{valor}</span>
     </div>
   );
 }

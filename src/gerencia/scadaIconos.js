@@ -51,7 +51,7 @@ export const SCADA_ICONOS = {
         <rect x="16" y="0" width="12" height="10" />
       </>
     ),
-    decoracion: <line x1="22" y1="10" x2="22" y2="38" stroke="#23262a" strokeWidth="2" />,
+    decoracion: <line x1="22" y1="10" x2="22" y2="38" stroke="var(--scada-subpanel)" strokeWidth="2" />,
   },
   clarificador: {
     viewBox: '0 0 80 56',
@@ -137,7 +137,7 @@ export const SCADA_ICONOS = {
     },
     silueta: <circle cx="13" cy="13" r="11" />,
     decoracion: (
-      <text x="13" y="17" fontSize="11" fontWeight="700" textAnchor="middle" fill="#23262a">
+      <text x="13" y="17" fontSize="11" fontWeight="700" textAnchor="middle" fill="var(--scada-texto)">
         M
       </text>
     ),

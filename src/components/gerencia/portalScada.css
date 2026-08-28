@@ -1,24 +1,30 @@
-/* Gramática visual aparte del Portal SCADA (handoff §10) — scope propio, no
-   toca los tokens globales de Industry (src/theme/tokens.css) ni se usa fuera
-   de PortalSCADA.js. */
-.scada {
-  --scada-bg: #2b2f33;
-  --scada-panel: #23262a;
-  --scada-borde: #4a4f52;
-  --scada-zona: #6b7075;
-  --scada-texto: #eceded;
-  --scada-texto-2: #a9adaf;
-  --scada-tuberia: #7fa8c9;
+/* Gramática visual aparte del Portal SCADA — piel "Overlook HMI" (SCADA
+   clásico ISA-101, navy saturado) sobre la misma estructura del handoff §10
+   (equipos/zonas/tuberías con datos reales). Scope propio: no toca los
+   tokens globales de Industry ni se usa fuera de PortalSCADA.js.
 
-  --e-normal: #4caf50;
-  --e-observacion: #3d9be9;
-  --e-alerta: #f5c518;
-  --e-alarma: #e03c31;
-  --e-sindiagnostico: #6f7477;
+   Valores HEX exactos del prompt de diseño "Overlook HMI" — no aproximar. */
+.scada {
+  --scada-bg: #003060;        /* fondo HMI principal */
+  --scada-subpanel: #001830;  /* fondo de la lámina/gráficas, más oscuro */
+  --scada-panel: #304848;     /* paneles/contenedores (teal) */
+  --scada-borde: #4a6a6a;
+  --scada-zona: #5a7a7a;
+  --scada-titulo: #ff00ff;    /* títulos de sección: siempre magenta, mayúsculas */
+  --scada-texto: #ffffff;     /* datos/valores: siempre blanco sobre fondo oscuro */
+  --scada-texto-2: #b7c4d6;
+  --scada-tuberia: #00a2e8;
+  --scada-metal: #a2a29d;     /* silos/equipos estáticos sin diagnóstico */
+
+  --e-normal: #5ad65a;
+  --e-observacion: #00a2e8;
+  --e-alerta: #ffff00;
+  --e-alarma: #ff0000;
+  --e-sindiagnostico: var(--scada-metal);
 
   background: var(--scada-bg);
   color: var(--scada-texto);
-  font-family: "Barlow", system-ui, sans-serif;
+  font-family: "Arial Narrow", Tahoma, Arial, sans-serif;
 }
 
 .scada-zona:hover { stroke: var(--scada-texto-2) !important; }
