@@ -194,6 +194,18 @@ function Manija({ x, y, onMouseDown, onDoubleClick }) {
   );
 }
 
+// No fusiona geométricamente dos formas superpuestas — apaga el borde de
+// ESTA forma nomás. Si la forma que queda tapada por otra no tiene borde
+// propio, ya no se ve la línea cruzada entre las dos siluetas.
+function CasillaBorde({ sinTrazo, onToggle }) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--color-neutral-600)' }}>
+      <input type="checkbox" checked={!sinTrazo} onChange={onToggle} />
+      con borde
+    </label>
+  );
+}
+
 function CampoMini({ label, valor, onChange }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }}>
@@ -223,17 +235,23 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
   const agregarForma = (tipoForma) => {
     setMensaje(null);
     if (tipoForma === 'circulo') {
-      setFormas((f) => [...f, { tipo: tipoForma, cx: Math.round(anchoBase / 2), cy: Math.round(altoBase / 2), r: Math.round(Math.min(anchoBase, altoBase) / 3) }]);
+      setFormas((f) => [...f, { tipo: tipoForma, cx: Math.round(anchoBase / 2), cy: Math.round(altoBase / 2), r: Math.round(Math.min(anchoBase, altoBase) / 3), sinTrazo: false }]);
     } else if (tipoForma === 'rectangulo') {
-      setFormas((f) => [...f, { tipo: tipoForma, x: Math.round(anchoBase * 0.2), y: Math.round(altoBase * 0.2), ancho: Math.round(anchoBase * 0.6), alto: Math.round(altoBase * 0.6) }]);
+      setFormas((f) => [
+        ...f,
+        { tipo: tipoForma, x: Math.round(anchoBase * 0.2), y: Math.round(altoBase * 0.2), ancho: Math.round(anchoBase * 0.6), alto: Math.round(altoBase * 0.6), sinTrazo: false },
+      ]);
     } else if (tipoForma === 'linea') {
       setFormas((f) => [...f, { tipo: tipoForma, x1: 0, y1: Math.round(altoBase / 2), x2: anchoBase, y2: Math.round(altoBase / 2) }]);
     } else if (tipoForma === 'texto') {
-      setFormas((f) => [...f, { tipo: tipoForma, x: Math.round(anchoBase / 2), y: Math.round(altoBase / 2), tamano: 10, contenido: 'texto' }]);
+      setFormas((f) => [...f, { tipo: tipoForma, x: Math.round(anchoBase / 2), y: Math.round(altoBase / 2), tamano: 10, contenido: 'texto', color: '#000000' }]);
     }
   };
   const actualizarForma = (i, campo, valor) =>
-    setFormas((fs) => fs.map((f, idx) => (idx === i ? { ...f, [campo]: campo === 'contenido' ? valor : Number(valor) } : f)));
+    setFormas((fs) =>
+      fs.map((f, idx) => (idx === i ? { ...f, [campo]: campo === 'contenido' || campo === 'color' ? valor : Number(valor) } : f))
+    );
+  const alternarTrazo = (i) => setFormas((fs) => fs.map((f, idx) => (idx === i ? { ...f, sinTrazo: !f.sinTrazo } : f)));
   const quitarForma = (i) => setFormas((fs) => fs.filter((_, idx) => idx !== i));
 
   // Arrastrar un extremo de línea directo en la vista previa, sin depender
@@ -374,6 +392,7 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
                       <CampoMini label="cx" valor={f.cx} onChange={(v) => actualizarForma(i, 'cx', v)} />
                       <CampoMini label="cy" valor={f.cy} onChange={(v) => actualizarForma(i, 'cy', v)} />
                       <CampoMini label="r" valor={f.r} onChange={(v) => actualizarForma(i, 'r', v)} />
+                      <CasillaBorde sinTrazo={f.sinTrazo} onToggle={() => alternarTrazo(i)} />
                     </>
                   )}
                   {f.tipo === 'rectangulo' && (
@@ -382,6 +401,7 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
                       <CampoMini label="y" valor={f.y} onChange={(v) => actualizarForma(i, 'y', v)} />
                       <CampoMini label="ancho" valor={f.ancho} onChange={(v) => actualizarForma(i, 'ancho', v)} />
                       <CampoMini label="alto" valor={f.alto} onChange={(v) => actualizarForma(i, 'alto', v)} />
+                      <CasillaBorde sinTrazo={f.sinTrazo} onToggle={() => alternarTrazo(i)} />
                     </>
                   )}
                   {f.tipo === 'linea' && (
@@ -404,6 +424,15 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
                       <CampoMini label="x" valor={f.x} onChange={(v) => actualizarForma(i, 'x', v)} />
                       <CampoMini label="y" valor={f.y} onChange={(v) => actualizarForma(i, 'y', v)} />
                       <CampoMini label="tamaño" valor={f.tamano} onChange={(v) => actualizarForma(i, 'tamano', v)} />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12 }}>
+                        <span style={{ color: 'var(--color-neutral-500)' }}>color</span>
+                        <input
+                          type="color"
+                          value={f.color || '#000000'}
+                          onChange={(e) => actualizarForma(i, 'color', e.target.value)}
+                          style={{ width: 28, height: 24, padding: 0, border: '1px solid var(--color-divider)', background: 'none' }}
+                        />
+                      </label>
                     </>
                   )}
                   <button className="btn btn-ghost" onClick={() => quitarForma(i)} style={{ fontSize: 12 }}>
