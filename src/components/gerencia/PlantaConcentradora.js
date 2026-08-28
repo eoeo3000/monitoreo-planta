@@ -8,10 +8,13 @@ import './gerenciaHMI.css';
 const SEVERIDAD_EN_COLOR = true;
 const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 460;
-const NODO_ANCHO = 64;
-const NODO_ALTO = 56;
+const NODO_ANCHO = 84;
+const NODO_ALTO = 72;
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
 const CUADRICULA = 20; // px por celda — al mover un equipo, su posición se ajusta a este tamaño
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2.5;
+const ZOOM_PASO = 0.15;
 
 const ajustarACuadricula = (v) => Math.round(v / CUADRICULA) * CUADRICULA;
 
@@ -46,6 +49,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   const [mousedownInfo, setMousedownInfo] = useState(null); // { id, startX, startY, offsetX, offsetY } — desde el mousedown, antes de saber si es clic o arrastre
   const [arrastre, setArrastre] = useState(null); // { id, offsetX, offsetY } — se confirma solo si hay movimiento real
   const [posicionArrastre, setPosicionArrastre] = useState(null); // { id, x, y } — posición en vivo, sin tocar el store todavía
+  const [zoom, setZoom] = useState(1);
 
   const color = (sev) => colorDeSeveridad(sev, SEVERIDAD_EN_COLOR);
 
@@ -58,9 +62,16 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
   // mousemove hacía que todo el arrastre se sintiera trabado.
   const posicionDe = (eq) => (posicionArrastre?.id === eq.id ? posicionArrastre : eq.posicion) || { x: 80, y: 80 };
 
+  // getBoundingClientRect ya refleja el zoom aplicado por CSS (transform: scale),
+  // así que hay que deshacerlo para volver a las coordenadas intrínsecas del SVG
+  // (las mismas en las que están guardadas las posiciones de los equipos).
   const puntoSvg = (event) => {
     const rect = svgRef.current.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    return { x: (event.clientX - rect.left) / zoom, y: (event.clientY - rect.top) / zoom };
+  };
+
+  const cambiarZoom = (delta) => {
+    setZoom((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((z + delta) * 100) / 100)));
   };
 
   // No decidimos en el mousedown si es clic o arrastre: guardamos el punto de
@@ -172,6 +183,27 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
         </div>
         <button className="btn btn-secondary" onClick={agregarPlanta}>+ Nueva planta</button>
 
+        <div>
+          <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)', marginBottom: 'var(--space-2)' }}>
+            Zoom
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 1, background: 'var(--color-neutral-300)' }}>
+            <button className="btn btn-secondary" onClick={() => cambiarZoom(-ZOOM_PASO)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 30, padding: 0 }}>
+              −
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setZoom(1)}
+              style={{ background: 'var(--color-bg)', borderRadius: 0, flexGrow: 1, padding: 0, fontVariantNumeric: 'tabular-nums' }}
+            >
+              {Math.round(zoom * 100)} %
+            </button>
+            <button className="btn btn-secondary" onClick={() => cambiarZoom(ZOOM_PASO)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 30, padding: 0 }}>
+              +
+            </button>
+          </div>
+        </div>
+
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
           <label className="seg-opt" style={{ border: '1px solid var(--color-divider)' }}>
             <input
@@ -211,15 +243,22 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
           <p style={{ color: 'var(--color-neutral-600)' }}>Crea una planta para empezar.</p>
         ) : (
           <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'inline-block' }}>
-            <svg
-              ref={svgRef}
-              width={CANVAS_WIDTH}
-              height={CANVAS_HEIGHT}
-              style={{ display: 'block', cursor: modoConectar && origenConexion ? 'crosshair' : undefined }}
-              onMouseMove={onMouseMove}
-              onMouseUp={onMouseUp}
-              onMouseLeave={onMouseUp}
-            >
+            <div style={{ overflow: 'auto', maxWidth: '100%', maxHeight: '76vh' }}>
+              <div style={{ width: Math.round(CANVAS_WIDTH * zoom), height: Math.round(CANVAS_HEIGHT * zoom) }}>
+                <svg
+                  ref={svgRef}
+                  width={CANVAS_WIDTH}
+                  height={CANVAS_HEIGHT}
+                  style={{
+                    display: 'block',
+                    transformOrigin: '0 0',
+                    transform: `scale(${zoom})`,
+                    cursor: modoConectar && origenConexion ? 'crosshair' : undefined,
+                  }}
+                  onMouseMove={onMouseMove}
+                  onMouseUp={onMouseUp}
+                  onMouseLeave={onMouseUp}
+                >
               <defs>
                 <pattern id="cuadricula" width={CUADRICULA} height={CUADRICULA} patternUnits="userSpaceOnUse">
                   <circle cx={1} cy={1} r={1} fill="var(--color-neutral-300)" />
@@ -286,13 +325,13 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                       height={NODO_ALTO}
                       fill="transparent"
                     />
-                    <rect x={NODO_ANCHO / 2 - 9} y={-NODO_ALTO / 2 + 3} width={6} height={6} fill={c} />
+                    <rect x={NODO_ANCHO / 2 - 13} y={-NODO_ALTO / 2 + 4} width={10} height={10} fill={c} />
                     {icono && (
                       <svg
-                        x={-20}
-                        y={-24}
-                        width={40}
-                        height={25}
+                        x={-26}
+                        y={-30}
+                        width={52}
+                        height={35}
                         viewBox={icono.viewBox}
                         fill="none"
                         stroke="currentColor"
@@ -305,9 +344,9 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                     )}
                     <text
                       x={0}
-                      y={22}
+                      y={32}
                       textAnchor="middle"
-                      fontSize={10}
+                      fontSize={11}
                       fontFamily="Barlow Condensed"
                       fontWeight={600}
                       letterSpacing="0.02em"
@@ -318,7 +357,9 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                   </g>
                 );
               })}
-            </svg>
+                </svg>
+              </div>
+            </div>
           </Blueprint>
         )}
       </div>
