@@ -202,8 +202,10 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
   const [formas, setFormas] = useState([]);
   const [puertos, setPuertos] = useState([]);
   const [mensaje, setMensaje] = useState(null);
-  // Arrastre de un extremo de línea en la vista previa — {indice, extremo: 1|2}
-  const [lineaArrastre, setLineaArrastre] = useState(null);
+  // Arrastre de una forma en la vista previa — {indice, modo, offsetX, offsetY}.
+  // modo: 'circulo' (mueve cx/cy), 'rectangulo' (mueve x/y, mismo tamaño),
+  // 'texto' (mueve x/y), 'linea1'/'linea2' (mueve ese extremo nada más).
+  const [formaArrastre, setFormaArrastre] = useState(null);
 
   const agregarForma = (tipoForma) => {
     setMensaje(null);
@@ -235,18 +237,40 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
     const p = pt.matrixTransform(ctm.inverse());
     return { x: Math.round(p.x), y: Math.round(p.y) };
   };
-  const onMouseDownExtremoLinea = (event, indice, extremo) => {
+  // offsetX/Y guarda dónde dentro de la forma se hizo clic, para que no
+  // "salte" a tener su punto de referencia justo bajo el cursor al arrastrar
+  // (salvo en los extremos de línea, donde sí queremos que el punto siga
+  // exacto al cursor, como si lo estuvieras dibujando de nuevo).
+  const onMouseDownForma = (event, indice, forma, modo) => {
     event.stopPropagation();
-    setLineaArrastre({ indice, extremo });
+    const p = puntoSvg(event);
+    let offsetX = 0;
+    let offsetY = 0;
+    if (modo === 'circulo') {
+      offsetX = p.x - forma.cx;
+      offsetY = p.y - forma.cy;
+    } else if (modo === 'rectangulo' || modo === 'texto') {
+      offsetX = p.x - forma.x;
+      offsetY = p.y - forma.y;
+    }
+    setFormaArrastre({ indice, modo, offsetX, offsetY });
   };
   const onMouseMovePreview = (event) => {
-    if (!lineaArrastre) return;
+    if (!formaArrastre) return;
     const p = puntoSvg(event);
-    const campoX = lineaArrastre.extremo === 1 ? 'x1' : 'x2';
-    const campoY = lineaArrastre.extremo === 1 ? 'y1' : 'y2';
-    setFormas((fs) => fs.map((f, idx) => (idx === lineaArrastre.indice ? { ...f, [campoX]: p.x, [campoY]: p.y } : f)));
+    const { indice, modo, offsetX, offsetY } = formaArrastre;
+    setFormas((fs) =>
+      fs.map((f, idx) => {
+        if (idx !== indice) return f;
+        if (modo === 'circulo') return { ...f, cx: p.x - offsetX, cy: p.y - offsetY };
+        if (modo === 'rectangulo' || modo === 'texto') return { ...f, x: p.x - offsetX, y: p.y - offsetY };
+        if (modo === 'linea1') return { ...f, x1: p.x, y1: p.y };
+        if (modo === 'linea2') return { ...f, x2: p.x, y2: p.y };
+        return f;
+      })
+    );
   };
-  const onMouseUpPreview = () => setLineaArrastre(null);
+  const onMouseUpPreview = () => setFormaArrastre(null);
 
   const agregarPuerto = () => setPuertos((ps) => [...ps, { nombre: `puerto${ps.length + 1}`, x: 0, y: Math.round(altoBase / 2), dir: 'W' }]);
   const actualizarPuerto = (i, campo, valor) => setPuertos((ps) => ps.map((p, idx) => (idx === i ? { ...p, [campo]: campo === 'x' || campo === 'y' ? Number(valor) : valor } : p)));
@@ -305,7 +329,10 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
           </div>
 
           <div>
-            <div style={{ ...kicker, marginBottom: 6 }}>Formas</div>
+            <div style={{ ...kicker, marginBottom: 2 }}>Formas</div>
+            <p style={{ margin: '0 0 6px', fontSize: 11, color: 'var(--color-neutral-500)' }}>
+              También se pueden arrastrar directo en la vista previa →
+            </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {formas.map((f, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -331,7 +358,6 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
                       <CampoMini label="y1" valor={f.y1} onChange={(v) => actualizarForma(i, 'y1', v)} />
                       <CampoMini label="x2" valor={f.x2} onChange={(v) => actualizarForma(i, 'x2', v)} />
                       <CampoMini label="y2" valor={f.y2} onChange={(v) => actualizarForma(i, 'y2', v)} />
-                      <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>o arrastra sus extremos en la vista previa →</span>
                     </>
                   )}
                   {f.tipo === 'texto' && (
@@ -417,15 +443,37 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
               <g fill="#a2a29d" stroke="#000" strokeWidth={1}>
                 {formas.map((f, i) => formaAJsx(f, i))}
               </g>
-              {formas.map(
-                (f, i) =>
-                  f.tipo === 'linea' && (
+              {formas.map((f, i) => {
+                if (f.tipo === 'linea') {
+                  return (
                     <g key={`manijas-${i}`}>
-                      <circle cx={f.x1} cy={f.y1} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownExtremoLinea(e, i, 1)} />
-                      <circle cx={f.x2} cy={f.y2} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownExtremoLinea(e, i, 2)} />
+                      <circle cx={f.x1} cy={f.y1} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea1')} />
+                      <circle cx={f.x2} cy={f.y2} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea2')} />
                     </g>
-                  )
-              )}
+                  );
+                }
+                if (f.tipo === 'circulo') {
+                  return <circle key={`manija-${i}`} cx={f.cx} cy={f.cy} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'circulo')} />;
+                }
+                if (f.tipo === 'rectangulo') {
+                  return (
+                    <rect
+                      key={`manija-${i}`}
+                      x={f.x + f.ancho / 2 - 4}
+                      y={f.y + f.alto / 2 - 4}
+                      width={8}
+                      height={8}
+                      fill="#00a2e8"
+                      style={{ cursor: 'grab' }}
+                      onMouseDown={(e) => onMouseDownForma(e, i, f, 'rectangulo')}
+                    />
+                  );
+                }
+                if (f.tipo === 'texto') {
+                  return <circle key={`manija-${i}`} cx={f.x} cy={f.y} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownForma(e, i, f, 'texto')} />;
+                }
+                return null;
+              })}
               {puertos.map((p, i) => (
                 <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#00a2e8" />
               ))}
