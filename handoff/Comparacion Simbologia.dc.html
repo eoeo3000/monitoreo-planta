@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/styles.css">
+<script src="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--color-bg); }
+  a { color: var(--color-accent-700); }
+  a:hover { color: var(--color-accent-900); }
+</style>
+</helmet>
+<div style="min-height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); padding: var(--space-6) var(--space-8) var(--space-8)">
+
+  <header style="display: flex; align-items: flex-end; gap: var(--space-6); padding-bottom: var(--space-4); border-bottom: 1px solid var(--color-divider); margin-bottom: var(--space-6)">
+    <div>
+      <div style="font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-accent-700)">Gerencia · Decisión de simbología</div>
+      <h1 style="font-size: 32px; margin: var(--space-1) 0 0; letter-spacing: 0.01em">CUATRO CONVENCIONES</h1>
+    </div>
+    <p style="margin: 0 0 3px; max-width: 460px; font-size: 13px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">La misma bomba centrífuga y el mismo reductor de velocidad dibujados según cada convención, para elegir con qué se construye el catálogo definitivo.</p>
+    <div style="margin-left: auto; display: flex; align-items: center; gap: var(--space-3)">
+      <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Simular alarma</span>
+      <button class="btn btn-secondary" onClick="{{ toggleAlarma }}" style="min-width: 74px">{{ alarmaLabel }}</button>
+    </div>
+  </header>
+
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--color-neutral-300); border: 1px solid var(--color-neutral-300)">
+
+    <section style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4)">
+      <div>
+        <div style="display: flex; align-items: baseline; gap: var(--space-2)">
+          <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">A</span>
+          <h3 style="font-size: 17px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">Actual</h3>
+        </div>
+        <div style="font-size: 11px; color: var(--color-accent-700); letter-spacing: 0.04em">Industry · sin norma</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1px; background: var(--color-neutral-300)">
+        <div style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2)">
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-neutral-800)">
+            <circle cx="52" cy="46" r="22"></circle>
+            <path d="M52 24 V10 H80"></path>
+            <path d="M30 46 H8"></path>
+            <path d="M52 46 L67 35 M52 46 L41 64"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Bomba centrífuga</span>
+        </div>
+        <div style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2)">
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-neutral-800)">
+            <rect x="26" y="24" width="52" height="30"></rect>
+            <path d="M26 39 H8"></path>
+            <path d="M78 45 H96"></path>
+            <path d="M38 24 V54 M52 24 V54 M66 24 V54"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Reductor</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: var(--space-2); font-size: 12px; line-height: 1.5; color: var(--color-neutral-700)">
+        <p style="margin: 0; text-wrap: pretty">Dibujo por legibilidad: la voluta y los ejes se leen de inmediato, incluso a 32px. No es citable en un plano.</p>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-2); font-size: 11px">
+          <span style="color: var(--color-neutral-500)">Ventaja</span><span>Legible en miniatura</span>
+          <span style="color: var(--color-neutral-500)">Riesgo</span><span>Un ingeniero de proceso no la reconoce</span>
+          <span style="color: var(--color-neutral-500)">Uso</span><span>Vistas de gerencia y dashboards</span>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4)">
+      <div>
+        <div style="display: flex; align-items: baseline; gap: var(--space-2)">
+          <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">B</span>
+          <h3 style="font-size: 17px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">ISA-5.1</h3>
+        </div>
+        <div style="font-size: 11px; color: var(--color-accent-700); letter-spacing: 0.04em">P&amp;ID de instrumentación</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1px; background: var(--color-neutral-300)">
+        <div style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2)">
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-neutral-800)">
+            <circle cx="46" cy="48" r="17"></circle>
+            <path d="M33 37 L46 20 L59 37"></path>
+            <path d="M46 20 V8 H74"></path>
+            <path d="M29 48 H8"></path>
+            <circle cx="80" cy="24" r="13" stroke-dasharray="0"></circle>
+            <path d="M67 24 H93"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Bomba + burbuja PT</span>
+        </div>
+        <div style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); position: relative">
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-neutral-400)">
+            <rect x="26" y="24" width="52" height="30" stroke-dasharray="4 4"></rect>
+            <path d="M40 33 L64 45 M64 33 L40 45"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-neutral-500)">No normado</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: var(--space-2); font-size: 12px; line-height: 1.5; color: var(--color-neutral-700)">
+        <p style="margin: 0; text-wrap: pretty">La norma rige <strong>instrumentos</strong>, no máquinas: la burbuja de dos letras, la línea de ubicación y el tipo de señal. El reductor queda fuera de su alcance.</p>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-2); font-size: 11px">
+          <span style="color: var(--color-neutral-500)">Ventaja</span><span>Es la que exige el plano P&amp;ID</span>
+          <span style="color: var(--color-neutral-500)">Riesgo</span><span>Cubre solo instrumentos y señales</span>
+          <span style="color: var(--color-neutral-500)">Uso</span><span>Combinar con ISO 10628 para equipos</span>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4)">
+      <div>
+        <div style="display: flex; align-items: baseline; gap: var(--space-2)">
+          <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500)">C</span>
+          <h3 style="font-size: 17px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase">ISO 10628</h3>
+        </div>
+        <div style="font-size: 11px; color: var(--color-accent-700); letter-spacing: 0.04em">Diagramas de flujo de proceso</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1px; background: var(--color-neutral-300)">
+        <div style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2)">
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-neutral-800)">
+            <circle cx="52" cy="38" r="20"></circle>
+            <path d="M42 28 L42 48 L64 38 Z" fill="currentColor" stroke="none"></path>
+            <path d="M32 38 H8"></path>
+            <path d="M72 38 H96"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Bomba centrífuga</span>
+        </div>
+        <div style="background: var(--color-bg); padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2)">
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-neutral-800)">
+            <rect x="30" y="22" width="44" height="34"></rect>
+            <circle cx="43" cy="34" r="7"></circle>
+            <circle cx="61" cy="45" r="9"></circle>
+            <path d="M30 34 H8"></path>
+            <path d="M74 45 H96"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase">Reductor de engranajes</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: var(--space-2); font-size: 12px; line-height: 1.5; color: var(--color-neutral-700)">
+        <p style="margin: 0; text-wrap: pretty">Geometría austera: el triángulo relleno marca el sentido del flujo; el par de engranajes describe la relación de reducción. Formas cerradas, sin adorno.</p>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-2); font-size: 11px">
+          <span style="color: var(--color-neutral-500)">Ventaja</span><span>Cubre equipos y es internacional</span>
+          <span style="color: var(--color-neutral-500)">Riesgo</span><span>Formas parecidas entre sí en miniatura</span>
+          <span style="color: var(--color-neutral-500)">Uso</span><span>Diagramas de flujo y balances</span>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: #4a4f52; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4)">
+      <div>
+        <div style="display: flex; align-items: baseline; gap: var(--space-2)">
+          <span style="font-size: 10px; letter-spacing: 0.1em; color: #a9adaf">D</span>
+          <h3 style="font-size: 17px; margin: 0; letter-spacing: 0.04em; text-transform: uppercase; color: #eceded">ISA-101</h3>
+        </div>
+        <div style="font-size: 11px; color: #a9adaf; letter-spacing: 0.04em">HMI de alto rendimiento</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 1px; background: #5d6265">
+        <div style="background: #4a4f52; padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2); position: relative">
+          <span style="position: absolute; top: 6px; right: 6px; display: {{ alarmaDisplay }}; align-items: center; gap: 4px; background: #d1a01c; color: #23262a; font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.06em; padding: 1px 5px">VIB HI</span>
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #c9cccd">
+            <circle cx="52" cy="38" r="18" fill="#6f7477" stroke="{{ alarmaStroke }}" stroke-width="{{ alarmaWidth }}"></circle>
+            <path d="M34 38 H8"></path>
+            <path d="M70 38 H96"></path>
+            <path d="M52 20 V10"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; color: #eceded">B-101</span>
+          <span style="font-family: var(--font-body); font-size: 11px; font-variant-numeric: tabular-nums; color: #c9cccd">4.8 mm/s · 62 A</span>
+        </div>
+        <div style="background: #4a4f52; padding: var(--space-4); display: flex; flex-direction: column; align-items: center; gap: var(--space-2)">
+          <svg width="104" height="76" viewBox="0 0 104 76" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: #c9cccd">
+            <rect x="32" y="24" width="40" height="28" fill="#6f7477"></rect>
+            <path d="M32 38 H8"></path>
+            <path d="M72 38 H96"></path>
+          </svg>
+          <span style="font-family: var(--font-heading); font-size: 13px; letter-spacing: 0.03em; text-transform: uppercase; color: #eceded">RED-101</span>
+          <span style="font-family: var(--font-body); font-size: 11px; font-variant-numeric: tabular-nums; color: #c9cccd">1480 → 296 rpm</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: var(--space-2); font-size: 12px; line-height: 1.5; color: #c9cccd">
+        <p style="margin: 0; text-wrap: pretty">No es una norma de símbolos sino de <strong style="color: #eceded">pantalla</strong>: fondo gris medio, equipos en gris plano sin detalle, y el color reservado por completo a la alarma. El dato numérico manda sobre el dibujo.</p>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-2); font-size: 11px">
+          <span style="color: #8f9497">Ventaja</span><span>La anomalía salta a la vista</span>
+          <span style="color: #8f9497">Riesgo</span><span>Deshace el acento acero de Industry</span>
+          <span style="color: #8f9497">Uso</span><span>Sala de control, turno de operador</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="blueprint" style="margin-top: var(--space-6); padding: var(--space-4) var(--space-6); display: flex; align-items: center; gap: var(--space-6)">
+    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    <div style="flex-shrink: 0">
+      <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">Recomendación</div>
+      <div style="font-family: var(--font-heading); font-size: 19px; letter-spacing: 0.03em; text-transform: uppercase">C + B para el plano, A para gerencia</div>
+    </div>
+    <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">ISO 10628 para las máquinas e ISA-5.1 para los instrumentos cubren todo el circuito y son defendibles ante ingeniería. La convención actual sirve para la vista de gerencia, donde el símbolo se lee a 32px y no se cita en un plano. ISA-101 solo si la pantalla la usa un operador en turno: exige rendirse el fondo gris y renunciar al acento acero.</p>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1420,&quot;height&quot;:760}}">
+class Component extends DCLogic {
+  state = { alarma: false };
+  renderVals() {
+    const a = this.state.alarma;
+    return {
+      toggleAlarma: () => this.setState(s => ({ alarma: !s.alarma })),
+      alarmaLabel: a ? 'Activa' : 'Normal',
+      alarmaDisplay: a ? 'inline-flex' : 'none',
+      alarmaStroke: a ? '#d1a01c' : '#c9cccd',
+      alarmaWidth: a ? 3 : 1.5,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

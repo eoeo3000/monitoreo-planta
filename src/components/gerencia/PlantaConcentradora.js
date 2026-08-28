@@ -3,6 +3,7 @@ import Blueprint from '../../theme/Blueprint';
 import { condicionActual } from '../../analista/store';
 import { colorDeSeveridad } from '../../analista/severidad';
 import { EQUIPO_ICONOS } from '../../gerencia/equipoIcons';
+import { puertoHacia, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
 import './gerenciaHMI.css';
 
 const SEVERIDAD_EN_COLOR = true;
@@ -10,10 +11,6 @@ const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 460;
 const NODO_ANCHO = 84;
 const NODO_ALTO = 72;
-// La conexión debe tocar el glifo dibujado (52px de ancho, centrado), no el borde
-// del área invisible de arrastre (84px) — con ese margen más grande la línea se
-// cortaba antes de llegar al dibujo, dejando un espacio vacío ("de lejos").
-const MARGEN_CONEXION = 27;
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
 const CUADRICULA = 20; // px por celda — al mover un equipo, su posición se ajusta a este tamaño
 const ZOOM_MIN = 0.5;
@@ -22,21 +19,16 @@ const ZOOM_PASO = 0.15;
 
 const ajustarACuadricula = (v) => Math.round(v / CUADRICULA) * CUADRICULA;
 
-// Conector ortogonal (en ángulo recto, no diagonal) con un quiebre a medio camino
-// en X — mismo lenguaje visual que los conectores del demo original. Los extremos
-// se corren un poco hacia el quiebre para que el punto no quede tapado por el nodo.
-function rutaOrtogonal(p1, p2, margen) {
-  const midX = (p1.x + p2.x) / 2;
-  const dir1 = Math.sign(midX - p1.x);
-  const dir2 = Math.sign(p2.x - midX);
-  const inicio = { x: p1.x + dir1 * margen, y: p1.y };
-  const fin = { x: p2.x - dir2 * margen, y: p2.y };
-  return {
-    d: `M ${inicio.x} ${inicio.y} H ${midX} V ${p2.y} H ${fin.x}`,
-    inicio,
-    fin,
-    medio: { x: midX, y: (p1.y + p2.y) / 2 },
-  };
+// Ruta de una conexión real entre dos equipos: cada extremo usa el puerto de
+// su glifo mejor orientado hacia el otro equipo (handoff §9) — el trazo nace
+// y muere exactamente sobre el dibujo, sin margen ni holgura inventados.
+function rutaEntreEquipos(deEq, aEq, posDe, posA) {
+  const iconoDe = EQUIPO_ICONOS[deEq.tipo];
+  const iconoA = EQUIPO_ICONOS[aEq.tipo];
+  const puertoDe = puertoHacia(posDe, iconoDe, posA);
+  const puertoA = puertoHacia(posA, iconoA, posDe);
+  if (!puertoDe || !puertoA) return null;
+  return rutaPuertos(puertoDe, puertoA);
 }
 
 // Vista + editor de las plantas reales creadas en Administración (no un demo fijo):
@@ -276,10 +268,11 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const ruta = rutaOrtogonal(posicionDe(de), posicionDe(a), MARGEN_CONEXION);
+                const ruta = rutaEntreEquipos(de, a, posicionDe(de), posicionDe(a));
+                if (!ruta) return null;
                 return (
                   <g key={c.id}>
-                    <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={1} />
+                    <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinecap="round" shapeRendering="crispEdges" />
                     <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={2.5} fill="var(--color-accent)" />
                     <circle cx={ruta.fin.x} cy={ruta.fin.y} r={2.5} fill="var(--color-accent)" />
                     {modoEdicion && (
@@ -303,8 +296,11 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               {modoConectar && origenConexion && mousePos && (() => {
                 const eqOrigen = equiposDePlanta.find((eq) => eq.id === origenConexion);
                 if (!eqOrigen) return null;
-                const ruta = rutaOrtogonal(posicionDe(eqOrigen), mousePos, MARGEN_CONEXION);
-                return <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={1} strokeDasharray="4 3" pointerEvents="none" />;
+                const posOrigen = posicionDe(eqOrigen);
+                const puertoOrigen = puertoHacia(posOrigen, EQUIPO_ICONOS[eqOrigen.tipo], mousePos);
+                if (!puertoOrigen) return null;
+                const ruta = rutaHaciaPunto(puertoOrigen, mousePos);
+                return <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={2} strokeLinecap="round" strokeDasharray="4 3" pointerEvents="none" />;
               })()}
 
               {equiposDePlanta.map((eq) => {

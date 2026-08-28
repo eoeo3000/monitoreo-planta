@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/styles.css">
+<script src="_ds/industry-7ffee9ea-362f-4bec-b89f-4a2f2acf030a/_ds_bundle.js"></script>
+<style>
+  body { margin: 0; background: var(--color-bg); }
+  a { color: var(--color-accent-700); }
+  a:hover { color: var(--color-accent-900); }
+  .nodo:hover { box-shadow: inset 0 0 0 1px var(--color-accent) !important; }
+  .sw:hover { transform: scale(1.14); }
+  .lienzo input { font-family: var(--font-body); }
+  input.lin { border: 0; border-bottom: 1px solid var(--color-neutral-300); background: transparent; padding: 1px 0; font-size: 12px; color: var(--color-text); width: 100%; }
+  input.lin:focus { outline: 0; border-bottom-color: var(--color-accent); }
+</style>
+</helmet>
+
+<svg width="0" height="0" style="position: absolute; overflow: hidden" aria-hidden="true">
+  <symbol id="ic-tolva" viewBox="0 0 40 32">
+    <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 5 H32 L24 22 H16 Z"></path><path d="M16 22 V28"></path><path d="M24 22 V28"></path>
+    </g>
+  </symbol>
+  <symbol id="ic-molino" viewBox="0 0 40 32">
+    <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 9 H29"></path><path d="M11 24 H29"></path>
+      <path d="M11 9 A5 7.5 0 0 0 11 24"></path><path d="M29 9 A5 7.5 0 0 1 29 24"></path>
+      <path d="M4 16.5 H7 M33 16.5 H36"></path>
+    </g>
+  </symbol>
+  <symbol id="ic-sumidero" viewBox="0 0 40 32">
+    <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 5 V26 H28 V5"></path><path d="M12 14 H28"></path>
+    </g>
+  </symbol>
+  <symbol id="ic-bomba" viewBox="0 0 40 32">
+    <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="20" cy="18" r="9"></circle><path d="M20 9 V4 H30"></path><path d="M11 18 H4"></path>
+      <path d="M20 18 L26 14 M20 18 L16 25"></path>
+    </g>
+  </symbol>
+  <symbol id="ic-ciclon" viewBox="0 0 40 32">
+    <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 7 H29 V14 L20 28 L11 14 Z"></path><path d="M20 7 V3"></path><path d="M11 10 H5"></path>
+    </g>
+  </symbol>
+</svg>
+
+<section style="padding: var(--space-6) var(--space-8) var(--space-8); font-family: var(--font-body); color: var(--color-text)">
+
+  <header style="display: flex; align-items: flex-end; gap: var(--space-6); padding-bottom: var(--space-4); border-bottom: 1px solid var(--color-divider); margin-bottom: var(--space-6)">
+    <div>
+      <div style="font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-accent-700)">Turno 1 · Visualización del diagrama</div>
+      <h1 style="font-family: var(--font-heading); font-size: 32px; margin: var(--space-1) 0 0; letter-spacing: 0.02em">TRES FORMAS DE USAR EL COLOR</h1>
+    </div>
+    <p style="margin: 0 0 3px; max-width: 520px; font-size: 13px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">El mismo tramo del circuito de molienda en tres direcciones. Todas son interactivas: prueba los controles de cada una. La diferencia no es cuánto color hay, sino <strong>quién decide qué significa</strong>.</p>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start">
+
+    <div id="1a" style="width: 464px; display: flex; flex-direction: column; gap: var(--space-3)">
+      <div style="display: flex; align-items: baseline; gap: var(--space-3)">
+        <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.1em; background: var(--color-accent); color: #fff; padding: 2px 7px">1A</span>
+        <h2 style="font-family: var(--font-heading); font-size: 21px; margin: 0; letter-spacing: 0.03em; text-transform: uppercase">Color por fluido</h2>
+      </div>
+      <p style="margin: 0; font-size: 12px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">El color viaja en las <strong>líneas</strong>, no en los equipos: cada tramo se pinta según lo que transporta. Los equipos siguen siendo dibujos de acero.</p>
+
+      <div class="blueprint lienzo" style="padding: var(--space-3)">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="position: relative; width: 420px; height: 300px">
+          <svg width="420" height="300" viewBox="0 0 420 300" fill="none" style="position: absolute; inset: 0; pointer-events: none">
+            <defs>
+              <marker id="fA1" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#9a7b4f"></path></marker>
+              <marker id="fA2" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#b5651d"></path></marker>
+              <marker id="fA3" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#2b7ab5"></path></marker>
+              <marker id="fA4" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="#6b5750"></path></marker>
+            </defs>
+            <g stroke-width="2" stroke-linecap="round">
+              <path d="M110 62 H150" stroke="#9a7b4f" marker-end="url(#fA1)"></path>
+              <path d="M250 62 H290" stroke="#b5651d" marker-end="url(#fA2)"></path>
+              <path d="M344 102 V160" stroke="#b5651d" marker-end="url(#fA2)"></path>
+              <path d="M292 206 H254" stroke="#b5651d" marker-end="url(#fA2)"></path>
+              <path d="M156 206 H112" stroke="#2b7ab5" marker-end="url(#fA3)"></path>
+              <path d="M204 166 V106" stroke="#6b5750" marker-end="url(#fA4)"></path>
+            </g>
+            <g fill="var(--color-neutral-600)" font-family="Barlow" font-size="10" letter-spacing="0.06em">
+              <text x="112" y="55">FINO</text>
+              <text x="252" y="55">PULPA</text>
+              <text x="208" y="140">CARGA CIRC.</text>
+              <text x="112" y="199">OVERFLOW</text>
+            </g>
+          </svg>
+          <sc-for list="{{ nodosA }}" as="d" hint-placeholder-count="5">
+            <div style="position: absolute; left: {{ d.left }}; top: {{ d.top }}; width: 92px; height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid var(--color-neutral-300)">
+              <svg width="40" height="32" viewBox="0 0 40 32" style="color: var(--color-neutral-800)"><use href="{{ d.icono }}"></use></svg>
+              <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase">{{ d.tag }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="blueprint" style="padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2)">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Leyenda de fluidos — edita los nombres</div>
+        <sc-for list="{{ fluidos }}" as="f" hint-placeholder-count="4">
+          <div style="display: flex; align-items: center; gap: var(--space-3)">
+            <span style="width: 18px; height: 3px; flex-shrink: 0; background: {{ f.color }}"></span>
+            <input class="lin" value="{{ f.nombre }}" onChange="{{ f.onNombre }}">
+            <span style="font-size: 10px; letter-spacing: 0.1em; color: var(--color-neutral-500); flex-shrink: 0">{{ f.codigo }}</span>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-3); font-size: 11px; line-height: 1.4">
+        <span style="color: var(--color-neutral-500)">Gana</span><span style="color: var(--color-neutral-700)">Se entiende el proceso de un vistazo; el color nunca miente porque es una propiedad física.</span>
+        <span style="color: var(--color-neutral-500)">Cuesta</span><span style="color: var(--color-neutral-700)">La severidad pierde protagonismo: compite con seis colores de línea.</span>
+      </div>
+    </div>
+
+    <div id="1b" style="width: 464px; display: flex; flex-direction: column; gap: var(--space-3)">
+      <div style="display: flex; align-items: baseline; gap: var(--space-3)">
+        <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.1em; background: var(--color-accent); color: #fff; padding: 2px 7px">1B</span>
+        <h2 style="font-family: var(--font-heading); font-size: 21px; margin: 0; letter-spacing: 0.03em; text-transform: uppercase">Lienzo editable</h2>
+      </div>
+      <p style="margin: 0; font-size: 12px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">Tú decides. Haz clic en un equipo: puedes <strong>cambiar su color</strong>, <strong>renombrarlo</strong> y soltar <strong>notas de texto</strong> en cualquier parte del lienzo.</p>
+
+      <div class="blueprint lienzo" style="padding: var(--space-3)">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="position: relative; width: 420px; height: 300px">
+          <svg width="420" height="300" viewBox="0 0 420 300" fill="none" style="position: absolute; inset: 0; pointer-events: none; color: var(--color-accent)">
+            <defs><marker id="fB" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--color-accent)"></path></marker></defs>
+            <g stroke="currentColor" stroke-width="1.5" marker-end="url(#fB)">
+              <path d="M110 62 H150"></path><path d="M250 62 H290"></path><path d="M344 102 V160"></path>
+              <path d="M292 206 H254"></path><path d="M156 206 H112"></path><path d="M204 166 V106"></path>
+            </g>
+          </svg>
+          <sc-for list="{{ nodosB }}" as="d" hint-placeholder-count="5">
+            <div class="nodo" onClick="{{ d.pick }}" style="position: absolute; left: {{ d.left }}; top: {{ d.top }}; width: 92px; height: 76px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid {{ d.borde }}; background: {{ d.fondo }}">
+              <svg width="40" height="32" viewBox="0 0 40 32" style="color: {{ d.color }}"><use href="{{ d.icono }}"></use></svg>
+              <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; text-align: center; line-height: 1.1">{{ d.tag }}</span>
+            </div>
+          </sc-for>
+          <sc-for list="{{ notas }}" as="nt" hint-placeholder-count="1">
+            <div style="position: absolute; left: {{ nt.left }}; top: {{ nt.top }}; width: 136px; z-index: 2; display: flex; align-items: flex-start; gap: 3px; border-left: 2px solid var(--color-accent); background: var(--color-neutral-100); padding: 3px 4px">
+              <input class="lin" value="{{ nt.texto }}" onChange="{{ nt.onTexto }}" placeholder="Escribe la nota…" style="font-size: 11px; border-bottom: 0">
+              <button class="btn btn-ghost" onClick="{{ nt.quitar }}" style="padding: 0 3px; min-height: 0; font-size: 11px; line-height: 1.2">✕</button>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="blueprint" style="padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3)">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display: flex; align-items: baseline; gap: var(--space-2)">
+          <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Seleccionado</span>
+          <span style="font-family: var(--font-heading); font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase">{{ selNombre }}</span>
+          <button class="btn btn-secondary" onClick="{{ agregarNota }}" style="margin-left: auto; min-height: 26px; padding: 0 var(--space-3); font-size: 12px">+ Nota</button>
+        </div>
+        <sc-if value="{{ haySel }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: var(--space-3)">
+            <label style="display: flex; flex-direction: column; gap: 3px">
+              <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Etiqueta</span>
+              <input class="lin" value="{{ selTag }}" onChange="{{ onSelTag }}">
+            </label>
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Color del símbolo</span>
+              <div style="display: flex; gap: var(--space-2)">
+                <sc-for list="{{ swatches }}" as="sw" hint-placeholder-count="6">
+                  <span class="sw" onClick="{{ sw.pick }}" title="{{ sw.nombre }}" style="width: 22px; height: 22px; cursor: pointer; background: {{ sw.color }}; box-shadow: {{ sw.ring }}; transition: transform .1s"></span>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-3); font-size: 11px; line-height: 1.4">
+        <span style="color: var(--color-neutral-500)">Gana</span><span style="color: var(--color-neutral-700)">Gerencia arma su propia vista y la anota antes de una reunión, sin pedir cambios.</span>
+        <span style="color: var(--color-neutral-500)">Cuesta</span><span style="color: var(--color-neutral-700)">Sin disciplina, cada vista significa algo distinto. Pide una paleta cerrada como esta, de seis.</span>
+      </div>
+    </div>
+
+    <div id="1c" style="width: 464px; display: flex; flex-direction: column; gap: var(--space-3)">
+      <div style="display: flex; align-items: baseline; gap: var(--space-3)">
+        <span style="font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.1em; background: var(--color-accent); color: #fff; padding: 2px 7px">1C</span>
+        <h2 style="font-family: var(--font-heading); font-size: 21px; margin: 0; letter-spacing: 0.03em; text-transform: uppercase">Capas de dato</h2>
+      </div>
+      <p style="margin: 0; font-size: 12px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty">El color es una <strong>capa que se enciende</strong>. Un solo dato colorea el lienzo a la vez, así nunca hay dos escalas compitiendo. Cambia la capa y mira.</p>
+
+      <div class="blueprint lienzo" style="padding: var(--space-3)">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="position: relative; width: 420px; height: 300px">
+          <svg width="420" height="300" viewBox="0 0 420 300" fill="none" style="position: absolute; inset: 0; pointer-events: none; color: var(--color-accent)">
+            <defs><marker id="fC" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 Z" fill="var(--color-accent)"></path></marker></defs>
+            <g stroke="currentColor" stroke-width="1.5" marker-end="url(#fC)">
+              <path d="M110 62 H150"></path><path d="M250 62 H290"></path><path d="M344 102 V160"></path>
+              <path d="M292 206 H254"></path><path d="M156 206 H112"></path><path d="M204 166 V106"></path>
+            </g>
+          </svg>
+          <sc-for list="{{ nodosC }}" as="d" hint-placeholder-count="5">
+            <div class="nodo" onClick="{{ d.pick }}" style="position: absolute; left: {{ d.left }}; top: {{ d.top }}; width: 92px; height: 76px; cursor: pointer; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 1px solid {{ d.borde }}; background: {{ d.fondo }}">
+              <span style="position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; background: {{ d.marca }}"></span>
+              <svg width="40" height="32" viewBox="0 0 40 32" style="color: var(--color-neutral-800)"><use href="{{ d.icono }}"></use></svg>
+              <span style="font-family: var(--font-heading); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase">{{ d.tag }}</span>
+              <span style="font-size: 10px; font-variant-numeric: tabular-nums; color: var(--color-neutral-600)">{{ d.valor }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ hayCallout }}" hint-placeholder-val="{{ true }}">
+            <div style="position: absolute; left: {{ calloutLeft }}; top: {{ calloutTop }}; width: 150px; z-index: 3; display: flex; align-items: flex-start; gap: 3px; border: 1px solid var(--color-accent); background: var(--color-bg); padding: 3px 5px">
+              <input class="lin" value="{{ calloutTexto }}" onChange="{{ onCallout }}" placeholder="Anota este equipo…" style="font-size: 11px; border-bottom: 0">
+              <button class="btn btn-ghost" onClick="{{ cerrarCallout }}" style="padding: 0 3px; min-height: 0; font-size: 11px; line-height: 1.2">✕</button>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div class="blueprint" style="padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-3)">
+        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600)">Capa activa</span>
+          <div style="display: flex; gap: 1px; background: var(--color-neutral-300)">
+            <sc-for list="{{ capas }}" as="cp" hint-placeholder-count="4">
+              <button onClick="{{ cp.pick }}" style="flex-grow: 1; cursor: pointer; border: 0; border-radius: 0; padding: 5px 0; font-family: var(--font-heading); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; background: {{ cp.bg }}; color: {{ cp.fg }}">{{ cp.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4)">
+          <sc-for list="{{ leyenda }}" as="lg" hint-placeholder-count="4">
+            <span style="display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--color-neutral-700)">
+              <span style="width: 8px; height: 8px; border: 1px solid var(--color-neutral-400); background: {{ lg.color }}"></span>{{ lg.label }}
+            </span>
+          </sc-for>
+        </div>
+        <div style="font-size: 11px; line-height: 1.45; color: var(--color-neutral-600); text-wrap: pretty">{{ capaNota }}</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: auto 1fr; gap: 2px var(--space-3); font-size: 11px; line-height: 1.4">
+        <span style="color: var(--color-neutral-500)">Gana</span><span style="color: var(--color-neutral-700)">Una pregunta a la vez. Escala pequeña y consistente: el lienzo nunca se vuelve un arcoíris.</span>
+        <span style="color: var(--color-neutral-500)">Cuesta</span><span style="color: var(--color-neutral-700)">Hay que abrir la capa correcta para ver el problema; no todo está visible a la vez.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="blueprint" style="margin-top: var(--space-6); padding: var(--space-4) var(--space-6); display: flex; align-items: center; gap: var(--space-6); max-width: 1424px">
+    <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+    <div style="flex-shrink: 0">
+      <div style="font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700)">Mi recomendación</div>
+      <div style="font-family: var(--font-heading); font-size: 19px; letter-spacing: 0.03em; text-transform: uppercase">1C como base, 1B encima</div>
+    </div>
+    <p style="margin: 0; font-size: 13px; line-height: 1.5; color: var(--color-neutral-700); text-wrap: pretty"><a href="#1c">1C</a> resuelve el problema de fondo: hoy el color de severidad es el único dato visible y la criticidad o la disponibilidad no tienen dónde vivir. Las capas dan sitio a todos sin romper el sistema. <a href="#1b">1B</a> se suma como herramienta de gerencia — renombrar y anotar antes de un comité es real, y una paleta de seis lo mantiene bajo control. <a href="#1a">1A</a> es el color más honesto de los tres, pero pertenece al plano de ingeniería, no al tablero de gerencia: ahí compite con la severidad y la severidad debe ganar siempre.</p>
+  </div>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1500,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  NODOS = [
+    { key: 'tolva', tag: 'TQ-102', nombre: 'Tolva de finos', icono: '#ic-tolva', x: 18, y: 24, sev: 'normal', crit: 'C', disp: 98.4, fluido: 'fino' },
+    { key: 'molino', tag: 'MOL-201', nombre: 'Molino de bolas', icono: '#ic-molino', x: 158, y: 24, sev: 'observacion', crit: 'A', disp: 94.1, fluido: 'pulpa' },
+    { key: 'sumidero', tag: 'SMP-201', nombre: 'Sumidero 01', icono: '#ic-sumidero', x: 298, y: 24, sev: 'normal', crit: 'C', disp: 99.6, fluido: 'pulpa' },
+    { key: 'bomba', tag: 'B-101', nombre: 'Bomba B-101', icono: '#ic-bomba', x: 298, y: 162, sev: 'alerta', crit: 'B', disp: 88.7, fluido: 'pulpa' },
+    { key: 'ciclon', tag: 'HC-201', nombre: 'Hidrociclón 01', icono: '#ic-ciclon', x: 158, y: 162, sev: 'normal', crit: 'B', disp: 97.2, fluido: 'overflow' },
+  ];
+
+  SEV = { normal: '#2e7d32', observacion: '#1565c0', alerta: '#f9a825', alarma: '#c62828' };
+  SEV_LABEL = { normal: 'Normal', observacion: 'Observación', alerta: 'Alerta', alarma: 'Alarma' };
+  CRIT = { A: 'var(--color-accent-900)', B: 'var(--color-accent-700)', C: 'var(--color-accent-500)' };
+  FLU = { fino: '#9a7b4f', pulpa: '#b5651d', overflow: '#2b7ab5', circulante: '#6b5750' };
+
+  SWATCHES = [
+    { nombre: 'Acero', color: '#5980a6' }, { nombre: 'Pulpa', color: '#b5651d' },
+    { nombre: 'Concentrado', color: '#2e7d4f' }, { nombre: 'Agua', color: '#2b7ab5' },
+    { nombre: 'Neutro', color: '#7a7a7d' }, { nombre: 'Grafito', color: '#1f2d3a' },
+  ];
+
+  CAPAS = [
+    { id: 'severidad', label: 'Severidad', nota: 'La capa de diagnóstico: lo que el analista registró. Es la que debe estar activa por defecto.' },
+    { id: 'criticidad', label: 'Criticidad', nota: 'Clase A, B o C del equipo en el plan de mantenimiento. Steel oscuro es lo más crítico — un solo tono, tres pesos.' },
+    { id: 'disponibilidad', label: 'Disp.', nota: 'Disponibilidad del último mes. Escala continua de un solo tono: cuanto más oscuro el equipo, más tiempo ha estado detenido.' },
+    { id: 'ninguna', label: 'Sin color', nota: 'Sin capa: puro dibujo de línea. Útil para imprimir el circuito o revisar la topología sin ruido.' },
+  ];
+
+  state = {
+    fluidos: { fino: 'Mineral fino', pulpa: 'Pulpa de molienda', overflow: 'Overflow a flotación', circulante: 'Carga circulante' },
+    coloresB: { tolva: '#5980a6', molino: '#b5651d', sumidero: '#5980a6', bomba: '#2b7ab5', ciclon: '#5980a6' },
+    tagsB: {},
+    selB: 'bomba',
+    notas: [{ id: 1, x: 16, y: 244, texto: 'Cambio de rodamiento — semana 36' }],
+    capa: 'severidad',
+    callout: 'bomba',
+    calloutTexto: 'Vibración al alza desde el 12/08',
+  };
+
+  tagDe(k) { const n = this.NODOS.find(x => x.key === k); return this.state.tagsB[k] ?? n.tag; }
+
+  colorCapa(d) {
+    const c = this.state.capa;
+    if (c === 'severidad') return this.SEV[d.sev];
+    if (c === 'criticidad') return this.CRIT[d.crit];
+    if (c === 'disponibilidad') {
+      const falla = Math.max(0, Math.min(1, (100 - d.disp) / 12));
+      return 'color-mix(in oklch, var(--color-accent-900) ' + Math.round(falla * 100) + '%, var(--color-accent-500))';
+    }
+    return 'var(--color-neutral-400)';
+  }
+
+  valorCapa(d) {
+    const c = this.state.capa;
+    if (c === 'severidad') return this.SEV_LABEL[d.sev];
+    if (c === 'criticidad') return 'Clase ' + d.crit;
+    if (c === 'disponibilidad') return d.disp.toFixed(1) + ' %';
+    return '';
+  }
+
+  renderVals() {
+    const s = this.state;
+    const sel = this.NODOS.find(d => d.key === s.selB) || null;
+    const calloutNodo = this.NODOS.find(d => d.key === s.callout) || null;
+
+    const leyenda = s.capa === 'severidad'
+      ? Object.keys(this.SEV).map(k => ({ color: this.SEV[k], label: this.SEV_LABEL[k] }))
+      : s.capa === 'criticidad'
+        ? [{ color: this.CRIT.A, label: 'Clase A' }, { color: this.CRIT.B, label: 'Clase B' }, { color: this.CRIT.C, label: 'Clase C' }]
+        : s.capa === 'disponibilidad'
+          ? [{ color: 'var(--color-accent-900)', label: '88 % — peor' }, { color: 'var(--color-accent-700)', label: '94 %' }, { color: 'var(--color-accent-500)', label: '100 %' }]
+          : [{ color: 'var(--color-neutral-400)', label: 'Sin dato de color' }];
+
+    return {
+      nodosA: this.NODOS.map(d => ({ ...d, left: d.x + 'px', top: d.y + 'px' })),
+
+      fluidos: Object.keys(this.FLU).map(k => ({
+        codigo: k.slice(0, 4).toUpperCase(), color: this.FLU[k], nombre: s.fluidos[k],
+        onNombre: e => { const v = e.target.value; this.setState(st => ({ fluidos: { ...st.fluidos, [k]: v } })); },
+      })),
+
+      nodosB: this.NODOS.map(d => {
+        const on = d.key === s.selB;
+        return {
+          key: d.key, icono: d.icono, left: d.x + 'px', top: d.y + 'px',
+          tag: this.tagDe(d.key), color: s.coloresB[d.key],
+          borde: on ? 'var(--color-accent)' : 'var(--color-neutral-300)',
+          fondo: on ? 'var(--color-accent-100)' : 'transparent',
+          pick: () => this.setState({ selB: d.key }),
+        };
+      }),
+      haySel: !!sel,
+      selNombre: sel ? this.tagDe(sel.key) : 'Ninguno',
+      selTag: sel ? this.tagDe(sel.key) : '',
+      onSelTag: e => { const v = e.target.value; this.setState(st => ({ tagsB: { ...st.tagsB, [st.selB]: v } })); },
+      swatches: this.SWATCHES.map(w => ({
+        nombre: w.nombre, color: w.color,
+        ring: sel && s.coloresB[sel.key] === w.color ? '0 0 0 1px var(--color-bg), 0 0 0 2px var(--color-text)' : 'none',
+        pick: () => this.setState(st => ({ coloresB: { ...st.coloresB, [st.selB]: w.color } })),
+      })),
+      notas: s.notas.map(nt => ({
+        id: nt.id, left: nt.x + 'px', top: nt.y + 'px', texto: nt.texto,
+        onTexto: e => { const v = e.target.value; this.setState(st => ({ notas: st.notas.map(o => o.id === nt.id ? { ...o, texto: v } : o) })); },
+        quitar: () => this.setState(st => ({ notas: st.notas.filter(o => o.id !== nt.id) })),
+      })),
+      agregarNota: () => this.setState(st => {
+        const i = st.notas.length;
+        return { notas: [...st.notas, { id: Date.now(), x: 16 + (i % 2) * 150, y: 110 + Math.floor(i / 2) * 30, texto: '' }] };
+      }),
+
+      nodosC: this.NODOS.map(d => {
+        const c = this.colorCapa(d);
+        const activa = s.capa !== 'ninguna';
+        return {
+          key: d.key, icono: d.icono, left: d.x + 'px', top: d.y + 'px', tag: this.tagDe(d.key),
+          marca: c, valor: this.valorCapa(d),
+          borde: activa ? c : 'var(--color-neutral-300)',
+          fondo: activa ? 'color-mix(in srgb, ' + c + ' 12%, transparent)' : 'transparent',
+          pick: () => this.setState({ callout: d.key }),
+        };
+      }),
+      capas: this.CAPAS.map(cp => {
+        const on = s.capa === cp.id;
+        return {
+          label: cp.label,
+          bg: on ? 'var(--color-accent)' : 'var(--color-bg)',
+          fg: on ? '#fff' : 'var(--color-neutral-700)',
+          pick: () => this.setState({ capa: cp.id }),
+        };
+      }),
+      leyenda,
+      capaNota: (this.CAPAS.find(cp => cp.id === s.capa) || {}).nota,
+      hayCallout: !!calloutNodo,
+      calloutLeft: calloutNodo ? Math.max(4, calloutNodo.x - 58) + 'px' : '0px',
+      calloutTop: calloutNodo ? (calloutNodo.y + 82) + 'px' : '0px',
+      calloutTexto: s.calloutTexto,
+      onCallout: e => { const v = e.target.value; this.setState({ calloutTexto: v }); },
+      cerrarCallout: () => this.setState({ callout: null }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

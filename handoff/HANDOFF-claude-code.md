@@ -151,6 +151,149 @@ Añadir una barra superior con tres destinos: **Analista**, **Catálogo HMI**, *
 - Con `severidadEnColor: false` la interfaz queda monocroma en acero, sin perder legibilidad.
 - El zoom ajusta al ancho sin recorte horizontal tras el ajuste automático, en anchos de ventana de 1280 a 1920.
 
-## 8. Referencia
+## 8. Densidad — la app debe leerse como un ERP, no como una landing
+
+Los prototipos dejan demasiado aire. Comprimir sin cambiar la jerarquía ni el sistema visual: se reduce el espacio en blanco, **no** el tamaño de los textos de lectura ni los objetivos de clic.
+
+Escala base: bajar la densidad de 0.85 a **0.72** en la escala de espaciado, y trabajar siempre con las variables.
+
+```css
+:root {
+  --space-1:2.9px; --space-2:5.8px; --space-3:8.6px;
+  --space-4:11.5px; --space-6:17.3px; --space-8:23px;
+}
+```
+
+Ajustes concretos:
+
+- **Padding de tarjeta:** `var(--space-6)` → `var(--space-4)`. Los diálogos, de `var(--space-8)` a `var(--space-6)`.
+- **Separación entre tarjetas y columnas:** `var(--space-6)` → `var(--space-4)`.
+- **Padding de página:** `var(--space-6) var(--space-8)` → `var(--space-4) var(--space-6)`.
+- **Cabeceras de pantalla:** el `h1` baja de 44px a 32px y de 40px a 30px; el bloque de cabecera pasa a `padding: var(--space-4) var(--space-6)`. Los KPI de 30px a 24px.
+- **Filas de tabla:** `padding` vertical a `var(--space-2)`; altura de fila objetivo ≈ 32px. Cabecera de tabla a `var(--space-2)`.
+- **Filas del árbol y del panel lateral:** `padding` vertical a `var(--space-1)`, altura ≈ 28px.
+- **Celdas del catálogo HMI:** de `var(--space-6) var(--space-3)` a `var(--space-4) var(--space-2)`; el glifo baja de 44px a 36px. Con el ancho ganado, el grid pasa de 4 a **6 columnas** en viewports ≥1600px (`repeat(auto-fill, minmax(132px, 1fr))`).
+- **Formulario de diagnóstico:** `gap` de la columna a `var(--space-3)`; los `textarea` de 4 y 3 filas bajan a 3 y 2; la zona de evidencia de `min-height: 64px` a 52px y las miniaturas de 56px a 44px.
+- **Diagrama de planta:** el paso de la retícula baja de 160 a **132px** en horizontal y de 210 a **176px** en vertical; los nodos de 108×104 a 96×84 y el glifo de 48×32 a 40×26. El lienzo queda en **1104 × 690**; reescalar los trazados de los conectores en la misma proporción (×0.825 en X, ×0.838 en Y) — no reescalar con `transform`, corregir las coordenadas.
+- **Panel lateral de detalle y de selección:** de 316px a 272px.
+- **Sidebar del analista:** de 272px a 236px.
+
+Lo que NO se toca:
+
+- Cuerpo de texto a 13px mínimo; etiquetas de 10px se mantienen (ya son el mínimo).
+- Altura mínima de 32px en cualquier elemento clicable; los botones conservan `padding` horizontal cómodo.
+- El grosor de trazo de los iconos (1.5), las marcas de registro, las esquinas rectas y los tokens de color.
+- La jerarquía tipográfica: los títulos siguen siendo claramente mayores que el cuerpo.
+
+Criterio de aceptación de densidad: en una ventana de 1440×900 la pantalla del Analista muestra la cabecera, el formulario completo, las dos tarjetas laterales y **al menos 6 filas** del histórico sin hacer scroll.
+
+## 9. Conexiones: puertos, sin holgura, y escala relativa
+
+Hoy los conectores del diagrama son `<path>` con coordenadas escritas a mano y arrancan cerca del borde del nodo, dejando aire. Hay que sustituir eso por un modelo de **puertos declarados**. Nadie vuelve a escribir una coordenada de conector a mano.
+
+### 9.1 Cada símbolo declara sus puertos
+
+Un símbolo es su geometría SVG **más** una lista de puntos de conexión, expresados en el sistema de coordenadas del propio `viewBox`. El puerto se ubica sobre la línea dibujada, no sobre la caja del símbolo.
+
+```js
+// src/simbologia/simbolos.js
+export const SIMBOLOS = {
+  bomba: {
+    viewBox: [0, 0, 40, 32],
+    escala: 'inline',                 // ver §9.3
+    path: (props) => (/* … el SVG actual … */),
+    puertos: {
+      succion:  { x: 11, y: 18, dir: 'W' },   // cuadrante izquierdo del círculo
+      descarga: { x: 20, y: 9,  dir: 'N' },   // boca superior de la voluta
+      motor:    { x: 20, y: 27, dir: 'S' },
+    },
+  },
+  tanqueAgitado: {
+    viewBox: [0, 0, 40, 40],
+    escala: 'mayor',
+    path: (props) => (/* … */),
+    puertos: {
+      entradaSup: { x: 20, y: 4,  dir: 'N' },  // borde superior
+      lateralIzq: { x: 5,  y: 22, dir: 'W' },  // muro izquierdo
+      salidaInf:  { x: 20, y: 36, dir: 'S' },
+      accionador: { x: 20, y: 4,  dir: 'N' },
+    },
+  },
+  // … un entry por símbolo del catálogo
+};
+```
+
+Reglas de los puertos:
+
+- `x`/`y` caen **exactamente sobre el trazo** de la geometría: el cuadrante del círculo (`cx - r`), el muro del rectángulo (`x` del `rect`), el vértice del cono. Nunca en el aire ni en la esquina del `viewBox`.
+- `dir` es la normal de salida (`N`/`S`/`E`/`W`) y es la que decide cómo arranca el ruteo ortogonal: un puerto `W` sale siempre hacia la izquierda antes de girar.
+- El nombre del puerto es semántico (`succion`, `descarga`, `overflow`, `underflow`, `relave`), no geométrico (`izq`, `p1`).
+
+### 9.2 Sin holgura entre línea y equipo
+
+`puntoAbsoluto(nodo, puerto)` convierte el puerto a coordenadas del lienzo:
+
+```js
+export function puntoAbsoluto(nodo, nombrePuerto) {
+  const sim = SIMBOLOS[nodo.simbolo];
+  const p = sim.puertos[nombrePuerto];
+  const [, , vbW, vbH] = sim.viewBox;
+  const k = nodo.ancho / vbW;                 // el glifo llena el nodo, misma k en X e Y
+  return { x: nodo.x + p.x * k, y: nodo.y + p.y * k, dir: p.dir };
+}
+```
+
+El conector se dibuja **desde ese punto exacto** hasta el punto exacto del puerto destino. Requisitos:
+
+- **Cero holgura, cero solape.** El `d` del `path` empieza en el punto del puerto, no a 4px de distancia. Prohibido cualquier `offset`, `inset`, `gap` o "acercarse al borde".
+- El primer y el último tramo salen **perpendiculares** al borde según `dir`, con un tramo mínimo de 8px antes del primer giro. Así la línea nunca nace en diagonal desde el símbolo.
+- Ruteo ortogonal en L o en Z (`M … H … V … H …`), nunca diagonales ni curvas.
+- **El conector va detrás del símbolo.** El `<svg>` de conectores en `z-index` inferior a los nodos: si el remate quedara 1px corto, el trazo del símbolo lo tapa y la unión se ve perfecta. Al revés se ve un pico sobresaliendo.
+- `shape-rendering="crispEdges"` en el grupo de conectores y coordenadas enteras: media unidad de subpíxel se lee como holgura.
+- Grosor del conector **2px**, `stroke-linecap="round"`, `stroke: var(--color-accent)`. El trazo del símbolo es más pesado (ver §9.3): el conector es subordinado, nunca compite con el equipo.
+- La flecha del final se dibuja con `marker-end`, que consume el remate: el `refX` del marker debe ser su ancho completo para que la punta termine justo en el puerto y no lo pase.
+
+### 9.3 Relación de tamaños
+
+Tres clases de tamaño, no una. Un tanque no puede medir lo mismo que un instrumento.
+
+| Clase | Lado del glifo | Grosor de trazo | Qué es |
+| --- | --- | --- | --- |
+| `mayor` | 100 % (base) | 2.5 | Tanques, molinos, celdas de flotación, espesador, silos, hornos |
+| `inline` | 34 % | 2 | Bombas, válvulas, reductores, sopladores — máquinas en línea |
+| `bubble` | 26 % | 1.5 | Burbujas de instrumento ISA (M, PT, FT, VT) |
+
+- Un único `--glifo-mayor` (por ejemplo 132px) manda: las otras dos clases se derivan con esos factores. Cambiar el zoom o la densidad ajusta **una** variable.
+- La proporción se conserva a cualquier escala; nunca fijar el tamaño de un símbolo caso por caso.
+- La burbuja de instrumento se **ancla** a su equipo: se coloca respecto al puerto `motor` / `instrumento` del padre a una distancia de `0.5 × lado bubble`, con un conector recto de 2px. No es un nodo suelto del lienzo.
+- El texto del TAG vive **fuera** del glifo, debajo, en Barlow Condensed. Nunca dentro de la figura — la única letra admitida dentro de una figura es la de la burbuja ISA.
+
+### 9.4 Modelo de datos del diagrama
+
+```js
+export const NODOS = [
+  { id: 'TQ-102', simbolo: 'tolva',        clase: 'mayor',  col: 3, fila: 1 },
+  { id: 'B-101',  simbolo: 'bomba',        clase: 'inline', col: 4, fila: 2 },
+];
+
+export const CONEXIONES = [
+  { de: ['TQ-102', 'salidaInf'], a: ['B-101', 'succion'],  fluido: 'pulpa', etiqueta: '' },
+  { de: ['B-101', 'descarga'],   a: ['HC-201', 'entrada'], fluido: 'pulpa', etiqueta: 'CARGA CIRC.' },
+];
+```
+
+- La posición se declara en **celdas de retícula** (`col`/`fila`), no en píxeles; el layout resuelve `x`/`y` desde el paso de retícula. Mover un equipo es cambiar un número.
+- Un solo `<svg>` para todos los conectores, generado recorriendo `CONEXIONES`. Cero `<path>` escrito a mano en el JSX.
+- La etiqueta del tramo se posiciona automáticamente sobre el segmento más largo del recorrido, con un desplazamiento de 6px.
+
+### 9.5 Criterios de aceptación
+
+- Ampliando al 200 %, **ningún** conector muestra holgura ni sobresale del trazo del símbolo en ninguna de las 24 conexiones.
+- Ningún `<path>` de conector con coordenadas literales en un componente: todos derivan de `NODOS` + `CONEXIONES` + `puertos`.
+- Mover un nodo de celda re-rutea sus conexiones solas, sin editar nada más.
+- Las tres clases de tamaño son visibles de un vistazo: el tanque domina, la bomba es claramente menor, la burbuja es la más pequeña.
+- Todo tramo nace y muere perpendicular al borde del símbolo.
+
+## 10. Referencia
 
 Las tres pantallas están prototipadas en HTML y son la fuente visual de verdad: `Monitoreo Analista.dc.html`, `Gerencia HMI.dc.html`, `Planta Concentradora HMI.dc.html`. Contienen los glifos SVG, las coordenadas de los nodos, los trazados de los conectores y los textos definitivos — cópialos de ahí en lugar de redibujarlos.
