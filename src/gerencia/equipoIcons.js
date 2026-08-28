@@ -19,7 +19,7 @@ export const EQUIPO_ICONOS = {
   },
   tanque: {
     viewBox: '0 0 48 32',
-    escala: 1.25,
+    escala: 2,
     svg: (
       <>
         <rect x="15" y="3" width="18" height="26" />
