@@ -5,6 +5,7 @@
 // Catálogo de modos de falla por tipo de equipo — provisional/configurable
 // (sección 10 del documento fuente: la taxonomía definitiva no está cerrada).
 export const CATALOGO_MODO_FALLA = {
+  motor: ['Desalineamiento', 'Daño de rodamiento', 'Falla eléctrica', 'Sobrecalentamiento', 'Falla de aislación'],
   bomba: ['Desalineamiento', 'Desbalance', 'Daño de rodamiento', 'Cavitación', 'Holgura mecánica'],
   tanque: ['Corrosión', 'Fuga', 'Fisura estructural'],
   agitador: ['Desalineamiento', 'Desbalance', 'Daño de rodamiento', 'Falla de acople'],

@@ -1,33 +1,33 @@
-// Símbolos ISO 10628 (diagramas de flujo de proceso) para los 6 tipos reales de
+// Símbolos ISO 10628 (diagramas de flujo de proceso) para los tipos reales de
 // equipo (CATALOGO_MODO_FALLA): geometría austera, formas cerradas, sin adorno —
 // el triángulo relleno de la bomba marca sentido de flujo, como en el estándar.
 // viewBox unificado 0 0 48 32 para que todos los glifos compartan proporción.
 //
-// Todo equipo con accionamiento motorizado (bomba, agitador, compresor,
-// clarificador con rastra, secador rotatorio) lleva el símbolo de motor
-// estándar: círculo con "M" unido por una línea corta al eje o carcasa. El
-// tanque queda sin motor por ser un recipiente pasivo.
+// El motor es un equipo propio (círculo con "M"), no un adorno dentro de otro
+// ícono: se vincula a la bomba/equipo que impulsa con una conexión normal del
+// lienzo (línea), igual que cualquier otro flujo de proceso.
 //
 // `escala` es el tamaño relativo de cada tipo frente al glifo base (1 = tamaño
 // base) — ajustable acá sin tocar la lógica de dibujo en PlantaConcentradora.js.
 // Un estanque real es más grande que una bomba, así que no todos dibujan igual.
-const MOTOR = (
-  <>
-    <circle cx="24" cy="5" r="3.2" />
-    <text x="24" y="7" fontSize="5" fontWeight="700" textAnchor="middle" fill="currentColor" stroke="none">M</text>
-  </>
-);
-
 export const EQUIPO_ICONOS = {
+  motor: {
+    viewBox: '0 0 48 32',
+    escala: 0.6,
+    svg: (
+      <>
+        <circle cx="24" cy="16" r="11" />
+        <text x="24" y="20" fontSize="12" fontWeight="700" textAnchor="middle" fill="currentColor" stroke="none">M</text>
+      </>
+    ),
+  },
   bomba: {
     viewBox: '0 0 48 32',
     escala: 0.85,
     svg: (
       <>
-        {MOTOR}
-        <path d="M24 8.2 V12" />
-        <circle cx="24" cy="20" r="8" />
-        <path d="M20 16 L20 24 L29 20 Z" fill="currentColor" stroke="none" />
+        <circle cx="24" cy="16" r="10" />
+        <path d="M20 10 L20 22 L31 16 Z" fill="currentColor" stroke="none" />
       </>
     ),
   },
@@ -45,10 +45,10 @@ export const EQUIPO_ICONOS = {
     escala: 1.15,
     svg: (
       <>
-        {MOTOR}
-        <path d="M24 8.2 V22" />
-        <path d="M13 10 H35 V29 H13 Z" />
-        <path d="M17 22 L31 22 L24 28 Z" fill="currentColor" stroke="none" />
+        <rect x="20" y="2" width="8" height="6" />
+        <path d="M24 8 V26" />
+        <path d="M13 6 H35 V29 H13 Z" />
+        <path d="M17 21 L31 21 L24 27 Z" fill="currentColor" stroke="none" />
       </>
     ),
   },
@@ -57,9 +57,7 @@ export const EQUIPO_ICONOS = {
     escala: 1,
     svg: (
       <>
-        {MOTOR}
-        <path d="M24 8.2 V15.5" />
-        <path d="M11 13 L37 18 V24 L11 29 Z" />
+        <path d="M11 8 L37 13 V19 L11 24 Z" />
       </>
     ),
   },
@@ -68,9 +66,7 @@ export const EQUIPO_ICONOS = {
     escala: 1.2,
     svg: (
       <>
-        {MOTOR}
-        <path d="M24 8.2 V11" />
-        <path d="M9 11 H39 L24 29 Z" />
+        <path d="M9 6 H39 L24 27 Z" />
       </>
     ),
   },
@@ -79,11 +75,9 @@ export const EQUIPO_ICONOS = {
     escala: 1.2,
     svg: (
       <>
-        {MOTOR}
-        <path d="M24 8.2 V13" />
-        <rect x="7" y="13" width="34" height="13" />
-        <circle cx="16" cy="29" r="2.6" fill="currentColor" stroke="none" />
-        <circle cx="32" cy="29" r="2.6" fill="currentColor" stroke="none" />
+        <rect x="7" y="9" width="34" height="13" />
+        <circle cx="16" cy="26" r="2.6" fill="currentColor" stroke="none" />
+        <circle cx="32" cy="26" r="2.6" fill="currentColor" stroke="none" />
       </>
     ),
   },
