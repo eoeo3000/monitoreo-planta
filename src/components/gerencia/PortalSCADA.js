@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
-import { puertoHacia, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
+import { puertoHacia, puertoElegido, puertoMasCercano, puntoAbsoluto, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
 import './portalScada.css';
 
 const PAD_LIENZO = 100; // margen alrededor de los equipos: el glifo más alto (tanque/agitador) mide 90
@@ -39,14 +39,18 @@ function iconoConEscala(tipo, data) {
   return { ...base, escala };
 }
 
-function rutaEntreEquiposScada(deEq, aEq, posDe, posA, data) {
+// `conexion` puede traer puertoDe/puertoA (fijados a mano arrastrando el
+// extremo) y quiebreManual (el tramo medio movido a mano) — cuando no los
+// trae, se comporta como antes: puerto automático según dirección, quiebre
+// automático a mitad de camino.
+function rutaEntreEquiposScada(conexion, deEq, aEq, posDe, posA, data) {
   const iconoDe = iconoConEscala(deEq.tipo, data);
   const iconoA = iconoConEscala(aEq.tipo, data);
   if (!iconoDe || !iconoA) return null;
-  const puertoDe = puertoHacia(posDe, iconoDe, posA);
-  const puertoA = puertoHacia(posA, iconoA, posDe);
+  const puertoDe = puertoElegido(posDe, iconoDe, posA, conexion.puertoDe);
+  const puertoA = puertoElegido(posA, iconoA, posDe, conexion.puertoA);
   if (!puertoDe || !puertoA) return null;
-  return rutaPuertos(puertoDe, puertoA);
+  return rutaPuertos(puertoDe, puertoA, conexion.quiebreManual);
 }
 
 // Portal de gerencia: gramática visual aparte de Industry (piel "Overlook
@@ -55,7 +59,17 @@ function rutaEntreEquiposScada(deEq, aEq, posDe, posA, data) {
 // los mismos datos reales, ahora en un único lugar. No incluye KPIs de
 // producción, color de tubería por fluido ni tendencias: no hay ninguna
 // fuente de esos datos en la app todavía.
-export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConexion, eliminarConexion, renombrarEquipo, duplicarEquipo, cambiarEscalaTipo }) {
+export default function PortalSCADA({
+  data,
+  moverEquipo,
+  crearPlanta,
+  crearConexion,
+  eliminarConexion,
+  actualizarConexion,
+  renombrarEquipo,
+  duplicarEquipo,
+  cambiarEscalaTipo,
+}) {
   const svgRef = useRef(null);
   const tagInputRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
@@ -67,6 +81,13 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
   const [mousedownInfo, setMousedownInfo] = useState(null);
   const [arrastre, setArrastre] = useState(null);
   const [posicionArrastre, setPosicionArrastre] = useState(null);
+  // Arrastre de un extremo o del quiebre medio de una conexión ya creada —
+  // { id, extremo: 'de'|'a'|'elbo', startX, startY, activo }. `activo` recién
+  // pasa a true tras superar el umbral de arrastre, igual que con los nodos:
+  // así un clic corto sobre el quiebre sigue sirviendo para eliminar la
+  // conexión (comportamiento previo) sin que un pequeño temblor de mano lo
+  // confunda con un arrastre.
+  const [conexionArrastre, setConexionArrastre] = useState(null);
 
   const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
   const equiposDePlanta = data.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
@@ -139,6 +160,37 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
     setMousedownInfo({ id: eq.id, startX: p.x, startY: p.y, offsetX: p.x - pos.x, offsetY: p.y - pos.y });
   };
 
+  const onMouseDownExtremoConexion = (event, conexionId, extremo) => {
+    if (!modoEdicion) return;
+    event.stopPropagation();
+    const p = puntoSvg(event);
+    setConexionArrastre({ id: conexionId, extremo, startX: p.x, startY: p.y, activo: false });
+  };
+
+  // Al soltar un extremo, se ajusta (snap) al puerto declarado más cercano al
+  // punto donde se soltó — nunca queda un punto suelto en el aire. Al soltar
+  // el quiebre medio, se guarda la coordenada libre (X si ambos puertos salen
+  // horizontales, Y si ambos salen verticales); en un codo de orientación
+  // mixta no hay tramo libre que mover, así que no hace nada.
+  const comprometerConexionArrastre = (arr, pMouse) => {
+    const conexion = conexionesDePlanta.find((c) => c.id === arr.id);
+    if (!conexion) return;
+    const de = equiposDePlanta.find((eq) => eq.id === conexion.deId);
+    const a = equiposDePlanta.find((eq) => eq.id === conexion.aId);
+    if (!de || !a) return;
+    if (arr.extremo === 'elbo') {
+      const ruta = rutaEntreEquiposScada(conexion, de, a, posicionDe(de), posicionDe(a), data);
+      if (!ruta?.orientacionLibre) return;
+      actualizarConexion(conexion.id, { quiebreManual: ruta.orientacionLibre === 'x' ? pMouse.x : pMouse.y });
+      return;
+    }
+    const eq = arr.extremo === 'de' ? de : a;
+    const icono = iconoConEscala(eq.tipo, data);
+    const nombrePuerto = puertoMasCercano(posicionDe(eq), icono, pMouse);
+    if (!nombrePuerto) return;
+    actualizarConexion(conexion.id, arr.extremo === 'de' ? { puertoDe: nombrePuerto } : { puertoA: nombrePuerto });
+  };
+
   const onMouseMove = (event) => {
     const p = puntoSvg(event);
     if (mousedownInfo && !arrastre) {
@@ -157,9 +209,28 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
     if (modoConectar && origenConexion) {
       setMousePos(p);
     }
+    if (conexionArrastre) {
+      if (!conexionArrastre.activo) {
+        const dist = Math.hypot(p.x - conexionArrastre.startX, p.y - conexionArrastre.startY);
+        if (dist > UMBRAL_ARRASTRE) setConexionArrastre((c) => ({ ...c, activo: true }));
+      }
+      if (conexionArrastre.activo) setMousePos(p);
+    }
   };
 
   const onMouseUp = () => {
+    if (conexionArrastre) {
+      if (conexionArrastre.activo && mousePos) {
+        comprometerConexionArrastre(conexionArrastre, mousePos);
+      } else if (!conexionArrastre.activo && conexionArrastre.extremo === 'elbo') {
+        // Sin arrastre real: fue un clic sobre el quiebre, no un arrastre.
+        const c = conexionesDePlanta.find((x) => x.id === conexionArrastre.id);
+        if (c && window.confirm('¿Eliminar esta conexión?')) eliminarConexion(c.id);
+      }
+      setConexionArrastre(null);
+      setMousePos(null);
+      return;
+    }
     if (posicionArrastre) {
       moverEquipo(posicionArrastre.id, { x: posicionArrastre.x, y: posicionArrastre.y });
     } else if (mousedownInfo && modoConectar) {
@@ -417,26 +488,37 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const ruta = rutaEntreEquiposScada(de, a, posicionDe(de), posicionDe(a), data);
+                const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data);
                 if (!ruta) return null;
                 return (
                   <g key={c.id}>
                     <path d={ruta.d} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeLinecap="butt" shapeRendering="crispEdges" />
-                    <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={2.5} fill="var(--scada-tuberia)" />
-                    <circle cx={ruta.fin.x} cy={ruta.fin.y} r={2.5} fill="var(--scada-tuberia)" />
-                    {modoEdicion && (
-                      <g
-                        transform={`translate(${ruta.medio.x}, ${ruta.medio.y})`}
-                        onClick={() => {
-                          if (window.confirm('¿Eliminar esta conexión?')) eliminarConexion(c.id);
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <circle r={7} fill="var(--scada-subpanel)" stroke="var(--scada-tuberia)" strokeWidth={1} />
-                        <text textAnchor="middle" dominantBaseline="central" fontSize={9} fill="var(--scada-texto)">
-                          ×
-                        </text>
-                      </g>
+                    {modoEdicion ? (
+                      <>
+                        <g onMouseDown={(e) => onMouseDownExtremoConexion(e, c.id, 'de')} style={{ cursor: 'grab' }}>
+                          <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={8} fill="transparent" />
+                          <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={3.5} fill="var(--scada-tuberia)" stroke="var(--scada-titulo)" strokeWidth={1} />
+                        </g>
+                        <g onMouseDown={(e) => onMouseDownExtremoConexion(e, c.id, 'a')} style={{ cursor: 'grab' }}>
+                          <circle cx={ruta.fin.x} cy={ruta.fin.y} r={8} fill="transparent" />
+                          <circle cx={ruta.fin.x} cy={ruta.fin.y} r={3.5} fill="var(--scada-tuberia)" stroke="var(--scada-titulo)" strokeWidth={1} />
+                        </g>
+                        <g
+                          transform={`translate(${ruta.medio.x}, ${ruta.medio.y})`}
+                          onMouseDown={(e) => onMouseDownExtremoConexion(e, c.id, 'elbo')}
+                          style={{ cursor: ruta.orientacionLibre ? (ruta.orientacionLibre === 'x' ? 'ew-resize' : 'ns-resize') : 'pointer' }}
+                        >
+                          <circle r={7} fill="var(--scada-subpanel)" stroke="var(--scada-tuberia)" strokeWidth={1} />
+                          <text textAnchor="middle" dominantBaseline="central" fontSize={9} fill="var(--scada-texto)">
+                            ×
+                          </text>
+                        </g>
+                      </>
+                    ) : (
+                      <>
+                        <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={2.5} fill="var(--scada-tuberia)" />
+                        <circle cx={ruta.fin.x} cy={ruta.fin.y} r={2.5} fill="var(--scada-tuberia)" />
+                      </>
                     )}
                   </g>
                 );
@@ -454,6 +536,30 @@ export default function PortalSCADA({ data, moverEquipo, crearPlanta, crearConex
                   if (!puertoOrigen) return null;
                   const ruta = rutaHaciaPunto(puertoOrigen, mousePos);
                   return <path d={ruta.d} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeLinecap="round" strokeDasharray="4 3" pointerEvents="none" />;
+                })()}
+
+              {conexionArrastre?.activo &&
+                mousePos &&
+                (() => {
+                  const conexion = conexionesDePlanta.find((c) => c.id === conexionArrastre.id);
+                  if (!conexion) return null;
+                  const de = equiposDePlanta.find((eq) => eq.id === conexion.deId);
+                  const a = equiposDePlanta.find((eq) => eq.id === conexion.aId);
+                  if (!de || !a) return null;
+                  if (conexionArrastre.extremo === 'elbo') {
+                    const rutaBase = rutaEntreEquiposScada(conexion, de, a, posicionDe(de), posicionDe(a), data);
+                    if (!rutaBase?.orientacionLibre) return null;
+                    const valor = rutaBase.orientacionLibre === 'x' ? mousePos.x : mousePos.y;
+                    const rutaTentativa = rutaEntreEquiposScada({ ...conexion, quiebreManual: valor }, de, a, posicionDe(de), posicionDe(a), data);
+                    if (!rutaTentativa) return null;
+                    return <path d={rutaTentativa.d} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} strokeDasharray="4 3" pointerEvents="none" />;
+                  }
+                  const eq = conexionArrastre.extremo === 'de' ? de : a;
+                  const icono = iconoConEscala(eq.tipo, data);
+                  const nombreCandidato = puertoMasCercano(posicionDe(eq), icono, mousePos);
+                  if (!nombreCandidato) return null;
+                  const puntoCandidato = puntoAbsoluto(posicionDe(eq), icono, nombreCandidato);
+                  return <circle cx={puntoCandidato.x} cy={puntoCandidato.y} r={6} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} pointerEvents="none" />;
                 })()}
 
               {equiposDePlanta.map((eq) => {

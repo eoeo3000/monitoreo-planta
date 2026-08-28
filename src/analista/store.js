@@ -223,6 +223,17 @@ export function useAnalistaData() {
     setData((d) => ({ ...d, conexiones: d.conexiones.filter((c) => c.id !== id) }));
   }, []);
 
+  // Ajustes manuales de una conexión: puertoDe/puertoA (fijan qué puerto usar
+  // en cada extremo en vez de elegirlo automáticamente por dirección) y
+  // quiebreManual (desplaza a mano el tramo medio del ruteo ortogonal). Se
+  // editan arrastrando la conexión en el Portal SCADA.
+  const actualizarConexion = useCallback((id, cambios) => {
+    setData((d) => ({
+      ...d,
+      conexiones: d.conexiones.map((c) => (c.id === id ? { ...c, ...cambios } : c)),
+    }));
+  }, []);
+
   return {
     data,
     usuarioActual: USUARIO_ACTUAL,
@@ -240,5 +251,6 @@ export function useAnalistaData() {
     crearTipoPersonalizado,
     crearConexion,
     eliminarConexion,
+    actualizarConexion,
   };
 }

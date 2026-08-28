@@ -62,21 +62,58 @@ export function puertoHacia(posicion, icono, posicionOtro) {
   return nombre ? puntoAbsoluto(posicion, icono, nombre) : null;
 }
 
+// Igual que puertoHacia, pero si la conexión tiene un puerto fijado a mano
+// (arrastrando el extremo de la línea) se respeta ese en vez de recalcularlo
+// automáticamente — así el usuario puede elegir, por ejemplo, siempre la
+// salida lateral derecha aunque el otro equipo termine quedando al oeste.
+export function puertoElegido(posicion, icono, posicionOtro, nombreManual) {
+  if (!icono) return null;
+  if (nombreManual && icono.puertos?.[nombreManual]) return puntoAbsoluto(posicion, icono, nombreManual);
+  return puertoHacia(posicion, icono, posicionOtro);
+}
+
+// De los puertos declarados de un ícono, el nombre del más cercano a un punto
+// del lienzo — usado al soltar el extremo de una conexión arrastrado a mano:
+// nunca se deja un punto suelto, se ajusta (snap) al puerto real más próximo.
+export function puertoMasCercano(posicion, icono, punto) {
+  const nombres = Object.keys(icono?.puertos || {});
+  if (nombres.length === 0) return null;
+  let mejor = nombres[0];
+  let mejorDist = Infinity;
+  for (const nombre of nombres) {
+    const p = puntoAbsoluto(posicion, icono, nombre);
+    const dist = Math.hypot(p.x - punto.x, p.y - punto.y);
+    if (dist < mejorDist) {
+      mejorDist = dist;
+      mejor = nombre;
+    }
+  }
+  return mejor;
+}
+
 // Ruta ortogonal entre dos puertos {x,y,dir}: sale perpendicular al glifo con
 // un tramo mínimo de TRAMO_MINIMO antes de girar, sin diagonales ni curvas, y
 // con coordenadas enteras (shape-rendering="crispEdges" en el trazo).
-export function rutaPuertos(puertoA, puertoB) {
+//
+// `quiebreManual`, si viene, reemplaza la posición automática del tramo medio
+// — solo tiene efecto cuando los dos puertos salen en la misma orientación
+// (ambos horizontales o ambos verticales), que es el único caso con un tramo
+// libre para mover; con orientaciones mixtas la ruta es un solo codo fijo por
+// geometría y no hay nada que arrastrar. `esOrientacionLibre` avisa cuál es
+// el caso, para que quien arrastra la manija sepa si mover X o Y.
+export function rutaPuertos(puertoA, puertoB, quiebreManual) {
   const p1 = { x: puertoA.x + DIR_VECTOR[puertoA.dir].x * TRAMO_MINIMO, y: puertoA.y + DIR_VECTOR[puertoA.dir].y * TRAMO_MINIMO };
   const p2 = { x: puertoB.x + DIR_VECTOR[puertoB.dir].x * TRAMO_MINIMO, y: puertoB.y + DIR_VECTOR[puertoB.dir].y * TRAMO_MINIMO };
   const horizA = esHorizontal(puertoA.dir);
   const horizB = esHorizontal(puertoB.dir);
+  const orientacionLibre = horizA === horizB ? (horizA ? 'x' : 'y') : null;
 
   let intermedios;
   if (horizA && horizB) {
-    const midX = (p1.x + p2.x) / 2;
+    const midX = quiebreManual ?? (p1.x + p2.x) / 2;
     intermedios = [{ x: midX, y: p1.y }, { x: midX, y: p2.y }];
   } else if (!horizA && !horizB) {
-    const midY = (p1.y + p2.y) / 2;
+    const midY = quiebreManual ?? (p1.y + p2.y) / 2;
     intermedios = [{ x: p1.x, y: midY }, { x: p2.x, y: midY }];
   } else if (horizA && !horizB) {
     intermedios = [{ x: p2.x, y: p1.y }];
@@ -87,7 +124,13 @@ export function rutaPuertos(puertoA, puertoB) {
   const puntos = [puertoA, p1, ...intermedios, p2, puertoB].map(redondear);
   const filtrados = puntos.filter((p, i) => i === 0 || p.x !== puntos[i - 1].x || p.y !== puntos[i - 1].y);
   const d = filtrados.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  return { d, inicio: filtrados[0], fin: filtrados[filtrados.length - 1], medio: filtrados[Math.floor((filtrados.length - 1) / 2)] };
+  return {
+    d,
+    inicio: filtrados[0],
+    fin: filtrados[filtrados.length - 1],
+    medio: filtrados[Math.floor((filtrados.length - 1) / 2)],
+    orientacionLibre,
+  };
 }
 
 // Variante para la línea de previsualización mientras se conecta: el destino
