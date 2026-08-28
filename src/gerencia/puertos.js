@@ -4,8 +4,11 @@
 // holgura, con tramos ortogonales y un mínimo de 8px perpendicular al glifo
 // antes del primer giro.
 
-// Debe coincidir con el tamaño base y el anclaje (borde inferior fijo) que usa
-// el renderizado del glifo en PlantaConcentradora.js.
+// Tamaño base y anclaje (borde inferior fijo) por defecto — coincide con el
+// renderizado del glifo en PlantaConcentradora.js. Un ícono puede pisar estos
+// valores con sus propios `anchoBase`/`altoBase`/`bordeInferior` cuando su
+// gramática visual usa otra proporción (p. ej. los glifos con volumen del
+// Portal SCADA, más altos que anchos) sin afectar a los íconos existentes.
 const ANCHO_BASE = 52;
 const ALTO_BASE = 35;
 const BORDE_INFERIOR = 5;
@@ -21,11 +24,12 @@ export function puntoAbsoluto(posicion, icono, nombrePuerto) {
   const puerto = icono?.puertos?.[nombrePuerto];
   if (!puerto) return null;
   const escala = icono.escala || 1;
-  const anchoIcono = ANCHO_BASE * escala;
-  const altoIcono = ALTO_BASE * escala;
+  const anchoIcono = (icono.anchoBase || ANCHO_BASE) * escala;
+  const altoIcono = (icono.altoBase || ALTO_BASE) * escala;
+  const bordeInferior = icono.bordeInferior ?? BORDE_INFERIOR;
   const [, , vbAncho, vbAlto] = icono.viewBox.split(' ').map(Number);
   const x = posicion.x + (-anchoIcono / 2 + (puerto.x / vbAncho) * anchoIcono);
-  const y = posicion.y + (BORDE_INFERIOR - altoIcono) + (puerto.y / vbAlto) * altoIcono;
+  const y = posicion.y + (bordeInferior - altoIcono) + (puerto.y / vbAlto) * altoIcono;
   return { x, y, dir: puerto.dir, nombre: nombrePuerto };
 }
 

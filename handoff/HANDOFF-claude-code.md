@@ -294,6 +294,74 @@ export const CONEXIONES = [
 - Las tres clases de tamaño son visibles de un vistazo: el tanque domina, la bomba es claramente menor, la burbuja es la más pequeña.
 - Todo tramo nace y muere perpendicular al borde del símbolo.
 
-## 10. Referencia
+## 10. Portal de gerencia SCADA — gramática visual aparte
+
+`handoff/referencia-scada.png` es la referencia. Esta pantalla **no** sigue Industry: Industry se reserva para las pantallas de analista (papel claro, dibujo de línea, marcas de registro). El portal de gerencia es un SCADA de operación, y su gramática es la opuesta.
+
+Ruta nueva: `src/components/gerencia/PortalSCADA.js`, con sus tokens en un scope propio `.scada { … }`. **No tocar los tokens globales** ni mezclar las dos gramáticas en una misma pantalla.
+
+### 10.1 Tokens del scope
+
+```css
+.scada {
+  --scada-bg: #2b2f33;        /* ground carbón */
+  --scada-panel: #23262a;     /* paneles y cabecera */
+  --scada-borde: #4a4f52;
+  --scada-zona: #3a3f43;      /* borde punteado de agrupación */
+  --scada-texto: #eceded;
+  --scada-texto-2: #a9adaf;
+
+  /* Fluido — color de la tubería */
+  --f-gas: #e03c31;   --f-condensado: #b5d334; --f-multifasico: #e8e8e8;
+  --f-glicol: #f08a24; --f-agua: #3d9be9;      --f-vapor: #c86fd6;
+  --f-relave: #8a7a6a;
+
+  /* Estado — tiñe el equipo, no una marca externa */
+  --e-normal: #4caf50;   --e-observacion: #3d9be9; --e-alerta: #f5c518;
+  --e-alarma: #e03c31;   --e-detenido: #6f7477;
+}
+```
+
+### 10.2 Equipos con volumen, no iconos de línea
+
+Cada equipo es una **figura rellena con gradiente metálico vertical dentro de su propia geometría** — no un contorno. Un `<linearGradient>` por familia, con paradas tipo `#8f9497 → #e2e4e5 → #b0b4b6 → #6f7477` en vertical, de modo que el cilindro parezca torneado.
+
+- El estado se lee **en** el equipo: `fill="url(#gradEquipo)"` más un `<path>` superpuesto del color de estado al 45 % con `mix-blend-mode: multiply`, recortado por la misma silueta (`<clipPath>`). Nada de puntos, cuadrados ni badges externos — eso es gramática de Industry.
+- Contorno de 1px `#23262a` para despegar la figura del fondo.
+- Formas mínimas: cilindro horizontal (separador), cilindro vertical (torre, contactor), bomba (círculo con voluta), compresor centrífugo (trapecio + círculo), intercambiador (círculo con serpentín), válvula de control (dos triángulos + actuador), depósito.
+- Los símbolos son **imágenes SVG completas con relleno y gradiente**, no glifos de trazo. El catálogo de línea fina de §4 no se usa aquí.
+
+### 10.3 Tuberías
+
+- El color de la tubería lo da el **fluido**, no el estado: 2px, `stroke-linecap="butt"`, ruteo ortogonal, sin flechas salvo en entradas y salidas de la lámina.
+- Los cruces se resuelven con un salto (`arc` de 4px) en la línea que pasa por encima, nunca con dos líneas superpuestas.
+- Se conserva el modelo de puertos de §9: la tubería aterriza sobre la boquilla dibujada, sin holgura.
+- Leyenda de fluidos fija, abajo a la izquierda, sobre `--scada-panel`.
+
+### 10.4 Layout y densidad
+
+Cuatro regiones, como en la referencia:
+
+- **Franja superior de KPIs** (~112px): estado de planta con lámpara, contador grande, y una tabla compacta de producción (Instantáneo / Día actual / Día anterior × Producción / Rendimiento / Valor).
+- **Columna izquierda** (~150px): lista de sistemas (Regeneración de glicol, Gas combustible, Agua contra incendio, Drenajes, Aire de instrumentos, Inyección química, Generación, Agua de mar, Antorcha, Agua producida, Medio de enfriamiento), cada uno con su chip de subsistema. Debajo, la leyenda de fluidos.
+- **Lámina central**: el circuito. Agrupado en **zonas con borde punteado 1px `--scada-zona`** y título en la esquina superior izquierda (Separadores, Compresión, Contactor de glicol, Exportación de gas, Exportación de condensado).
+- **Columna derecha** (~230px): tendencias apiladas, una por corriente (Gas, Condensado, Antorcha, Combustible), cada una con título, dos o tres lecturas actuales y un sparkline con eje temporal.
+
+Reglas de densidad, más agresivas que §8:
+
+- Cada equipo lleva su TAG, su valor y su unidad **pegados a la figura** (10px, `tabular-nums`), no en un panel aparte.
+- Etiquetas de instrumento como chips de 9–10px directamente sobre la tubería (`PT-97018 · 6.7 barg`).
+- Cero espacio en blanco decorativo: el objetivo es que toda la planta quepa en una pantalla de 1920×1080 sin scroll.
+- Tipografía condensada para TAGs y títulos de zona; los valores en `font-variant-numeric: tabular-nums`.
+
+### 10.5 Criterios de aceptación
+
+- Ningún equipo con marca de estado externa: el estado siempre tiñe la propia figura.
+- Ningún símbolo dibujado solo con `stroke`: todos con relleno y gradiente.
+- El color de tubería corresponde siempre a la leyenda de fluidos; el estado nunca colorea una tubería.
+- Los tokens de Industry no aparecen dentro de `.scada`, y los de `.scada` no se filtran fuera.
+- La planta completa cabe en 1920×1080 sin scroll vertical.
+
+## 11. Referencia
 
 Las tres pantallas están prototipadas en HTML y son la fuente visual de verdad: `Monitoreo Analista.dc.html`, `Gerencia HMI.dc.html`, `Planta Concentradora HMI.dc.html`. Contienen los glifos SVG, las coordenadas de los nodos, los trazados de los conectores y los textos definitivos — cópialos de ahí en lugar de redibujarlos.

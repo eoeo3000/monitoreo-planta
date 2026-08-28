@@ -1,0 +1,25 @@
+/* Gramática visual aparte del Portal SCADA (handoff §10) — scope propio, no
+   toca los tokens globales de Industry (src/theme/tokens.css) ni se usa fuera
+   de PortalSCADA.js. */
+.scada {
+  --scada-bg: #2b2f33;
+  --scada-panel: #23262a;
+  --scada-borde: #4a4f52;
+  --scada-zona: #6b7075;
+  --scada-texto: #eceded;
+  --scada-texto-2: #a9adaf;
+  --scada-tuberia: #7fa8c9;
+
+  --e-normal: #4caf50;
+  --e-observacion: #3d9be9;
+  --e-alerta: #f5c518;
+  --e-alarma: #e03c31;
+  --e-sindiagnostico: #6f7477;
+
+  background: var(--scada-bg);
+  color: var(--scada-texto);
+  font-family: "Barlow", system-ui, sans-serif;
+}
+
+.scada-zona:hover { stroke: var(--scada-texto-2) !important; }
+.scada-sistema:hover { background: var(--scada-panel) !important; }
