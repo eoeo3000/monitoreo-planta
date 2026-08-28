@@ -10,6 +10,10 @@ const CANVAS_WIDTH = 960;
 const CANVAS_HEIGHT = 460;
 const NODO_ANCHO = 84;
 const NODO_ALTO = 72;
+// La conexión debe tocar el glifo dibujado (52px de ancho, centrado), no el borde
+// del área invisible de arrastre (84px) — con ese margen más grande la línea se
+// cortaba antes de llegar al dibujo, dejando un espacio vacío ("de lejos").
+const MARGEN_CONEXION = 27;
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
 const CUADRICULA = 20; // px por celda — al mover un equipo, su posición se ajusta a este tamaño
 const ZOOM_MIN = 0.5;
@@ -272,7 +276,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const ruta = rutaOrtogonal(posicionDe(de), posicionDe(a), NODO_ANCHO / 2);
+                const ruta = rutaOrtogonal(posicionDe(de), posicionDe(a), MARGEN_CONEXION);
                 return (
                   <g key={c.id}>
                     <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={1} />
@@ -299,7 +303,7 @@ export default function PlantaConcentradora({ data, moverEquipo, crearPlanta, cr
               {modoConectar && origenConexion && mousePos && (() => {
                 const eqOrigen = equiposDePlanta.find((eq) => eq.id === origenConexion);
                 if (!eqOrigen) return null;
-                const ruta = rutaOrtogonal(posicionDe(eqOrigen), mousePos, 0);
+                const ruta = rutaOrtogonal(posicionDe(eqOrigen), mousePos, MARGEN_CONEXION);
                 return <path d={ruta.d} fill="none" stroke="var(--color-accent)" strokeWidth={1} strokeDasharray="4 3" pointerEvents="none" />;
               })()}
 
