@@ -169,9 +169,10 @@ export default function PortalSCADA({
 
   // Al soltar un extremo, se ajusta (snap) al puerto declarado más cercano al
   // punto donde se soltó — nunca queda un punto suelto en el aire. Al soltar
-  // el quiebre medio, se guarda la coordenada libre (X si ambos puertos salen
-  // horizontales, Y si ambos salen verticales); en un codo de orientación
-  // mixta no hay tramo libre que mover, así que no hace nada.
+  // el quiebre medio, se guarda el punto libre tal cual (en cualquier
+  // dirección, no solo el eje que quedaba libre según la orientación de los
+  // puertos) — rutaPuertos se encarga de intercalar el tramo extra que haga
+  // falta para llegar ortogonal a cada extremo.
   const comprometerConexionArrastre = (arr, pMouse) => {
     const conexion = conexionesDePlanta.find((c) => c.id === arr.id);
     if (!conexion) return;
@@ -179,9 +180,7 @@ export default function PortalSCADA({
     const a = equiposDePlanta.find((eq) => eq.id === conexion.aId);
     if (!de || !a) return;
     if (arr.extremo === 'elbo') {
-      const ruta = rutaEntreEquiposScada(conexion, de, a, posicionDe(de), posicionDe(a), data);
-      if (!ruta?.orientacionLibre) return;
-      actualizarConexion(conexion.id, { quiebreManual: ruta.orientacionLibre === 'x' ? pMouse.x : pMouse.y });
+      actualizarConexion(conexion.id, { quiebreManual: { x: pMouse.x, y: pMouse.y } });
       return;
     }
     const eq = arr.extremo === 'de' ? de : a;
@@ -587,7 +586,7 @@ export default function PortalSCADA({
                       <g
                         transform={`translate(${ruta.medio.x}, ${ruta.medio.y})`}
                         onMouseDown={(e) => onMouseDownExtremoConexion(e, c.id, 'elbo')}
-                        style={{ cursor: ruta.orientacionLibre ? (ruta.orientacionLibre === 'x' ? 'ew-resize' : 'ns-resize') : 'pointer' }}
+                        style={{ cursor: 'move' }}
                       >
                         <circle r={7} fill="var(--scada-subpanel)" stroke="var(--scada-tuberia)" strokeWidth={1} />
                         <text textAnchor="middle" dominantBaseline="central" fontSize={9} fill="var(--scada-texto)">
@@ -621,10 +620,7 @@ export default function PortalSCADA({
                   const a = equiposDePlanta.find((eq) => eq.id === conexion.aId);
                   if (!de || !a) return null;
                   if (conexionArrastre.extremo === 'elbo') {
-                    const rutaBase = rutaEntreEquiposScada(conexion, de, a, posicionDe(de), posicionDe(a), data);
-                    if (!rutaBase?.orientacionLibre) return null;
-                    const valor = rutaBase.orientacionLibre === 'x' ? mousePos.x : mousePos.y;
-                    const rutaTentativa = rutaEntreEquiposScada({ ...conexion, quiebreManual: valor }, de, a, posicionDe(de), posicionDe(a), data);
+                    const rutaTentativa = rutaEntreEquiposScada({ ...conexion, quiebreManual: mousePos }, de, a, posicionDe(de), posicionDe(a), data);
                     if (!rutaTentativa) return null;
                     return <path d={rutaTentativa.d} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} strokeDasharray="4 3" pointerEvents="none" />;
                   }

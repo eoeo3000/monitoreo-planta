@@ -127,42 +127,47 @@ export function puertoElegido(posicion, icono, posicionOtro, manual) {
 // un tramo mínimo de TRAMO_MINIMO antes de girar, sin diagonales ni curvas, y
 // con coordenadas enteras (shape-rendering="crispEdges" en el trazo).
 //
-// `quiebreManual`, si viene, reemplaza la posición automática del tramo medio
-// — solo tiene efecto cuando los dos puertos salen en la misma orientación
-// (ambos horizontales o ambos verticales), que es el único caso con un tramo
-// libre para mover; con orientaciones mixtas la ruta es un solo codo fijo por
-// geometría y no hay nada que arrastrar. `esOrientacionLibre` avisa cuál es
-// el caso, para que quien arrastra la manija sepa si mover X o Y.
+// `quiebreManual` ({x,y}), si viene, reemplaza el punto medio automático —
+// ahora en cualquier dirección, no solo en el eje que quedaba libre según la
+// orientación de los puertos. El primer y último tramo siguen saliendo
+// perpendiculares al glifo (esa parte no se toca, es la regla dura del
+// modelo de puertos); lo que se mueve es por dónde pasa la ruta en el medio,
+// insertando un tramo extra en el eje que haga falta si el puerto de destino
+// necesitaba un codo fijo (orientaciones mixtas) — así cualquier conexión,
+// no solo las de puertos del mismo lado, se puede reacomodar a mano.
 export function rutaPuertos(puertoA, puertoB, quiebreManual) {
   const p1 = { x: puertoA.x + DIR_VECTOR[puertoA.dir].x * TRAMO_MINIMO, y: puertoA.y + DIR_VECTOR[puertoA.dir].y * TRAMO_MINIMO };
   const p2 = { x: puertoB.x + DIR_VECTOR[puertoB.dir].x * TRAMO_MINIMO, y: puertoB.y + DIR_VECTOR[puertoB.dir].y * TRAMO_MINIMO };
   const horizA = esHorizontal(puertoA.dir);
   const horizB = esHorizontal(puertoB.dir);
-  const orientacionLibre = horizA === horizB ? (horizA ? 'x' : 'y') : null;
 
   let intermedios;
-  if (horizA && horizB) {
-    const midX = quiebreManual ?? (p1.x + p2.x) / 2;
+  let medio;
+  if (quiebreManual) {
+    const medioA = horizA ? { x: quiebreManual.x, y: p1.y } : { x: p1.x, y: quiebreManual.y };
+    const medioB = horizB ? { x: quiebreManual.x, y: p2.y } : { x: p2.x, y: quiebreManual.y };
+    intermedios = [medioA, quiebreManual, medioB];
+    medio = quiebreManual;
+  } else if (horizA && horizB) {
+    const midX = (p1.x + p2.x) / 2;
     intermedios = [{ x: midX, y: p1.y }, { x: midX, y: p2.y }];
+    medio = { x: midX, y: (p1.y + p2.y) / 2 };
   } else if (!horizA && !horizB) {
-    const midY = quiebreManual ?? (p1.y + p2.y) / 2;
+    const midY = (p1.y + p2.y) / 2;
     intermedios = [{ x: p1.x, y: midY }, { x: p2.x, y: midY }];
+    medio = { x: (p1.x + p2.x) / 2, y: midY };
   } else if (horizA && !horizB) {
     intermedios = [{ x: p2.x, y: p1.y }];
+    medio = { x: p2.x, y: p1.y };
   } else {
     intermedios = [{ x: p1.x, y: p2.y }];
+    medio = { x: p1.x, y: p2.y };
   }
 
   const puntos = [puertoA, p1, ...intermedios, p2, puertoB].map(redondear);
   const filtrados = puntos.filter((p, i) => i === 0 || p.x !== puntos[i - 1].x || p.y !== puntos[i - 1].y);
   const d = filtrados.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  return {
-    d,
-    inicio: filtrados[0],
-    fin: filtrados[filtrados.length - 1],
-    medio: filtrados[Math.floor((filtrados.length - 1) / 2)],
-    orientacionLibre,
-  };
+  return { d, inicio: filtrados[0], fin: filtrados[filtrados.length - 1], medio: redondear(medio) };
 }
 
 // Variante para la línea de previsualización mientras se conecta: el destino
