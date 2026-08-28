@@ -197,6 +197,24 @@ export function useAnalistaData() {
     setData((d) => ({ ...d, escalasPorTipo: { ...d.escalasPorTipo, [tipo]: escala } }));
   }, []);
 
+  // Tamaño de UN equipo en particular (doble clic), por encima del tamaño
+  // del tipo — null quita la sobrescritura y vuelve a usar el tamaño del tipo.
+  const cambiarEscalaEquipo = useCallback((equipoId, escala) => {
+    setData((d) => ({
+      ...d,
+      equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, escalaPropia: escala } : eq)),
+    }));
+  }, []);
+
+  // Posición del título de una zona (área) del Portal SCADA — desplazamiento
+  // a mano sobre el punto por defecto, para cuando queda mal ubicado.
+  const moverTituloArea = useCallback((areaId, tituloOffset) => {
+    setData((d) => ({
+      ...d,
+      areas: d.areas.map((a) => (a.id === areaId ? { ...a, tituloOffset } : a)),
+    }));
+  }, []);
+
   // La validación de nombre/clave única vive en el formulario (Administración),
   // igual que crearEquipo: esta acción solo agrega el tipo tal como llega.
   const crearTipoPersonalizado = useCallback((tipoData) => {
@@ -248,6 +266,8 @@ export function useAnalistaData() {
     renombrarEquipo,
     duplicarEquipo,
     cambiarEscalaTipo,
+    cambiarEscalaEquipo,
+    moverTituloArea,
     crearTipoPersonalizado,
     crearConexion,
     eliminarConexion,

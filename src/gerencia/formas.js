@@ -13,6 +13,13 @@ export function formaAJsx(forma, key) {
   if (forma.tipo === 'elipse') return <ellipse key={key} cx={forma.cx} cy={forma.cy} rx={forma.rx} ry={forma.ry} />;
   if (forma.tipo === 'poligono') return <polygon key={key} points={forma.puntos.map((p) => `${p.x},${p.y}`).join(' ')} />;
   if (forma.tipo === 'linea') return <line key={key} x1={forma.x1} y1={forma.y1} x2={forma.x2} y2={forma.y2} />;
+  if (forma.tipo === 'texto') {
+    return (
+      <text key={key} x={forma.x} y={forma.y} fontSize={forma.tamano || 10} textAnchor="middle" stroke="none">
+        {forma.contenido}
+      </text>
+    );
+  }
   return null;
 }
 
@@ -97,7 +104,8 @@ function puntoEnForma(forma, punto) {
     }
     return mejor;
   }
-  // 'linea': un trazo abierto no forma parte del contorno conectable.
+  // 'linea' y 'texto': no forman parte del contorno conectable (un trazo
+  // abierto y una etiqueta no son un borde sobre el que aterrizar una tubería).
   return null;
 }
 

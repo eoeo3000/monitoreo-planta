@@ -30,12 +30,13 @@ function iconoBaseDe(tipo, data) {
 }
 
 // El panel "Tamaños de equipo" sobrescribe, por tipo, un multiplicador de
-// escala sobre el tamaño base del ícono — mismo dato del store
-// (data.escalasPorTipo) que usaba el editor de Planta.
-function iconoConEscala(tipo, data) {
-  const base = iconoBaseDe(tipo, data);
+// escala sobre el tamaño base del ícono (data.escalasPorTipo); el doble clic
+// sobre UN equipo puede sobrescribirlo de nuevo solo para ese equipo
+// (eq.escalaPropia) — el más específico gana.
+function iconoConEscala(eq, data) {
+  const base = iconoBaseDe(eq.tipo, data);
   if (!base) return null;
-  const escala = data.escalasPorTipo?.[tipo] ?? 1;
+  const escala = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
   return { ...base, escala };
 }
 
@@ -44,8 +45,8 @@ function iconoConEscala(tipo, data) {
 // trae, se comporta como antes: puerto automático según dirección, quiebre
 // automático a mitad de camino.
 function rutaEntreEquiposScada(conexion, deEq, aEq, posDe, posA, data) {
-  const iconoDe = iconoConEscala(deEq.tipo, data);
-  const iconoA = iconoConEscala(aEq.tipo, data);
+  const iconoDe = iconoConEscala(deEq, data);
+  const iconoA = iconoConEscala(aEq, data);
   if (!iconoDe || !iconoA) return null;
   const puertoDe = puertoElegido(posDe, iconoDe, posA, conexion.puertoDe);
   const puertoA = puertoElegido(posA, iconoA, posDe, conexion.puertoA);
@@ -69,6 +70,8 @@ export default function PortalSCADA({
   renombrarEquipo,
   duplicarEquipo,
   cambiarEscalaTipo,
+  cambiarEscalaEquipo,
+  moverTituloArea,
 }) {
   const svgRef = useRef(null);
   const tagInputRef = useRef(null);
@@ -88,6 +91,10 @@ export default function PortalSCADA({
   // conexión (comportamiento previo) sin que un pequeño temblor de mano lo
   // confunda con un arrastre.
   const [conexionArrastre, setConexionArrastre] = useState(null);
+  // Arrastre del título de una zona — { areaId, startX, startY, offsetBase,
+  // activo, live }. `offsetBase` es el desplazamiento ya guardado antes de
+  // este arrastre; `live` es el desplazamiento en vivo mientras se arrastra.
+  const [tituloArrastre, setTituloArrastre] = useState(null);
 
   const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
   const equiposDePlanta = data.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
@@ -167,11 +174,50 @@ export default function PortalSCADA({
     setConexionArrastre({ id: conexionId, extremo, startX: p.x, startY: p.y, activo: false });
   };
 
+  const onMouseDownTitulo = (event, area) => {
+    if (!modoEdicion) return;
+    event.stopPropagation();
+    const p = puntoSvg(event);
+    setTituloArrastre({ areaId: area.id, startX: p.x, startY: p.y, offsetBase: area.tituloOffset || { dx: 0, dy: 0 }, activo: false, live: area.tituloOffset || { dx: 0, dy: 0 } });
+  };
+
+  // Si al soltar el quiebre medio el punto quedó muy cerca (6px) de un
+  // extremo o quiebre de OTRA conexión, se ajusta exacto a esa coordenada en
+  // X y/o Y por separado — así dos líneas que se cruzan cerca quedan
+  // cuadradas entre sí en vez de casi-alineadas.
+  const UMBRAL_ALINEAR = 6;
+  const alinearConOtrasLineas = (punto, idExcluir) => {
+    let mejorX = null;
+    let distX = UMBRAL_ALINEAR;
+    let mejorY = null;
+    let distY = UMBRAL_ALINEAR;
+    conexionesDePlanta.forEach((c) => {
+      if (c.id === idExcluir) return;
+      const de = equiposDePlanta.find((eq) => eq.id === c.deId);
+      const a = equiposDePlanta.find((eq) => eq.id === c.aId);
+      if (!de || !a) return;
+      const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data);
+      if (!ruta) return;
+      [ruta.inicio, ruta.medio, ruta.fin].forEach((p) => {
+        const dx = Math.abs(punto.x - p.x);
+        if (dx < distX) {
+          distX = dx;
+          mejorX = p.x;
+        }
+        const dy = Math.abs(punto.y - p.y);
+        if (dy < distY) {
+          distY = dy;
+          mejorY = p.y;
+        }
+      });
+    });
+    return { x: mejorX ?? punto.x, y: mejorY ?? punto.y };
+  };
+
   // Al soltar un extremo, se ajusta (snap) al puerto declarado más cercano al
   // punto donde se soltó — nunca queda un punto suelto en el aire. Al soltar
-  // el quiebre medio, se guarda el punto libre tal cual (en cualquier
-  // dirección, no solo el eje que quedaba libre según la orientación de los
-  // puertos) — rutaPuertos se encarga de intercalar el tramo extra que haga
+  // el quiebre medio, se guarda el punto libre (alineado con otras líneas
+  // cercanas si corresponde) — rutaPuertos intercala el tramo extra que haga
   // falta para llegar ortogonal a cada extremo.
   const comprometerConexionArrastre = (arr, pMouse) => {
     const conexion = conexionesDePlanta.find((c) => c.id === arr.id);
@@ -180,11 +226,11 @@ export default function PortalSCADA({
     const a = equiposDePlanta.find((eq) => eq.id === conexion.aId);
     if (!de || !a) return;
     if (arr.extremo === 'elbo') {
-      actualizarConexion(conexion.id, { quiebreManual: { x: pMouse.x, y: pMouse.y } });
+      actualizarConexion(conexion.id, { quiebreManual: alinearConOtrasLineas(pMouse, conexion.id) });
       return;
     }
     const eq = arr.extremo === 'de' ? de : a;
-    const icono = iconoConEscala(eq.tipo, data);
+    const icono = iconoConEscala(eq, data);
     const puntoLibre = puntoPerimetroCercano(posicionDe(eq), icono, pMouse);
     if (!puntoLibre) return;
     actualizarConexion(conexion.id, arr.extremo === 'de' ? { puertoDe: puntoLibre } : { puertoA: puntoLibre });
@@ -215,9 +261,23 @@ export default function PortalSCADA({
       }
       if (conexionArrastre.activo) setMousePos(p);
     }
+    if (tituloArrastre) {
+      if (!tituloArrastre.activo) {
+        const dist = Math.hypot(p.x - tituloArrastre.startX, p.y - tituloArrastre.startY);
+        if (dist > UMBRAL_ARRASTRE) setTituloArrastre((t) => ({ ...t, activo: true }));
+      }
+      if (tituloArrastre.activo) {
+        setTituloArrastre((t) => ({ ...t, live: { dx: t.offsetBase.dx + (p.x - t.startX), dy: t.offsetBase.dy + (p.y - t.startY) } }));
+      }
+    }
   };
 
   const onMouseUp = () => {
+    if (tituloArrastre) {
+      if (tituloArrastre.activo) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
+      setTituloArrastre(null);
+      return;
+    }
     if (conexionArrastre) {
       if (conexionArrastre.activo && mousePos) {
         comprometerConexionArrastre(conexionArrastre, mousePos);
@@ -241,6 +301,23 @@ export default function PortalSCADA({
     setMousedownInfo(null);
     setArrastre(null);
     setPosicionArrastre(null);
+  };
+
+  // Doble clic: tamaño de ESTE equipo en particular, por encima del tamaño
+  // del tipo. Vacío vuelve a usar el tamaño del tipo (quita la sobrescritura).
+  const onDobleClickEquipo = (event, eq) => {
+    if (!modoEdicion) return;
+    event.stopPropagation();
+    const actual = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
+    const respuesta = window.prompt(`Tamaño de ${eq.tag} (vacío = usar el tamaño del tipo "${eq.tipo}"):`, actual.toFixed(2));
+    if (respuesta === null) return;
+    if (respuesta.trim() === '') {
+      cambiarEscalaEquipo(eq.id, null);
+      return;
+    }
+    const num = Number(respuesta.replace(',', '.'));
+    if (!Number.isFinite(num) || num <= 0) return;
+    cambiarEscalaEquipo(eq.id, Math.min(6, Math.max(0.1, num)));
   };
 
   const onClickNodo = (eq) => {
@@ -473,12 +550,25 @@ export default function PortalSCADA({
               {areasDePlanta.map((area) => {
                 const caja = cajaDeArea(area);
                 if (!caja) return null;
+                const offset = tituloArrastre?.areaId === area.id && tituloArrastre.activo ? tituloArrastre.live : area.tituloOffset || { dx: 0, dy: 0 };
                 return (
                   <g key={area.id}>
                     <rect className="scada-zona" x={caja.x} y={caja.y} width={caja.width} height={caja.height} fill="none" stroke="var(--scada-zona)" strokeWidth={1} strokeDasharray="4 3" />
-                    <text x={caja.x + 8} y={caja.y + 14} fontSize={13} fontWeight={700} letterSpacing="0.04em" fill="var(--scada-titulo)">
-                      {area.nombre.toUpperCase()}
-                    </text>
+                    <g
+                      onMouseDown={(e) => onMouseDownTitulo(e, area)}
+                      style={{ cursor: !modoEdicion ? 'default' : tituloArrastre?.areaId === area.id ? 'grabbing' : 'grab' }}
+                    >
+                      <text
+                        x={caja.x + 8 + offset.dx}
+                        y={caja.y + 14 + offset.dy}
+                        fontSize={13}
+                        fontWeight={700}
+                        letterSpacing="0.04em"
+                        fill="var(--scada-titulo)"
+                      >
+                        {area.nombre.toUpperCase()}
+                      </text>
+                    </g>
                   </g>
                 );
               })}
@@ -503,7 +593,7 @@ export default function PortalSCADA({
               })}
 
               {equiposDePlanta.map((eq) => {
-                const icono = iconoConEscala(eq.tipo, data);
+                const icono = iconoConEscala(eq, data);
                 if (!icono) return null;
                 const pos = posicionDe(eq);
                 const estado = estadoDe(eq);
@@ -518,6 +608,7 @@ export default function PortalSCADA({
                     key={eq.id}
                     transform={`translate(${pos.x - anchoIcono / 2}, ${pos.y - altoIcono})`}
                     onMouseDown={(e) => onMouseDownNodo(e, eq)}
+                    onDoubleClick={(e) => onDobleClickEquipo(e, eq)}
                     style={{ cursor: !modoEdicion ? 'default' : arrastre?.id === eq.id ? 'grabbing' : 'grab' }}
                   >
                     <rect
@@ -604,7 +695,7 @@ export default function PortalSCADA({
                   const eqOrigen = equiposDePlanta.find((eq) => eq.id === origenConexion);
                   if (!eqOrigen) return null;
                   const posOrigen = posicionDe(eqOrigen);
-                  const iconoOrigen = iconoConEscala(eqOrigen.tipo, data);
+                  const iconoOrigen = iconoConEscala(eqOrigen, data);
                   const puertoOrigen = puertoHacia(posOrigen, iconoOrigen, mousePos);
                   if (!puertoOrigen) return null;
                   const ruta = rutaHaciaPunto(puertoOrigen, mousePos);
@@ -620,12 +711,13 @@ export default function PortalSCADA({
                   const a = equiposDePlanta.find((eq) => eq.id === conexion.aId);
                   if (!de || !a) return null;
                   if (conexionArrastre.extremo === 'elbo') {
-                    const rutaTentativa = rutaEntreEquiposScada({ ...conexion, quiebreManual: mousePos }, de, a, posicionDe(de), posicionDe(a), data);
+                    const alineado = alinearConOtrasLineas(mousePos, conexion.id);
+                    const rutaTentativa = rutaEntreEquiposScada({ ...conexion, quiebreManual: alineado }, de, a, posicionDe(de), posicionDe(a), data);
                     if (!rutaTentativa) return null;
                     return <path d={rutaTentativa.d} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} strokeDasharray="4 3" pointerEvents="none" />;
                   }
                   const eq = conexionArrastre.extremo === 'de' ? de : a;
-                  const icono = iconoConEscala(eq.tipo, data);
+                  const icono = iconoConEscala(eq, data);
                   const candidato = puntoPerimetroCercano(posicionDe(eq), icono, mousePos);
                   if (!candidato) return null;
                   const puntoCandidato = puntoDeManual(posicionDe(eq), icono, candidato);

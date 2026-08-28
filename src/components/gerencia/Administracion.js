@@ -9,7 +9,7 @@ import './gerenciaHMI.css';
 const MOSTRAR_CODIGOS = true; // handoff §4 prop "mostrarCodigos"
 const SELECCION_MULTIPLE = true; // handoff §4 prop "seleccionMultiple"
 const GROSOR_TRAZO = 1.5; // handoff §4 prop "grosorTrazo" (1–2)
-const TIPOS_FORMA_LABEL = { circulo: 'Círculo', rectangulo: 'Rectángulo', linea: 'Línea' };
+const TIPOS_FORMA_LABEL = { circulo: 'Círculo', rectangulo: 'Rectángulo', linea: 'Línea', texto: 'Texto' };
 const DIRECCIONES_PUERTO = ['N', 'S', 'E', 'W'];
 
 const kicker = { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' };
@@ -195,12 +195,15 @@ function CampoMini({ label, valor, onChange }) {
 // opcionales. Solo visual por ahora: no tiene modos de falla propios, así que
 // el Analista todavía no puede diagnosticar equipos de este tipo.
 function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
+  const svgRef = useRef(null);
   const [nombre, setNombre] = useState('');
   const [anchoBase, setAnchoBase] = useState(40);
   const [altoBase, setAltoBase] = useState(40);
   const [formas, setFormas] = useState([]);
   const [puertos, setPuertos] = useState([]);
   const [mensaje, setMensaje] = useState(null);
+  // Arrastre de un extremo de línea en la vista previa — {indice, extremo: 1|2}
+  const [lineaArrastre, setLineaArrastre] = useState(null);
 
   const agregarForma = (tipoForma) => {
     setMensaje(null);
@@ -210,10 +213,40 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
       setFormas((f) => [...f, { tipo: tipoForma, x: Math.round(anchoBase * 0.2), y: Math.round(altoBase * 0.2), ancho: Math.round(anchoBase * 0.6), alto: Math.round(altoBase * 0.6) }]);
     } else if (tipoForma === 'linea') {
       setFormas((f) => [...f, { tipo: tipoForma, x1: 0, y1: Math.round(altoBase / 2), x2: anchoBase, y2: Math.round(altoBase / 2) }]);
+    } else if (tipoForma === 'texto') {
+      setFormas((f) => [...f, { tipo: tipoForma, x: Math.round(anchoBase / 2), y: Math.round(altoBase / 2), tamano: 10, contenido: 'texto' }]);
     }
   };
-  const actualizarForma = (i, campo, valor) => setFormas((fs) => fs.map((f, idx) => (idx === i ? { ...f, [campo]: Number(valor) } : f)));
+  const actualizarForma = (i, campo, valor) =>
+    setFormas((fs) => fs.map((f, idx) => (idx === i ? { ...f, [campo]: campo === 'contenido' ? valor : Number(valor) } : f)));
   const quitarForma = (i) => setFormas((fs) => fs.filter((_, idx) => idx !== i));
+
+  // Arrastrar un extremo de línea directo en la vista previa, sin depender
+  // solo de los campos numéricos — getScreenCTM deshace el escalado del
+  // viewBox sin necesitar saber el tamaño real en pantalla del SVG.
+  const puntoSvg = (event) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const pt = svg.createSVGPoint();
+    pt.x = event.clientX;
+    pt.y = event.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return { x: 0, y: 0 };
+    const p = pt.matrixTransform(ctm.inverse());
+    return { x: Math.round(p.x), y: Math.round(p.y) };
+  };
+  const onMouseDownExtremoLinea = (event, indice, extremo) => {
+    event.stopPropagation();
+    setLineaArrastre({ indice, extremo });
+  };
+  const onMouseMovePreview = (event) => {
+    if (!lineaArrastre) return;
+    const p = puntoSvg(event);
+    const campoX = lineaArrastre.extremo === 1 ? 'x1' : 'x2';
+    const campoY = lineaArrastre.extremo === 1 ? 'y1' : 'y2';
+    setFormas((fs) => fs.map((f, idx) => (idx === lineaArrastre.indice ? { ...f, [campoX]: p.x, [campoY]: p.y } : f)));
+  };
+  const onMouseUpPreview = () => setLineaArrastre(null);
 
   const agregarPuerto = () => setPuertos((ps) => [...ps, { nombre: `puerto${ps.length + 1}`, x: 0, y: Math.round(altoBase / 2), dir: 'W' }]);
   const actualizarPuerto = (i, campo, valor) => setPuertos((ps) => ps.map((p, idx) => (idx === i ? { ...p, [campo]: campo === 'x' || campo === 'y' ? Number(valor) : valor } : p)));
@@ -298,6 +331,21 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
                       <CampoMini label="y1" valor={f.y1} onChange={(v) => actualizarForma(i, 'y1', v)} />
                       <CampoMini label="x2" valor={f.x2} onChange={(v) => actualizarForma(i, 'x2', v)} />
                       <CampoMini label="y2" valor={f.y2} onChange={(v) => actualizarForma(i, 'y2', v)} />
+                      <span style={{ fontSize: 11, color: 'var(--color-neutral-500)' }}>o arrastra sus extremos en la vista previa →</span>
+                    </>
+                  )}
+                  {f.tipo === 'texto' && (
+                    <>
+                      <input
+                        className="input"
+                        style={{ width: 100 }}
+                        value={f.contenido}
+                        onChange={(e) => actualizarForma(i, 'contenido', e.target.value)}
+                        placeholder="Texto"
+                      />
+                      <CampoMini label="x" valor={f.x} onChange={(v) => actualizarForma(i, 'x', v)} />
+                      <CampoMini label="y" valor={f.y} onChange={(v) => actualizarForma(i, 'y', v)} />
+                      <CampoMini label="tamaño" valor={f.tamano} onChange={(v) => actualizarForma(i, 'tamano', v)} />
                     </>
                   )}
                   <button className="btn btn-ghost" onClick={() => quitarForma(i)} style={{ fontSize: 12 }}>
@@ -316,6 +364,9 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
               </button>
               <button className="btn btn-secondary" onClick={() => agregarForma('linea')}>
                 + Línea
+              </button>
+              <button className="btn btn-secondary" onClick={() => agregarForma('texto')}>
+                + Texto
               </button>
             </div>
           </div>
@@ -354,10 +405,27 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
         <div>
           <div style={{ ...kicker, marginBottom: 6 }}>Vista previa</div>
           <div style={{ border: '1px solid var(--color-divider)', background: '#001830', padding: 8 }}>
-            <svg viewBox={`-4 -4 ${anchoBase + 8} ${altoBase + 8}`} width="100%" height={160}>
+            <svg
+              ref={svgRef}
+              viewBox={`-4 -4 ${anchoBase + 8} ${altoBase + 8}`}
+              width="100%"
+              height={160}
+              onMouseMove={onMouseMovePreview}
+              onMouseUp={onMouseUpPreview}
+              onMouseLeave={onMouseUpPreview}
+            >
               <g fill="#a2a29d" stroke="#000" strokeWidth={1}>
                 {formas.map((f, i) => formaAJsx(f, i))}
               </g>
+              {formas.map(
+                (f, i) =>
+                  f.tipo === 'linea' && (
+                    <g key={`manijas-${i}`}>
+                      <circle cx={f.x1} cy={f.y1} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownExtremoLinea(e, i, 1)} />
+                      <circle cx={f.x2} cy={f.y2} r={4} fill="#00a2e8" style={{ cursor: 'grab' }} onMouseDown={(e) => onMouseDownExtremoLinea(e, i, 2)} />
+                    </g>
+                  )
+              )}
               {puertos.map((p, i) => (
                 <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#00a2e8" />
               ))}
