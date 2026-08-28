@@ -110,10 +110,15 @@ export function puntoDeManual(posicion, icono, manual) {
 // Igual que puertoHacia, pero respeta un extremo fijado a mano cuando existe:
 // un nombre de puerto declarado (string) o un punto libre del perímetro real
 // ({x, y, dir} en coordenadas crudas) — el que se guarda al arrastrar un
-// extremo de la conexión.
+// extremo de la conexión. Si lo guardado no tiene esa forma exacta (p. ej.
+// quedó de una versión anterior del formato, como {lado, t}), se ignora y se
+// vuelve al puerto automático — un dato viejo/corrupto no debe romper el
+// lienzo entero.
 export function puertoElegido(posicion, icono, posicionOtro, manual) {
   if (!icono) return null;
-  if (manual && typeof manual === 'object') return puntoDeManual(posicion, icono, manual);
+  if (manual && typeof manual === 'object' && typeof manual.x === 'number' && typeof manual.y === 'number' && DIR_VECTOR[manual.dir]) {
+    return puntoDeManual(posicion, icono, manual);
+  }
   if (typeof manual === 'string' && icono.puertos?.[manual]) return puntoAbsoluto(posicion, icono, manual);
   return puertoHacia(posicion, icono, posicionOtro);
 }
