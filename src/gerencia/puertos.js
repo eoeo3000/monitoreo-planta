@@ -4,6 +4,8 @@
 // tramos ortogonales y un mínimo de 8px perpendicular al glifo antes del
 // primer giro. Usado por PortalSCADA.js con los glifos de scadaIconos.js.
 
+import { puntoPerimetroDeFormas } from './formas';
+
 // Tamaño base y anclaje (borde inferior fijo) por defecto. Un ícono puede
 // pisar estos valores con sus propios `anchoBase`/`altoBase`/`bordeInferior`
 // cuando su gramática visual usa otra proporción.
@@ -66,65 +68,52 @@ function dimensionesIcono(icono) {
   const escala = icono.escala || 1;
   const anchoIcono = (icono.anchoBase || ANCHO_BASE) * escala;
   const altoIcono = (icono.altoBase || ALTO_BASE) * escala;
-  return { anchoIcono, altoIcono };
+  return { anchoIcono, altoIcono, escala };
 }
 
-// Punto exacto sobre un lado (N/S/E/W) del rectángulo que envuelve al glifo,
-// a una fracción `t` (0..1) de una esquina a la otra. A diferencia de un
-// puerto declarado (semántico, fijo en la geometría exacta del dibujo), esto
-// es "cualquier parte del perímetro" — el rectángulo envolvente, no la
-// silueta exacta, para no necesitar geometría distinta por cada forma o tipo
-// creado por el usuario.
-export function puntoDeLado(posicion, icono, lado, t) {
-  const { anchoIcono, altoIcono } = dimensionesIcono(icono);
+// Un punto absoluto del lienzo, a las mismas coordenadas "crudas" en las que
+// están definidas `formas`/`puertos` de un ícono (antes de escala y
+// posición) — y de vuelta. Guardar el punto libre en estas coordenadas
+// (no en píxeles absolutos) es lo que hace que siga al equipo solo si se
+// mueve o se le cambia el tamaño.
+function aLocal(posicion, icono, absoluto) {
+  const { anchoIcono, altoIcono, escala } = dimensionesIcono(icono);
   const origenX = posicion.x - anchoIcono / 2;
   const origenY = posicion.y - altoIcono;
-  const tc = Math.max(0, Math.min(1, t));
-  if (lado === 'N') return { x: origenX + tc * anchoIcono, y: origenY, dir: 'N' };
-  if (lado === 'S') return { x: origenX + tc * anchoIcono, y: origenY + altoIcono, dir: 'S' };
-  if (lado === 'W') return { x: origenX, y: origenY + tc * altoIcono, dir: 'W' };
-  return { x: origenX + anchoIcono, y: origenY + tc * altoIcono, dir: 'E' };
+  return { x: (absoluto.x - origenX) / escala, y: (absoluto.y - origenY) / escala };
+}
+function aAbsoluto(posicion, icono, local) {
+  const { anchoIcono, altoIcono, escala } = dimensionesIcono(icono);
+  const origenX = posicion.x - anchoIcono / 2;
+  const origenY = posicion.y - altoIcono;
+  return { x: origenX + local.x * escala, y: origenY + local.y * escala };
 }
 
-// El punto del perímetro (rectángulo envolvente) más cercano a un punto
-// cualquiera del lienzo — usado al soltar el extremo de una conexión
-// arrastrado a mano: nunca queda un punto suelto en el aire, pero ya no está
-// limitado a los puertos declarados, cualquier lugar del contorno vale.
+// El punto de la silueta real (no una caja que la envuelve) más cercano a un
+// punto cualquiera del lienzo — usado al soltar el extremo de una conexión
+// arrastrado a mano: se puede conectar en cualquier parte del contorno
+// dibujado, círculos y óvalos incluidos, no solo en los puertos declarados
+// ni en las esquinas de un rectángulo invisible. Devuelve {x,y,dir} en
+// coordenadas "crudas" del ícono — así es como se guarda en la conexión.
 export function puntoPerimetroCercano(posicion, icono, punto) {
-  const { anchoIcono, altoIcono } = dimensionesIcono(icono);
-  const origenX = posicion.x - anchoIcono / 2;
-  const origenY = posicion.y - altoIcono;
-  let lx = punto.x - origenX;
-  let ly = punto.y - origenY;
+  const local = aLocal(posicion, icono, punto);
+  return puntoPerimetroDeFormas(icono?.formas, local);
+}
 
-  const dentro = lx >= 0 && lx <= anchoIcono && ly >= 0 && ly <= altoIcono;
-  if (dentro) {
-    // Ya está sobre el equipo: el lado libre más cercano de los cuatro.
-    const distIzq = lx, distDer = anchoIcono - lx, distArriba = ly, distAbajo = altoIcono - ly;
-    const minDist = Math.min(distIzq, distDer, distArriba, distAbajo);
-    if (minDist === distIzq) lx = 0;
-    else if (minDist === distDer) lx = anchoIcono;
-    else if (minDist === distArriba) ly = 0;
-    else ly = altoIcono;
-  } else {
-    // Afuera: recortar (clamp) a la caja ya deja el punto exactamente sobre
-    // el borde que quedó del lado de afuera.
-    lx = Math.max(0, Math.min(anchoIcono, lx));
-    ly = Math.max(0, Math.min(altoIcono, ly));
-  }
-
-  if (lx <= 0) return { lado: 'W', t: altoIcono ? ly / altoIcono : 0 };
-  if (lx >= anchoIcono) return { lado: 'E', t: altoIcono ? ly / altoIcono : 0 };
-  if (ly <= 0) return { lado: 'N', t: anchoIcono ? lx / anchoIcono : 0 };
-  return { lado: 'S', t: anchoIcono ? lx / anchoIcono : 0 };
+// Convierte un punto libre guardado (coordenadas crudas + dir, de
+// puntoPerimetroCercano) a coordenadas absolutas del lienzo.
+export function puntoDeManual(posicion, icono, manual) {
+  const abs = aAbsoluto(posicion, icono, manual);
+  return { x: abs.x, y: abs.y, dir: manual.dir };
 }
 
 // Igual que puertoHacia, pero respeta un extremo fijado a mano cuando existe:
-// un nombre de puerto declarado (string) o un punto libre del perímetro
-// ({lado, t}) — el que se guarda al arrastrar un extremo de la conexión.
+// un nombre de puerto declarado (string) o un punto libre del perímetro real
+// ({x, y, dir} en coordenadas crudas) — el que se guarda al arrastrar un
+// extremo de la conexión.
 export function puertoElegido(posicion, icono, posicionOtro, manual) {
   if (!icono) return null;
-  if (manual && typeof manual === 'object') return puntoDeLado(posicion, icono, manual.lado, manual.t);
+  if (manual && typeof manual === 'object') return puntoDeManual(posicion, icono, manual);
   if (typeof manual === 'string' && icono.puertos?.[manual]) return puntoAbsoluto(posicion, icono, manual);
   return puertoHacia(posicion, icono, posicionOtro);
 }

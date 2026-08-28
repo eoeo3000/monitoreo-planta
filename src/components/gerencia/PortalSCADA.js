@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
-import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeLado, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
+import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
 import './portalScada.css';
 
 const PAD_LIENZO = 100; // margen alrededor de los equipos: el glifo más alto (tanque/agitador) mide 90
@@ -187,6 +187,7 @@ export default function PortalSCADA({
     const eq = arr.extremo === 'de' ? de : a;
     const icono = iconoConEscala(eq.tipo, data);
     const puntoLibre = puntoPerimetroCercano(posicionDe(eq), icono, pMouse);
+    if (!puntoLibre) return;
     actualizarConexion(conexion.id, arr.extremo === 'de' ? { puertoDe: puntoLibre } : { puertoA: puntoLibre });
   };
 
@@ -556,7 +557,8 @@ export default function PortalSCADA({
                   const eq = conexionArrastre.extremo === 'de' ? de : a;
                   const icono = iconoConEscala(eq.tipo, data);
                   const candidato = puntoPerimetroCercano(posicionDe(eq), icono, mousePos);
-                  const puntoCandidato = puntoDeLado(posicionDe(eq), icono, candidato.lado, candidato.t);
+                  if (!candidato) return null;
+                  const puntoCandidato = puntoDeManual(posicionDe(eq), icono, candidato);
                   return <circle cx={puntoCandidato.x} cy={puntoCandidato.y} r={6} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} pointerEvents="none" />;
                 })()}
 
