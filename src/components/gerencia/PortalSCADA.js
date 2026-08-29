@@ -123,7 +123,10 @@ export default function PortalSCADA({
     return peor;
   };
 
-  const cajaDeArea = (area) => {
+  // La caja "natural" de la zona, calculada solo de las posiciones de los
+  // equipos — el título se ancla a su esquina (+8,+14) antes de aplicarle el
+  // desplazamiento a mano.
+  const cajaEquiposDeArea = (area) => {
     const eqs = equiposDePlanta.filter((eq) => eq.areaId === area.id);
     if (eqs.length === 0) return null;
     const xs = eqs.map((eq) => posicionDe(eq).x);
@@ -134,6 +137,18 @@ export default function PortalSCADA({
       width: Math.max(...xs) - Math.min(...xs) + PAD_ZONA * 2,
       height: Math.max(...ys) - Math.min(...ys) + PAD_ZONA * 2 + 18,
     };
+  };
+
+  // El cuadro punteado que se dibuja: la caja de los equipos, agrandada si
+  // hace falta para seguir encerrando el título — si se arrastra afuera, el
+  // cuadro crece con él en vez de dejarlo flotando fuera del borde.
+  const PAD_TITULO = 10;
+  const cajaVisibleDeArea = (cajaEquipos, tituloX, tituloY) => {
+    const x = Math.min(cajaEquipos.x, tituloX - PAD_TITULO);
+    const y = Math.min(cajaEquipos.y, tituloY - 14 - PAD_TITULO);
+    const maxX = Math.max(cajaEquipos.x + cajaEquipos.width, tituloX + PAD_TITULO);
+    const maxY = Math.max(cajaEquipos.y + cajaEquipos.height, tituloY + PAD_TITULO);
+    return { x, y, width: maxX - x, height: maxY - y };
   };
 
   // Caja del lienzo: encierra todos los equipos de la planta con margen, para
@@ -592,9 +607,12 @@ export default function PortalSCADA({
               {modoEdicion && <rect x={minX} y={minY} width={maxX - minX} height={maxY - minY} fill="url(#scadaCuadricula)" pointerEvents="none" />}
 
               {areasDePlanta.map((area) => {
-                const caja = cajaDeArea(area);
-                if (!caja) return null;
+                const cajaEquipos = cajaEquiposDeArea(area);
+                if (!cajaEquipos) return null;
                 const offset = tituloArrastre?.areaId === area.id && tituloArrastre.activo ? tituloArrastre.live : area.tituloOffset || { dx: 0, dy: 0 };
+                const tituloX = cajaEquipos.x + 8 + offset.dx;
+                const tituloY = cajaEquipos.y + 14 + offset.dy;
+                const caja = cajaVisibleDeArea(cajaEquipos, tituloX, tituloY);
                 return (
                   <g key={area.id}>
                     <rect className="scada-zona" x={caja.x} y={caja.y} width={caja.width} height={caja.height} fill="none" stroke="var(--scada-zona)" strokeWidth={1} strokeDasharray="4 3" />
@@ -602,14 +620,7 @@ export default function PortalSCADA({
                       onMouseDown={(e) => onMouseDownTitulo(e, area)}
                       style={{ cursor: !modoEdicion ? 'default' : tituloArrastre?.areaId === area.id ? 'grabbing' : 'grab' }}
                     >
-                      <text
-                        x={caja.x + 8 + offset.dx}
-                        y={caja.y + 14 + offset.dy}
-                        fontSize={13}
-                        fontWeight={700}
-                        letterSpacing="0.04em"
-                        fill="var(--scada-titulo)"
-                      >
+                      <text x={tituloX} y={tituloY} fontSize={13} fontWeight={700} letterSpacing="0.04em" fill="var(--scada-titulo)">
                         {area.nombre.toUpperCase()}
                       </text>
                     </g>
