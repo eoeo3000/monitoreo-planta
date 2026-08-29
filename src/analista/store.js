@@ -215,6 +215,13 @@ export function useAnalistaData() {
     }));
   }, []);
 
+  const moverEtiquetaEquipo = useCallback((equipoId, etiquetaOffset) => {
+    setData((d) => ({
+      ...d,
+      equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, etiquetaOffset } : eq)),
+    }));
+  }, []);
+
   // La validación de nombre/clave única vive en el formulario (Administración),
   // igual que crearEquipo: esta acción solo agrega el tipo tal como llega.
   const crearTipoPersonalizado = useCallback((tipoData) => {
@@ -278,6 +285,7 @@ export function useAnalistaData() {
     cambiarEscalaTipo,
     cambiarEscalaEquipo,
     moverTituloArea,
+    moverEtiquetaEquipo,
     crearTipoPersonalizado,
     actualizarTipoPersonalizado,
     crearConexion,

@@ -77,6 +77,7 @@ export default function PortalSCADA({
   cambiarEscalaTipo,
   cambiarEscalaEquipo,
   moverTituloArea,
+  moverEtiquetaEquipo,
 }) {
   const svgRef = useRef(null);
   const tagInputRef = useRef(null);
@@ -103,6 +104,10 @@ export default function PortalSCADA({
   // activo, live }. `offsetBase` es el desplazamiento ya guardado antes de
   // este arrastre; `live` es el desplazamiento en vivo mientras se arrastra.
   const [tituloArrastre, setTituloArrastre] = useState(null);
+  // Arrastre de la etiqueta (TAG) de un equipo — mismo patrón que
+  // tituloArrastre, para poder reposicionarla cuando el ícono del equipo
+  // (sobre todo uno personalizado) no deja el espacio de abajo libre.
+  const [etiquetaArrastre, setEtiquetaArrastre] = useState(null);
 
   const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
   const equiposDePlanta = data.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
@@ -200,6 +205,13 @@ export default function PortalSCADA({
     event.stopPropagation();
     const p = puntoSvg(event);
     setTituloArrastre({ areaId: area.id, startX: p.x, startY: p.y, offsetBase: area.tituloOffset || { dx: 0, dy: 0 }, activo: false, live: area.tituloOffset || { dx: 0, dy: 0 } });
+  };
+
+  const onMouseDownEtiqueta = (event, eq) => {
+    if (!modoEdicion) return;
+    event.stopPropagation();
+    const p = puntoSvg(event);
+    setEtiquetaArrastre({ id: eq.id, startX: p.x, startY: p.y, offsetBase: eq.etiquetaOffset || { dx: 0, dy: 0 }, activo: false, live: eq.etiquetaOffset || { dx: 0, dy: 0 } });
   };
 
   // Si al soltar el quiebre medio el punto quedó muy cerca (6px) de un
@@ -302,12 +314,26 @@ export default function PortalSCADA({
         setTituloArrastre((t) => ({ ...t, live: { dx: t.offsetBase.dx + (p.x - t.startX), dy: t.offsetBase.dy + (p.y - t.startY) } }));
       }
     }
+    if (etiquetaArrastre) {
+      if (!etiquetaArrastre.activo) {
+        const dist = Math.hypot(p.x - etiquetaArrastre.startX, p.y - etiquetaArrastre.startY);
+        if (dist > UMBRAL_ARRASTRE) setEtiquetaArrastre((t) => ({ ...t, activo: true }));
+      }
+      if (etiquetaArrastre.activo) {
+        setEtiquetaArrastre((t) => ({ ...t, live: { dx: t.offsetBase.dx + (p.x - t.startX), dy: t.offsetBase.dy + (p.y - t.startY) } }));
+      }
+    }
   };
 
   const onMouseUp = () => {
     if (tituloArrastre) {
       if (tituloArrastre.activo) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
       setTituloArrastre(null);
+      return;
+    }
+    if (etiquetaArrastre) {
+      if (etiquetaArrastre.activo) moverEtiquetaEquipo(etiquetaArrastre.id, etiquetaArrastre.live);
+      setEtiquetaArrastre(null);
       return;
     }
     if (conexionArrastre) {
@@ -635,6 +661,17 @@ export default function PortalSCADA({
                         "Y" alinea bordes inferiores — solo coincide con el centro si ambos equipos miden lo mismo de alto. Para alinear
                         centros entre equipos de tamaños distintos, usa el mismo "Centro Y" en los dos.
                       </p>
+                      <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>
+                        Arrastrá el TAG del equipo en el lienzo para reposicionarlo (útil cuando un ícono personalizado tapa la etiqueta).
+                      </p>
+                      {eqSel.etiquetaOffset && (eqSel.etiquetaOffset.dx || eqSel.etiquetaOffset.dy) && (
+                        <button
+                          onClick={() => moverEtiquetaEquipo(eqSel.id, { dx: 0, dy: 0 })}
+                          style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
+                        >
+                          Restablecer posición del TAG
+                        </button>
+                      )}
                       <button
                         onClick={() => setEquipoSeleccionado(duplicarEquipo(eqSel.id))}
                         style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
@@ -729,6 +766,7 @@ export default function PortalSCADA({
                 const altoIcono = icono.altoBase * icono.escala;
                 const origen = origenConexion === eq.id;
                 const seleccionado = equipoSeleccionado === eq.id;
+                const offsetEtiqueta = etiquetaArrastre?.id === eq.id && etiquetaArrastre.activo ? etiquetaArrastre.live : eq.etiquetaOffset || { dx: 0, dy: 0 };
                 return (
                   <g
                     key={eq.id}
@@ -764,14 +802,15 @@ export default function PortalSCADA({
                       {icono.decoracion}
                     </g>
                     <text
-                      x={anchoIcono / 2}
-                      y={altoIcono + 13}
+                      x={anchoIcono / 2 + offsetEtiqueta.dx}
+                      y={altoIcono + 13 + offsetEtiqueta.dy}
                       textAnchor="middle"
                       fontSize={11}
                       fontWeight={700}
                       letterSpacing="0.02em"
                       fill={origen ? 'var(--scada-titulo)' : 'var(--scada-texto)'}
-                      style={{ fontVariantNumeric: 'tabular-nums' }}
+                      style={{ fontVariantNumeric: 'tabular-nums', cursor: !modoEdicion ? 'default' : etiquetaArrastre?.id === eq.id ? 'grabbing' : 'grab' }}
+                      onMouseDown={(e) => onMouseDownEtiqueta(e, eq)}
                     >
                       {eq.tag}
                     </text>
