@@ -523,6 +523,9 @@ export default function PortalSCADA({
                   if (!eqSel) return null;
                   const tienePropio = eqSel.escalaPropia != null;
                   const escalaActual = eqSel.escalaPropia ?? data.escalasPorTipo?.[eqSel.tipo] ?? 1;
+                  const iconoSel = iconoConEscala(eqSel, data);
+                  const altoIconoSel = iconoSel ? iconoSel.altoBase * iconoSel.escala : 0;
+                  const posSel = eqSel.posicion || { x: 80, y: 80 };
                   return (
                     <div style={{ borderTop: '1px solid var(--scada-borde)', paddingTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div style={tituloSeccion}>Equipo seleccionado · {eqSel.tipo}</div>
@@ -575,7 +578,23 @@ export default function PortalSCADA({
                           />
                         </label>
                       </div>
-                      <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>Poné el mismo Y en dos equipos para alinearlos exacto.</p>
+                      <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)' }}>
+                        Centro Y (compara equipos de cualquier tamaño)
+                        <input
+                          key={`${eqSel.id}-centroy`}
+                          type="number"
+                          defaultValue={Math.round(posSel.y - altoIconoSel / 2)}
+                          onBlur={(e) => moverEquipo(eqSel.id, { ...posSel, y: Math.round(Number(e.target.value) + altoIconoSel / 2) })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.target.blur();
+                          }}
+                          style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
+                        />
+                      </label>
+                      <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>
+                        "Y" alinea bordes inferiores — solo coincide con el centro si ambos equipos miden lo mismo de alto. Para alinear
+                        centros entre equipos de tamaños distintos, usa el mismo "Centro Y" en los dos.
+                      </p>
                       <button
                         onClick={() => setEquipoSeleccionado(duplicarEquipo(eqSel.id))}
                         style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
