@@ -7,7 +7,11 @@ import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaP
 import './portalScada.css';
 
 const PAD_LIENZO = 100; // margen alrededor de los equipos
-const MAX_LADO_LIENZO = 1600; // tope de qué tan grande puede ponerse el lienzo (evita que un equipo aislado fuerce el zoom-out de toda la planta)
+const ANCHO_LIENZO = 1400; // ancho fijo del lienzo (unidades del viewBox), no depende de dónde estén los equipos
+const ALTO_LIENZO = 900; // alto fijo del lienzo
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 3;
+const ZOOM_PASO = 0.1;
 const PAD_ZONA = 70;
 const PAD_HIT = 8; // margen del área invisible de clic/arrastre alrededor del glifo
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
@@ -79,6 +83,8 @@ export default function PortalSCADA({
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
   const [panelColapsado, setPanelColapsado] = useState(false);
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [zoomLienzo, setZoomLienzo] = useState(1);
+  const cambiarZoomLienzo = (delta) => setZoomLienzo((z) => Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta)) * 100) / 100);
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
   const [equipoSeleccionado, setEquipoSeleccionado] = useState(null);
@@ -153,44 +159,14 @@ export default function PortalSCADA({
     return { x, y, width: maxX - x, height: maxY - y };
   };
 
-  // Caja del lienzo: encierra todos los equipos de la planta con margen, para
-  // que el circuito completo entre sin importar cuántos equipos ni dónde
-  // quedaron ubicados. El lienzo usa viewBox (no zoom manual con transform):
-  // siempre entra completo, y las coordenadas de mouse se convierten con la
-  // matriz de pantalla del propio SVG (getScreenCTM), que ya la deshace sola.
-  const posiciones = equiposDePlanta.map(posicionDe);
-  const xs = posiciones.map((p) => p.x);
-  const ys = posiciones.map((p) => p.y);
-  let minX = (xs.length ? Math.min(...xs) : 0) - PAD_LIENZO;
-  let minY = (ys.length ? Math.min(...ys) : 0) - PAD_LIENZO;
-  let maxX = (xs.length ? Math.max(...xs) : 900) + PAD_LIENZO;
-  let maxY = (ys.length ? Math.max(...ys) : 900) + PAD_LIENZO;
-
-  // Si un equipo queda muy lejos del resto (p. ej. uno recién creado que
-  // nunca se reubicó), no dejamos que el lienzo se aleje sin límite para
-  // "abarcarlo todo" — eso es lo que hacía ver a todos los demás equipos
-  // diminutos. Se limita el lado del lienzo a MAX_LADO, centrado en la
-  // mediana de las posiciones (no el promedio, para que un solo equipo
-  // aislado no arrastre el centro): así el grupo principal se sigue viendo
-  // a buen tamaño y el equipo suelto queda fuera de la vista hasta que se
-  // lo reubique.
-  const mediana = (valores) => {
-    const ordenados = [...valores].sort((a, b) => a - b);
-    const n = ordenados.length;
-    if (!n) return 0;
-    const mitad = Math.floor(n / 2);
-    return n % 2 ? ordenados[mitad] : (ordenados[mitad - 1] + ordenados[mitad]) / 2;
-  };
-  if (maxX - minX > MAX_LADO_LIENZO) {
-    const centroX = mediana(xs);
-    minX = centroX - MAX_LADO_LIENZO / 2;
-    maxX = centroX + MAX_LADO_LIENZO / 2;
-  }
-  if (maxY - minY > MAX_LADO_LIENZO) {
-    const centroY = mediana(ys);
-    minY = centroY - MAX_LADO_LIENZO / 2;
-    maxY = centroY + MAX_LADO_LIENZO / 2;
-  }
+  // Caja del lienzo: tamaño FIJO (no depende de dónde estén los equipos), así
+  // que un equipo aislado lejos del resto ya no puede forzar un zoom-out que
+  // empequeñezca a todos los demás. El zoom es manual (control en el panel,
+  // solo visible en modo edición) y ajusta cuánto de ese lienzo fijo se ve.
+  const minX = -PAD_LIENZO;
+  const minY = -PAD_LIENZO;
+  const maxX = minX + ANCHO_LIENZO / zoomLienzo;
+  const maxY = minY + ALTO_LIENZO / zoomLienzo;
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
@@ -511,6 +487,30 @@ export default function PortalSCADA({
 
           {modoEdicion && (
             <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                <span style={{ color: 'var(--scada-texto-2)' }}>Zoom</span>
+                <button
+                  onClick={() => cambiarZoomLienzo(-ZOOM_PASO)}
+                  style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
+                >
+                  −
+                </button>
+                <span style={{ minWidth: 40, textAlign: 'center' }}>{Math.round(zoomLienzo * 100)}%</span>
+                <button
+                  onClick={() => cambiarZoomLienzo(ZOOM_PASO)}
+                  style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
+                >
+                  +
+                </button>
+                {zoomLienzo !== 1 && (
+                  <button
+                    onClick={() => setZoomLienzo(1)}
+                    style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontSize: 11, padding: '4px 6px', cursor: 'pointer' }}
+                  >
+                    100%
+                  </button>
+                )}
+              </div>
               <button
                 onClick={alternarModoConectar}
                 style={{
