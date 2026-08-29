@@ -308,8 +308,10 @@ export default function PortalSCADA({
   const onDobleClickEquipo = (event, eq) => {
     if (!modoEdicion) return;
     event.stopPropagation();
+    const tienePropio = eq.escalaPropia != null;
     const actual = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
-    const respuesta = window.prompt(`Tamaño de ${eq.tag} (vacío = usar el tamaño del tipo "${eq.tipo}"):`, actual.toFixed(2));
+    const origen = tienePropio ? 'personalizado de este equipo' : `heredado del tipo "${eq.tipo}"`;
+    const respuesta = window.prompt(`Tamaño de ${eq.tag}: ${actual.toFixed(2)} (${origen}). Vacío = usar el tamaño del tipo:`, actual.toFixed(2));
     if (respuesta === null) return;
     if (respuesta.trim() === '') {
       cambiarEscalaEquipo(eq.id, null);
@@ -494,9 +496,22 @@ export default function PortalSCADA({
                 (() => {
                   const eqSel = equiposDePlanta.find((eq) => eq.id === equipoSeleccionado);
                   if (!eqSel) return null;
+                  const tienePropio = eqSel.escalaPropia != null;
+                  const escalaActual = eqSel.escalaPropia ?? data.escalasPorTipo?.[eqSel.tipo] ?? 1;
                   return (
                     <div style={{ borderTop: '1px solid var(--scada-borde)', paddingTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <div style={tituloSeccion}>Equipo seleccionado · {eqSel.tipo}</div>
+                      <div style={{ fontSize: 11, color: 'var(--scada-texto-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Tamaño: {escalaActual.toFixed(2)} ({tienePropio ? 'personalizado de este equipo' : 'del tipo'})
+                        {tienePropio && (
+                          <button
+                            onClick={() => cambiarEscalaEquipo(eqSel.id, null)}
+                            style={{ background: 'none', color: 'var(--scada-titulo)', border: 'none', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                          >
+                            Quitar
+                          </button>
+                        )}
+                      </div>
                       <input
                         key={eqSel.id}
                         ref={tagInputRef}
