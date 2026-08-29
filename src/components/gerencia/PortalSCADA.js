@@ -162,8 +162,8 @@ export default function PortalSCADA({
   const ys = posiciones.map((p) => p.y);
   const minX = (xs.length ? Math.min(...xs) : 0) - PAD_LIENZO;
   const minY = (ys.length ? Math.min(...ys) : 0) - PAD_LIENZO;
-  const maxX = (xs.length ? Math.max(...xs) : 240) + PAD_LIENZO;
-  const maxY = (ys.length ? Math.max(...ys) : 240) + PAD_LIENZO;
+  const maxX = (xs.length ? Math.max(...xs) : 900) + PAD_LIENZO;
+  const maxY = (ys.length ? Math.max(...ys) : 900) + PAD_LIENZO;
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
