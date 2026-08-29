@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS, SEED_CONEXIONES } from './mockData';
-import { SCADA_ICONOS } from '../gerencia/scadaIconos';
+import { SCADA_ICONOS, CLASES_ESCALA } from '../gerencia/scadaIconos';
 
 const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
@@ -240,19 +240,19 @@ export function useAnalistaData() {
     const plantaId = nuevoId('planta');
     const NUM_SECTORES = 10;
     const AREAS_POR_SECTOR = 20; // 10 x 20 = 200 ubicaciones
-    // Tamaño propio de cada equipo de la demo (independiente de
-    // escalasPorTipo, que es global a toda la app) — para que se vean bien
-    // sin achicar a los equipos reales de otras plantas.
-    const ESCALA_EQUIPO_DEMO = 1.3;
+    // El tamaño de cada equipo generado sale de la clase de su tipo
+    // (CLASES_ESCALA — motor y bomba quedan chicos a propósito, como
+    // burbuja/inline; ver scadaIconos.js) — no de una escala fija por
+    // equipo como antes, que ya no tiene sentido con las clases nuevas.
 
     // "Ley" de espaciado: TODAS las distancias (entre equipos, del equipo al
     // borde del cuadro de su ubicación, y entre ubicaciones vecinas) salen
-    // del tamaño REAL del ícono dominante (motor/bomba son el 90% de esta
-    // composición) multiplicado por un factor — así se usan los espacios de
-    // forma consistente, en vez de mezclar números sueltos elegidos a ojo.
-    const iconoTipico = SCADA_ICONOS.motor;
-    const anchoTipico = iconoTipico.anchoBase * ESCALA_EQUIPO_DEMO;
-    const altoTipico = iconoTipico.altoBase * ESCALA_EQUIPO_DEMO;
+    // del tamaño REAL del ícono más grande de la composición (tanque, clase
+    // "mayor") multiplicado por un factor — así entra cómodo sin importar
+    // qué tipo cae en cada celda, en vez de mezclar números sueltos.
+    const iconoTipico = SCADA_ICONOS.tanque;
+    const anchoTipico = iconoTipico.anchoBase * CLASES_ESCALA[iconoTipico.clase];
+    const altoTipico = iconoTipico.altoBase * CLASES_ESCALA[iconoTipico.clase];
     const MAX_POR_FILA = 3;
     const PASO_H = Math.round(anchoTipico * 2); // separación centro-a-centro entre equipos de una fila
     const PASO_V = Math.round(altoTipico + 30); // + lugar para el TAG debajo del ícono, por si hace falta una 2ª fila
@@ -308,7 +308,6 @@ export function useAnalistaData() {
           tipo,
           descripcion: '',
           posicion: { x: base.x + 40 + col * PASO_H, y: base.y + 40 + fila * PASO_V },
-          escalaPropia: ESCALA_EQUIPO_DEMO,
         });
       }
     });

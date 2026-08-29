@@ -1,27 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
-import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
+import { SCADA_ICONOS, CLASES_ESCALA } from '../../gerencia/scadaIconos';
 import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
 import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
 import VistaSectores from './VistaSectores';
 import './portalScada.css';
 
-// Tiene que alcanzar para que el cuadro de una ubicación con el ícono más
-// alto del catálogo (tanque/agitador, 90 unidades) no quede cortado contra
-// el borde del lienzo cuando ese equipo está cerca del origen.
-const PAD_LIENZO = 90;
-const ANCHO_LIENZO = 1400; // ancho fijo del lienzo (unidades del viewBox), no depende de dónde estén los equipos
-const ALTO_LIENZO = 900; // alto fijo del lienzo
-const ZOOM_MIN = 0.3;
-const ZOOM_MAX = 3;
-const ZOOM_PASO = 0.1;
-// Tamaño de fuente del TAG, calibrado para que a 100% de zoom (con el
-// lienzo fijo de ANCHO_LIENZO x ALTO_LIENZO) se vea con un tamaño legible
-// típico de pantallas HMI industriales (aprox. 12-13px en una ventana
-// normal) — ni tan chico que cueste leerlo, ni tan grande que domine sobre
-// el ícono del equipo.
-const FONT_SIZE_TAG = 13;
+// El lienzo se ajusta al contenido real (ver ajustarLienzo más abajo) en
+// vez de tener un tamaño fijo — MARGEN_AJUSTE es el aire que se deja
+// alrededor de la caja real de zonas+equipos+TAGs al calcular ese ajuste.
+const MARGEN_AJUSTE = 24;
+const ZOOM_FACTOR_RUEDA = 1.15;
+const ZOOM_MIN_REL = 0.25; // 25%
+const ZOOM_MAX_REL = 4; // 400%
+const ZOOM_UMBRAL_TAGS = 0.5; // por debajo de este zoom relativo, los TAGs se ocultan (mapa de calor)
+const FONT_SIZE_TAG_PX = 12; // tamaño del TAG y del título de zona EN PANTALLA, constante sin importar el zoom
 const PAD_ZONA = 40; // margen del cuadro punteado de la ubicación alrededor de sus equipos
 const PAD_HIT = 8; // margen del área invisible de clic/arrastre alrededor del glifo
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
@@ -44,15 +38,21 @@ function iconoBaseDe(tipo, data) {
   return personalizado ? iconoDeTipoPersonalizado(personalizado) : null;
 }
 
-// El panel "Tamaños de equipo" sobrescribe, por tipo, un multiplicador de
-// escala sobre el tamaño base del ícono (data.escalasPorTipo); el doble clic
-// sobre UN equipo puede sobrescribirlo de nuevo solo para ese equipo
-// (eq.escalaPropia) — el más específico gana.
+// El tamaño de cada tipo sale de su CLASE fija (mayor/inline/bubble, ver
+// scadaIconos.js) — no de una escala libre que rompía la proporción del
+// conjunto. El panel "Tamaños de equipo" solo permite un ajuste fino de
+// ±20% sobre esa clase (data.escalasPorTipo, ahora un multiplicador
+// 0.8-1.2, no una escala absoluta); se clampa también al LEER, no solo al
+// escribir, por si quedó un valor viejo guardado bajo el sistema anterior.
+// El doble clic sobre UN equipo sigue siendo una excepción libre y
+// consciente (eq.escalaPropia, sin clamp) para casos puntuales.
 function iconoConEscala(eq, data) {
   const base = iconoBaseDe(eq.tipo, data);
   if (!base) return null;
-  const escala = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
-  return { ...base, escala };
+  if (eq.escalaPropia != null) return { ...base, escala: eq.escalaPropia };
+  const escalaBase = CLASES_ESCALA[base.clase] ?? 1;
+  const ajusteFino = Math.min(1.2, Math.max(0.8, data.escalasPorTipo?.[eq.tipo] ?? 1));
+  return { ...base, escala: escalaBase * ajusteFino };
 }
 
 // `conexion` puede traer puertoDe/puertoA (fijados a mano arrastrando el
@@ -91,6 +91,7 @@ export default function PortalSCADA({
   moverEtiquetaEquipo,
 }) {
   const svgRef = useRef(null);
+  const contenidoRef = useRef(null);
   const tagInputRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
   // Sector elegido en la Vista de Sectores (null = todavía no se eligió
@@ -98,10 +99,22 @@ export default function PortalSCADA({
   // como siempre). Guarda también los areaIds ya resueltos del grupo para no
   // tener que buscar "sin sector" de nuevo al filtrar.
   const [grupoActivo, setGrupoActivo] = useState(null);
-  const [panelColapsado, setPanelColapsado] = useState(false);
+  // Colapsado por defecto en ventanas angostas — hay poco lugar para el
+  // panel lateral y el lienzo (la parte importante) sin achicarse de más.
+  const [panelColapsado, setPanelColapsado] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1400);
   const [modoEdicion, setModoEdicion] = useState(false);
-  const [zoomLienzo, setZoomLienzo] = useState(1);
-  const cambiarZoomLienzo = (delta) => setZoomLienzo((z) => Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z + delta)) * 100) / 100);
+  // El viewBox real: {x, y, w, h} en unidades de contenido. Se guarda un
+  // valor por planta (useRef: no dispara render por sí solo) junto con el
+  // ancho de referencia de su último "Ajustar" (el 100% de zoom de esa
+  // planta) — así el zoom no se pierde al cambiar de sector y volver, pero
+  // una planta nueva (o la primera vez que se abre la pantalla) arranca
+  // ajustada al contenido real.
+  const [viewport, setViewport] = useState(null);
+  const viewportsPorPlanta = useRef({});
+  const anchoAjustePorPlanta = useRef({});
+  const [escalaPx, setEscalaPx] = useState(1); // unidades de contenido -> px de pantalla, medido de verdad
+  const [espacioPresionado, setEspacioPresionado] = useState(false);
+  const [paneo, setPaneo] = useState(null); // { startClientX, startClientY, viewportInicial, unidadesPorPxX, unidadesPorPxY }
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
   const [equipoSeleccionado, setEquipoSeleccionado] = useState(null);
@@ -202,14 +215,49 @@ export default function PortalSCADA({
     return { x, y, width: maxX - x, height: maxY - y };
   };
 
-  // Caja del lienzo: tamaño FIJO (no depende de dónde estén los equipos), así
-  // que un equipo aislado lejos del resto ya no puede forzar un zoom-out que
-  // empequeñezca a todos los demás. El zoom es manual (control en el panel,
-  // solo visible en modo edición) y ajusta cuánto de ese lienzo fijo se ve.
-  const minX = -PAD_LIENZO;
-  const minY = -PAD_LIENZO;
-  const maxX = minX + ANCHO_LIENZO / zoomLienzo;
-  const maxY = minY + ALTO_LIENZO / zoomLienzo;
+  // Ajusta el viewBox a la caja real del contenido ya dibujado (zonas +
+  // conexiones + equipos + sus TAGs, medida con getBBox — no una
+  // aproximación analítica a mano, así entra el ancho real del texto de
+  // cada TAG). Guarda el resultado como el "100% de zoom" de esta planta.
+  const ajustarLienzo = useCallback(() => {
+    if (!contenidoRef.current) return;
+    const caja = contenidoRef.current.getBBox();
+    if (!caja.width || !caja.height) return;
+    const nuevo = { x: caja.x - MARGEN_AJUSTE, y: caja.y - MARGEN_AJUSTE, w: caja.width + MARGEN_AJUSTE * 2, h: caja.height + MARGEN_AJUSTE * 2 };
+    anchoAjustePorPlanta.current[plantaId] = nuevo.w;
+    viewportsPorPlanta.current[plantaId] = nuevo;
+    setViewport(nuevo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantaId]);
+
+  // Estado inicial al abrir la pantalla y al cambiar de planta: si ya hay
+  // un viewport guardado para esta planta se reutiliza (no se pierde al
+  // cambiar de sector y volver); si es la primera vez, se ajusta al
+  // contenido real apenas termina de pintarse. También depende de
+  // grupoActivo: cuando una planta tiene sectores, el primer intento de
+  // ajuste ocurre mientras se muestra la Vista de Sectores (sin lienzo
+  // montado todavía) y no encuentra nada que medir — recién al entrar a un
+  // sector existe contenido real, así que hace falta reintentar en ese
+  // momento también.
+  useEffect(() => {
+    if (!plantaId) return;
+    const guardado = viewportsPorPlanta.current[plantaId];
+    if (guardado) {
+      setViewport(guardado);
+      return;
+    }
+    const id = requestAnimationFrame(ajustarLienzo);
+    return () => cancelAnimationFrame(id);
+  }, [plantaId, grupoActivo, ajustarLienzo]);
+
+  const minX = viewport?.x ?? 0;
+  const minY = viewport?.y ?? 0;
+  const maxX = minX + (viewport?.w ?? 800);
+  const maxY = minY + (viewport?.h ?? 600);
+  const anchoAjusteActual = anchoAjustePorPlanta.current[plantaId] || viewport?.w || 1;
+  const zoomRelativo = viewport ? anchoAjusteActual / viewport.w : 1;
+  const mostrarTags = zoomRelativo >= ZOOM_UMBRAL_TAGS;
+  const fontSizeTag = FONT_SIZE_TAG_PX / escalaPx;
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
@@ -223,8 +271,67 @@ export default function PortalSCADA({
     return { x: p.x, y: p.y };
   };
 
+  // Zoom centrado en el puntero: ancla el punto de contenido que está bajo
+  // el cursor (calculado ANTES de tocar el viewport) para que no se mueva
+  // en pantalla al hacer zoom — fórmula estándar de "zoom to point".
+  const zoomEnPunto = (factor, anclaContenido) => {
+    setViewport((v) => {
+      if (!v) return v;
+      const anchoAjuste = anchoAjustePorPlanta.current[plantaId] || v.w;
+      const wMin = anchoAjuste / ZOOM_MAX_REL;
+      const wMax = anchoAjuste / ZOOM_MIN_REL;
+      const nuevoW = Math.min(wMax, Math.max(wMin, v.w / factor));
+      const escalaAplicada = nuevoW / v.w;
+      const nuevo = {
+        x: anclaContenido.x - (anclaContenido.x - v.x) * escalaAplicada,
+        y: anclaContenido.y - (anclaContenido.y - v.y) * escalaAplicada,
+        w: nuevoW,
+        h: v.h * escalaAplicada,
+      };
+      viewportsPorPlanta.current[plantaId] = nuevo;
+      return nuevo;
+    });
+  };
+
+  const onWheelLienzo = (event) => {
+    if (!viewport) return;
+    event.preventDefault();
+    const factor = event.deltaY < 0 ? ZOOM_FACTOR_RUEDA : 1 / ZOOM_FACTOR_RUEDA;
+    zoomEnPunto(factor, puntoSvg(event));
+  };
+  // React adjunta onWheel como listener PASIVO por defecto (no deja hacer
+  // preventDefault) — hace falta el addEventListener nativo con
+  // passive:false para que la rueda haga zoom en vez de (intentar) scrollear
+  // la página. onWheelLienzoRef evita closures viejas sobre viewport/plantaId.
+  const onWheelLienzoRef = useRef(onWheelLienzo);
+  onWheelLienzoRef.current = onWheelLienzo;
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const handler = (e) => onWheelLienzoRef.current(e);
+    svg.addEventListener('wheel', handler, { passive: false });
+    return () => svg.removeEventListener('wheel', handler);
+  }, [plantaId]);
+
+  // Pan: botón central en cualquier lado, espacio+arrastre en cualquier
+  // lado, o clic izquierdo sobre el FONDO vacío en modo edición (los nodos/
+  // títulos/etiquetas/manijas ya frenan la propagación arriba, así que este
+  // handler del <svg> solo se dispara cuando el clic no vino de ninguno).
+  const onMouseDownFondo = (event) => {
+    if (!viewport) return;
+    const esCentral = event.button === 1;
+    const esFondoEnEdicion = modoEdicion && event.button === 0;
+    const esEspacio = espacioPresionado && event.button === 0;
+    if (!esCentral && !esFondoEnEdicion && !esEspacio) return;
+    event.preventDefault();
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!ctm) return;
+    setPaneo({ startClientX: event.clientX, startClientY: event.clientY, viewportInicial: viewport, unidadesPorPxX: 1 / ctm.a, unidadesPorPxY: 1 / ctm.d });
+  };
+
   const onMouseDownNodo = (event, eq) => {
-    if (!modoEdicion) return;
+    if (!modoEdicion || event.button !== 0) return; // solo botón izquierdo: el central queda libre para hacer pan
     event.stopPropagation();
     const p = puntoSvg(event);
     const pos = eq.posicion || { x: 80, y: 80 };
@@ -232,21 +339,21 @@ export default function PortalSCADA({
   };
 
   const onMouseDownExtremoConexion = (event, conexionId, extremo) => {
-    if (!modoEdicion) return;
+    if (!modoEdicion || event.button !== 0) return; // solo botón izquierdo: el central queda libre para hacer pan
     event.stopPropagation();
     const p = puntoSvg(event);
     setConexionArrastre({ id: conexionId, extremo, startX: p.x, startY: p.y, activo: false });
   };
 
   const onMouseDownTitulo = (event, area) => {
-    if (!modoEdicion) return;
+    if (!modoEdicion || event.button !== 0) return; // solo botón izquierdo: el central queda libre para hacer pan
     event.stopPropagation();
     const p = puntoSvg(event);
     setTituloArrastre({ areaId: area.id, startX: p.x, startY: p.y, offsetBase: area.tituloOffset || { dx: 0, dy: 0 }, activo: false, live: area.tituloOffset || { dx: 0, dy: 0 } });
   };
 
   const onMouseDownEtiqueta = (event, eq) => {
-    if (!modoEdicion) return;
+    if (!modoEdicion || event.button !== 0) return; // solo botón izquierdo: el central queda libre para hacer pan
     event.stopPropagation();
     const p = puntoSvg(event);
     setEtiquetaArrastre({ id: eq.id, startX: p.x, startY: p.y, offsetBase: eq.etiquetaOffset || { dx: 0, dy: 0 }, activo: false, live: eq.etiquetaOffset || { dx: 0, dy: 0 } });
@@ -308,6 +415,19 @@ export default function PortalSCADA({
   };
 
   const onMouseMove = (event) => {
+    if (paneo) {
+      const dxPx = event.clientX - paneo.startClientX;
+      const dyPx = event.clientY - paneo.startClientY;
+      const nuevo = {
+        x: paneo.viewportInicial.x - dxPx * paneo.unidadesPorPxX,
+        y: paneo.viewportInicial.y - dyPx * paneo.unidadesPorPxY,
+        w: paneo.viewportInicial.w,
+        h: paneo.viewportInicial.h,
+      };
+      viewportsPorPlanta.current[plantaId] = nuevo;
+      setViewport(nuevo);
+      return;
+    }
     const p = puntoSvg(event);
     if (mousedownInfo && !arrastre) {
       const dist = Math.hypot(p.x - mousedownInfo.startX, p.y - mousedownInfo.startY);
@@ -364,6 +484,10 @@ export default function PortalSCADA({
   };
 
   const onMouseUp = () => {
+    if (paneo) {
+      setPaneo(null);
+      return;
+    }
     if (tituloArrastre) {
       if (tituloArrastre.activo) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
       setTituloArrastre(null);
@@ -402,7 +526,7 @@ export default function PortalSCADA({
   // Doble clic: tamaño de ESTE equipo en particular, por encima del tamaño
   // del tipo. Vacío vuelve a usar el tamaño del tipo (quita la sobrescritura).
   const onDobleClickEquipo = (event, eq) => {
-    if (!modoEdicion) return;
+    if (!modoEdicion || event.button !== 0) return; // solo botón izquierdo: el central queda libre para hacer pan
     event.stopPropagation();
     const tienePropio = eq.escalaPropia != null;
     const actual = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
@@ -446,6 +570,61 @@ export default function PortalSCADA({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [modoEdicion]);
 
+  // Barra espaciadora como modificador de pan, y "0" como atajo de
+  // "Ajustar" — funcionan siempre (no solo en modo edición), salvo que el
+  // foco esté en un campo de texto (para no interferir con escribir).
+  useEffect(() => {
+    const enCampoDeTexto = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+    const onKeyDown = (e) => {
+      if (enCampoDeTexto()) return;
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        setEspacioPresionado(true);
+      } else if (e.key === '0' && !e.repeat) {
+        ajustarLienzo();
+      }
+    };
+    const onKeyUp = (e) => {
+      if (e.code === 'Space') setEspacioPresionado(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [ajustarLienzo]);
+
+  // escalaPx: cuántos px de pantalla mide una unidad de contenido — se usa
+  // para que el TAG, el título de zona, el contorno de selección y las
+  // manijas de conexión midan siempre lo mismo EN PANTALLA sin importar el
+  // zoom. Se recalcula con un ResizeObserver (cambios de tamaño del propio
+  // <svg>: ventana, panel lateral) y cada vez que cambia el viewport (zoom/
+  // ajustar/pan) — el observer se crea una sola vez y lee el viewport más
+  // reciente por ref, para no recrearlo en cada tick de un arrastre.
+  const viewportRef = useRef(viewport);
+  const recalcularEscalaPx = useCallback(() => {
+    const svg = svgRef.current;
+    const v = viewportRef.current;
+    if (!svg || !v) return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    setEscalaPx(Math.min(rect.width / v.w, rect.height / v.h));
+  }, []);
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+    recalcularEscalaPx();
+  }, [viewport, recalcularEscalaPx]);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const obs = new ResizeObserver(recalcularEscalaPx);
+    obs.observe(svg);
+    return () => obs.disconnect();
+  }, [recalcularEscalaPx]);
+
   useEffect(() => {
     if (equipoSeleccionado && tagInputRef.current) {
       tagInputRef.current.focus();
@@ -476,9 +655,24 @@ export default function PortalSCADA({
     setEquipoSeleccionado(null);
   };
 
+  // Compacta una zona dispersa: reordena sus equipos en una retícula de
+  // columnas de 160 y filas de 190 unidades, respetando el orden actual de
+  // izquierda a derecha (no se reordena por tipo ni por TAG, solo por
+  // dónde está cada uno hoy). El origen de la retícula es la posición del
+  // primer equipo (más a la izquierda), así la zona no salta de lugar.
+  const POR_FILA_RETICULA = 4;
+  const ordenarAreaEnReticula = (area) => {
+    const eqs = equiposDePlanta.filter((eq) => eq.areaId === area.id).sort((a, b) => posicionDe(a).x - posicionDe(b).x);
+    if (!eqs.length) return;
+    const origen = posicionDe(eqs[0]);
+    eqs.forEach((eq, i) => {
+      moverEquipo(eq.id, { x: origen.x + (i % POR_FILA_RETICULA) * 160, y: origen.y + Math.floor(i / POR_FILA_RETICULA) * 190 });
+    });
+  };
+
   return (
     <div className="scada" style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'stretch', gap: 1, padding: 'var(--space-3)', flexWrap: 'wrap', borderBottom: '1px solid var(--scada-borde)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 1, padding: '4px 8px', flexWrap: 'wrap', borderBottom: '1px solid var(--scada-borde)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <select
             value={plantaId || ''}
@@ -535,7 +729,7 @@ export default function PortalSCADA({
         />
       ) : (
       <div style={{ display: 'flex', flexGrow: 1, minHeight: 0 }}>
-        <div style={{ width: panelColapsado ? 26 : 220, flexShrink: 0, borderRight: '1px solid var(--scada-borde)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ width: panelColapsado ? 26 : 190, flexShrink: 0, borderRight: '1px solid var(--scada-borde)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <button
             onClick={() => setPanelColapsado((c) => !c)}
             title={panelColapsado ? 'Mostrar panel' : 'Ocultar panel — más espacio para el lienzo'}
@@ -551,9 +745,20 @@ export default function PortalSCADA({
               {areasDePlanta.map((area) => {
                 const peor = peorEstadoDeArea(area);
                 return (
-                  <div key={area.id} className="scada-sistema" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', fontSize: 12 }}>
-                    <span>{area.nombre}</span>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: peor ? ESTADO_COLOR[peor] : SIN_DIAGNOSTICO }} />
+                  <div key={area.id} className="scada-sistema" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', fontSize: 12, gap: 4 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{area.nombre}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      {modoEdicion && (
+                        <button
+                          onClick={() => ordenarAreaEnReticula(area)}
+                          title="Ordenar en retícula — compacta los equipos de esta zona en columnas/filas parejas"
+                          style={{ background: 'none', color: 'var(--scada-texto-2)', border: '1px solid var(--scada-borde)', fontSize: 9, lineHeight: 1, padding: '2px 4px', cursor: 'pointer' }}
+                        >
+                          ▦
+                        </button>
+                      )}
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: peor ? ESTADO_COLOR[peor] : SIN_DIAGNOSTICO }} />
+                    </span>
                   </div>
                 );
               })}
@@ -587,192 +792,214 @@ export default function PortalSCADA({
             />
             Modo edición
           </label>
-
-          {modoEdicion && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                <span style={{ color: 'var(--scada-texto-2)' }}>Zoom</span>
-                <button
-                  onClick={() => cambiarZoomLienzo(-ZOOM_PASO)}
-                  style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
-                >
-                  −
-                </button>
-                <span style={{ minWidth: 40, textAlign: 'center' }}>{Math.round(zoomLienzo * 100)}%</span>
-                <button
-                  onClick={() => cambiarZoomLienzo(ZOOM_PASO)}
-                  style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
-                >
-                  +
-                </button>
-                {zoomLienzo !== 1 && (
-                  <button
-                    onClick={() => setZoomLienzo(1)}
-                    style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontSize: 11, padding: '4px 6px', cursor: 'pointer' }}
-                  >
-                    100%
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={alternarModoConectar}
-                style={{
-                  background: 'var(--scada-panel)',
-                  color: modoConectar ? 'var(--scada-titulo)' : 'var(--scada-texto)',
-                  border: `1px solid ${modoConectar ? 'var(--scada-titulo)' : 'var(--scada-borde)'}`,
-                  fontFamily: 'inherit',
-                  fontSize: 12,
-                  padding: '8px 10px',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                {!modoConectar ? '+ Conectar equipos' : !origenConexion ? 'Elige el equipo de origen…' : 'Elige el equipo de destino…'}
-              </button>
-              <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', margin: 0 }}>
-                {modoConectar
-                  ? origenConexion
-                    ? 'Haz clic en el equipo de destino. Clic de nuevo en el origen, o Esc, para cancelar.'
-                    : 'Haz clic en el equipo de origen.'
-                  : 'Arrastra un equipo para reposicionarlo, haz clic para seleccionarlo, o activa "Conectar equipos".'}
-              </p>
-
-              <details>
-                <summary style={{ ...tituloSeccion, marginBottom: 0, cursor: 'pointer' }}>Tamaños de equipo</summary>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 6 }}>
-                  {[...Object.keys(SCADA_ICONOS), ...(data.tiposPersonalizados || []).map((t) => t.clave)].map((tipo) => {
-                    const escalaActual = data.escalasPorTipo?.[tipo] ?? 1;
-                    const cambiar = (delta) => cambiarEscalaTipo(tipo, Math.min(4, Math.max(0.3, Math.round((escalaActual + delta) * 100) / 100)));
-                    return (
-                      <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <span style={{ flexGrow: 1, fontSize: 11, textTransform: 'capitalize', padding: '4px 6px', background: 'var(--scada-panel)' }}>{tipo}</span>
-                        <button onClick={() => cambiar(-0.1)} style={botonMini}>
-                          −
-                        </button>
-                        <span style={{ width: 32, textAlign: 'center', fontSize: 11, background: 'var(--scada-panel)', fontVariantNumeric: 'tabular-nums' }}>{escalaActual.toFixed(2)}</span>
-                        <button onClick={() => cambiar(0.1)} style={botonMini}>
-                          +
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </details>
-
-              {!modoConectar &&
-                equipoSeleccionado &&
-                (() => {
-                  const eqSel = equiposDePlanta.find((eq) => eq.id === equipoSeleccionado);
-                  if (!eqSel) return null;
-                  const tienePropio = eqSel.escalaPropia != null;
-                  const escalaActual = eqSel.escalaPropia ?? data.escalasPorTipo?.[eqSel.tipo] ?? 1;
-                  const iconoSel = iconoConEscala(eqSel, data);
-                  const altoIconoSel = iconoSel ? iconoSel.altoBase * iconoSel.escala : 0;
-                  const posSel = eqSel.posicion || { x: 80, y: 80 };
-                  return (
-                    <div style={{ borderTop: '1px solid var(--scada-borde)', paddingTop: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={tituloSeccion}>Equipo seleccionado · {eqSel.tipo}</div>
-                      <div style={{ fontSize: 11, color: 'var(--scada-texto-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        Tamaño: {escalaActual.toFixed(2)} ({tienePropio ? 'personalizado de este equipo' : 'del tipo'})
-                        {tienePropio && (
-                          <button
-                            onClick={() => cambiarEscalaEquipo(eqSel.id, null)}
-                            style={{ background: 'none', color: 'var(--scada-titulo)', border: 'none', fontSize: 11, cursor: 'pointer', padding: 0 }}
-                          >
-                            Quitar
-                          </button>
-                        )}
-                      </div>
-                      <input
-                        key={eqSel.id}
-                        ref={tagInputRef}
-                        defaultValue={eqSel.tag}
-                        onBlur={(e) => renombrarEquipo(eqSel.id, e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') e.target.blur();
-                        }}
-                        style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px' }}
-                      />
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)', flex: 1 }}>
-                          X
-                          <input
-                            key={`${eqSel.id}-x`}
-                            type="number"
-                            defaultValue={Math.round((eqSel.posicion || { x: 80, y: 80 }).x)}
-                            onBlur={(e) => moverEquipo(eqSel.id, { ...(eqSel.posicion || { x: 80, y: 80 }), x: Number(e.target.value) || 0 })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') e.target.blur();
-                            }}
-                            style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
-                          />
-                        </label>
-                        <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)', flex: 1 }}>
-                          Y
-                          <input
-                            key={`${eqSel.id}-y`}
-                            type="number"
-                            defaultValue={Math.round((eqSel.posicion || { x: 80, y: 80 }).y)}
-                            onBlur={(e) => moverEquipo(eqSel.id, { ...(eqSel.posicion || { x: 80, y: 80 }), y: Number(e.target.value) || 0 })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') e.target.blur();
-                            }}
-                            style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
-                          />
-                        </label>
-                      </div>
-                      <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)' }}>
-                        Centro Y (compara equipos de cualquier tamaño)
-                        <input
-                          key={`${eqSel.id}-centroy`}
-                          type="number"
-                          defaultValue={Math.round(posSel.y - altoIconoSel / 2)}
-                          onBlur={(e) => moverEquipo(eqSel.id, { ...posSel, y: Math.round(Number(e.target.value) + altoIconoSel / 2) })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') e.target.blur();
-                          }}
-                          style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
-                        />
-                      </label>
-                      <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>
-                        "Y" alinea bordes inferiores — solo coincide con el centro si ambos equipos miden lo mismo de alto. Para alinear
-                        centros entre equipos de tamaños distintos, usa el mismo "Centro Y" en los dos.
-                      </p>
-                      <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>
-                        Arrastrá el TAG del equipo en el lienzo para reposicionarlo (útil cuando un ícono personalizado tapa la etiqueta).
-                      </p>
-                      {eqSel.etiquetaOffset && (eqSel.etiquetaOffset.dx || eqSel.etiquetaOffset.dy) && (
-                        <button
-                          onClick={() => moverEtiquetaEquipo(eqSel.id, { dx: 0, dy: 0 })}
-                          style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
-                        >
-                          Restablecer posición del TAG
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setEquipoSeleccionado(duplicarEquipo(eqSel.id))}
-                        style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
-                      >
-                        Duplicar equipo
-                      </button>
-                    </div>
-                  );
-                })()}
-            </>
-          )}
           </div>
           )}
         </div>
 
-        <div style={{ flexGrow: 1, minWidth: 0, padding: 'var(--space-3)', background: 'var(--scada-subpanel)' }}>
+        <div style={{ flexGrow: 1, minWidth: 0, padding: 4, background: 'var(--scada-subpanel)', position: 'relative' }}>
           {!plantaId ? (
             <p style={{ color: 'var(--scada-texto-2)' }}>No hay plantas creadas todavía.</p>
           ) : (
+            <>
+            {modoEdicion && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 12,
+                  bottom: 12,
+                  zIndex: 5,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  background: 'var(--scada-panel)',
+                  border: '1px solid var(--scada-borde)',
+                  padding: 8,
+                  width: 240,
+                  maxHeight: 'calc(100% - 24px)',
+                  overflowY: 'auto',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+                  <span style={{ color: 'var(--scada-texto-2)' }}>Zoom</span>
+                  <button
+                    onClick={() => zoomEnPunto(1 / ZOOM_FACTOR_RUEDA, { x: (minX + maxX) / 2, y: (minY + maxY) / 2 })}
+                    style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
+                  >
+                    −
+                  </button>
+                  <span style={{ minWidth: 40, textAlign: 'center' }}>{Math.round(zoomRelativo * 100)}%</span>
+                  <button
+                    onClick={() => zoomEnPunto(ZOOM_FACTOR_RUEDA, { x: (minX + maxX) / 2, y: (minY + maxY) / 2 })}
+                    style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
+                  >
+                    +
+                  </button>
+                  <button
+                    onClick={ajustarLienzo}
+                    title="Ajustar al contenido (tecla 0)"
+                    style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontSize: 11, padding: '4px 6px', cursor: 'pointer' }}
+                  >
+                    Ajustar
+                  </button>
+                </div>
+                <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>
+                  Rueda: zoom. Botón central o espacio+arrastre: mover la vista.
+                </p>
+                <button
+                  onClick={alternarModoConectar}
+                  style={{
+                    background: 'var(--scada-panel)',
+                    color: modoConectar ? 'var(--scada-titulo)' : 'var(--scada-texto)',
+                    border: `1px solid ${modoConectar ? 'var(--scada-titulo)' : 'var(--scada-borde)'}`,
+                    fontFamily: 'inherit',
+                    fontSize: 12,
+                    padding: '8px 10px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  {!modoConectar ? '+ Conectar equipos' : !origenConexion ? 'Elige el equipo de origen…' : 'Elige el equipo de destino…'}
+                </button>
+                <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', margin: 0 }}>
+                  {modoConectar
+                    ? origenConexion
+                      ? 'Haz clic en el equipo de destino. Clic de nuevo en el origen, o Esc, para cancelar.'
+                      : 'Haz clic en el equipo de origen.'
+                    : 'Arrastra un equipo para reposicionarlo, haz clic para seleccionarlo, o activa "Conectar equipos".'}
+                </p>
+
+                <details>
+                  <summary style={{ ...tituloSeccion, marginBottom: 0, cursor: 'pointer' }}>Tamaños de equipo</summary>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 6 }}>
+                    {[...Object.keys(SCADA_ICONOS), ...(data.tiposPersonalizados || []).map((t) => t.clave)].map((tipo) => {
+                      const ajusteActual = Math.min(1.2, Math.max(0.8, data.escalasPorTipo?.[tipo] ?? 1));
+                      const cambiar = (delta) => cambiarEscalaTipo(tipo, Math.min(1.2, Math.max(0.8, Math.round((ajusteActual + delta) * 100) / 100)));
+                      return (
+                        <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <span style={{ flexGrow: 1, fontSize: 11, textTransform: 'capitalize', padding: '4px 6px', background: 'var(--scada-panel)' }}>{tipo}</span>
+                          <button onClick={() => cambiar(-0.05)} style={botonMini}>
+                            −
+                          </button>
+                          <span style={{ width: 40, textAlign: 'center', fontSize: 11, background: 'var(--scada-panel)', fontVariantNumeric: 'tabular-nums' }}>
+                            {ajusteActual === 1 ? '0%' : `${ajusteActual > 1 ? '+' : ''}${Math.round((ajusteActual - 1) * 100)}%`}
+                          </span>
+                          <button onClick={() => cambiar(0.05)} style={botonMini}>
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+
+                {!modoConectar &&
+                  equipoSeleccionado &&
+                  (() => {
+                    const eqSel = equiposDePlanta.find((eq) => eq.id === equipoSeleccionado);
+                    if (!eqSel) return null;
+                    const tienePropio = eqSel.escalaPropia != null;
+                    const escalaActual = iconoConEscala(eqSel, data)?.escala ?? 1;
+                    const iconoSel = iconoConEscala(eqSel, data);
+                    const altoIconoSel = iconoSel ? iconoSel.altoBase * iconoSel.escala : 0;
+                    const posSel = eqSel.posicion || { x: 80, y: 80 };
+                    return (
+                      <div style={{ borderTop: '1px solid var(--scada-borde)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={tituloSeccion}>Equipo seleccionado · {eqSel.tipo}</div>
+                        <div style={{ fontSize: 11, color: 'var(--scada-texto-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          Tamaño: {escalaActual.toFixed(2)} ({tienePropio ? 'personalizado de este equipo' : 'de la clase del tipo'})
+                          {tienePropio && (
+                            <button
+                              onClick={() => cambiarEscalaEquipo(eqSel.id, null)}
+                              style={{ background: 'none', color: 'var(--scada-titulo)', border: 'none', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          key={eqSel.id}
+                          ref={tagInputRef}
+                          defaultValue={eqSel.tag}
+                          onBlur={(e) => renombrarEquipo(eqSel.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.target.blur();
+                          }}
+                          style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px' }}
+                        />
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)', flex: 1 }}>
+                            X
+                            <input
+                              key={`${eqSel.id}-x`}
+                              type="number"
+                              defaultValue={Math.round((eqSel.posicion || { x: 80, y: 80 }).x)}
+                              onBlur={(e) => moverEquipo(eqSel.id, { ...(eqSel.posicion || { x: 80, y: 80 }), x: Number(e.target.value) || 0 })}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.target.blur();
+                              }}
+                              style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
+                            />
+                          </label>
+                          <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)', flex: 1 }}>
+                            Y
+                            <input
+                              key={`${eqSel.id}-y`}
+                              type="number"
+                              defaultValue={Math.round((eqSel.posicion || { x: 80, y: 80 }).y)}
+                              onBlur={(e) => moverEquipo(eqSel.id, { ...(eqSel.posicion || { x: 80, y: 80 }), y: Number(e.target.value) || 0 })}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.target.blur();
+                              }}
+                              style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
+                            />
+                          </label>
+                        </div>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)' }}>
+                          Centro Y (compara equipos de cualquier tamaño)
+                          <input
+                            key={`${eqSel.id}-centroy`}
+                            type="number"
+                            defaultValue={Math.round(posSel.y - altoIconoSel / 2)}
+                            onBlur={(e) => moverEquipo(eqSel.id, { ...posSel, y: Math.round(Number(e.target.value) + altoIconoSel / 2) })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.target.blur();
+                            }}
+                            style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
+                          />
+                        </label>
+                        <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>
+                          Arrastrá el TAG del equipo en el lienzo para reposicionarlo (útil cuando un ícono personalizado tapa la etiqueta).
+                        </p>
+                        {eqSel.etiquetaOffset && (eqSel.etiquetaOffset.dx || eqSel.etiquetaOffset.dy) && (
+                          <button
+                            onClick={() => moverEtiquetaEquipo(eqSel.id, { dx: 0, dy: 0 })}
+                            style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
+                          >
+                            Restablecer posición del TAG
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setEquipoSeleccionado(duplicarEquipo(eqSel.id))}
+                          style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
+                        >
+                          Duplicar equipo
+                        </button>
+                      </div>
+                    );
+                  })()}
+              </div>
+            )}
             <svg
               ref={svgRef}
               viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`}
-              preserveAspectRatio="xMinYMin slice"
-              style={{ width: '100%', height: '100%', display: 'block', cursor: modoConectar && origenConexion ? 'crosshair' : undefined }}
+              preserveAspectRatio="xMidYMid meet"
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'block',
+                cursor: paneo ? 'grabbing' : espacioPresionado ? 'grab' : modoConectar && origenConexion ? 'crosshair' : undefined,
+              }}
+              onMouseDown={onMouseDownFondo}
               onMouseMove={onMouseMove}
               onMouseUp={onMouseUp}
               onMouseLeave={onMouseUp}
@@ -791,6 +1018,10 @@ export default function PortalSCADA({
 
               {modoEdicion && <rect x={minX} y={minY} width={maxX - minX} height={maxY - minY} fill="url(#scadaCuadricula)" pointerEvents="none" />}
 
+              {/* Único grupo que "Ajustar" mide con getBBox — zonas, conexiones y
+                  equipos (con sus TAGs). Deja afuera a propósito la grilla de fondo
+                  y las manijas de edición, que no son parte del contenido real. */}
+              <g ref={contenidoRef}>
               {areasDePlanta.map((area) => {
                 const cajaEquipos = cajaEquiposDeArea(area);
                 if (!cajaEquipos) return null;
@@ -805,7 +1036,7 @@ export default function PortalSCADA({
                       onMouseDown={(e) => onMouseDownTitulo(e, area)}
                       style={{ cursor: !modoEdicion ? 'default' : tituloArrastre?.areaId === area.id ? 'grabbing' : 'grab' }}
                     >
-                      <text x={tituloX} y={tituloY} fontSize={13} fontWeight={700} letterSpacing="0.04em" fill="var(--scada-titulo)">
+                      <text x={tituloX} y={tituloY} fontSize={fontSizeTag} fontWeight={700} letterSpacing="0.04em" fill="var(--scada-titulo)">
                         {area.nombre.toUpperCase()}
                       </text>
                     </g>
@@ -859,7 +1090,7 @@ export default function PortalSCADA({
                       height={altoIcono + PAD_HIT * 2}
                       fill="transparent"
                       stroke={seleccionado || origen ? 'var(--scada-titulo)' : 'none'}
-                      strokeWidth={seleccionado || origen ? 1 : 0}
+                      strokeWidth={seleccionado || origen ? 1.5 / escalaPx : 0}
                       strokeDasharray={origen ? '3 2' : undefined}
                     />
                     <g transform={`scale(${icono.escala})`}>
@@ -878,22 +1109,25 @@ export default function PortalSCADA({
                       )}
                       {icono.decoracion}
                     </g>
-                    <text
-                      x={anchoIcono / 2 + offsetEtiqueta.dx}
-                      y={altoIcono + 13 + offsetEtiqueta.dy}
-                      textAnchor="middle"
-                      fontSize={FONT_SIZE_TAG}
-                      fontWeight={700}
-                      letterSpacing="0.02em"
-                      fill={origen ? 'var(--scada-titulo)' : 'var(--scada-texto)'}
-                      style={{ fontVariantNumeric: 'tabular-nums', cursor: !modoEdicion ? 'default' : etiquetaArrastre?.id === eq.id ? 'grabbing' : 'grab' }}
-                      onMouseDown={(e) => onMouseDownEtiqueta(e, eq)}
-                    >
-                      {eq.tag}
-                    </text>
+                    {mostrarTags && (
+                      <text
+                        x={anchoIcono / 2 + offsetEtiqueta.dx}
+                        y={altoIcono + 13 + offsetEtiqueta.dy}
+                        textAnchor="middle"
+                        fontSize={fontSizeTag}
+                        fontWeight={700}
+                        letterSpacing="0.02em"
+                        fill={origen ? 'var(--scada-titulo)' : 'var(--scada-texto)'}
+                        style={{ fontVariantNumeric: 'tabular-nums', cursor: !modoEdicion ? 'default' : etiquetaArrastre?.id === eq.id ? 'grabbing' : 'grab' }}
+                        onMouseDown={(e) => onMouseDownEtiqueta(e, eq)}
+                      >
+                        {eq.tag}
+                      </text>
+                    )}
                   </g>
                 );
               })}
+              </g>
 
               {/* Manijas de conexión y previsualizaciones: por encima de los equipos a
                   propósito — si el punto libre quedó pegado al contorno de un equipo,
@@ -909,20 +1143,20 @@ export default function PortalSCADA({
                   return (
                     <g key={`manijas-${c.id}`}>
                       <g onMouseDown={(e) => onMouseDownExtremoConexion(e, c.id, 'de')} style={{ cursor: 'grab' }}>
-                        <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={8} fill="transparent" />
-                        <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={3.5} fill="var(--scada-tuberia)" stroke="var(--scada-titulo)" strokeWidth={1} />
+                        <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={8 / escalaPx} fill="transparent" />
+                        <circle cx={ruta.inicio.x} cy={ruta.inicio.y} r={3.5 / escalaPx} fill="var(--scada-tuberia)" stroke="var(--scada-titulo)" strokeWidth={1 / escalaPx} />
                       </g>
                       <g onMouseDown={(e) => onMouseDownExtremoConexion(e, c.id, 'a')} style={{ cursor: 'grab' }}>
-                        <circle cx={ruta.fin.x} cy={ruta.fin.y} r={8} fill="transparent" />
-                        <circle cx={ruta.fin.x} cy={ruta.fin.y} r={3.5} fill="var(--scada-tuberia)" stroke="var(--scada-titulo)" strokeWidth={1} />
+                        <circle cx={ruta.fin.x} cy={ruta.fin.y} r={8 / escalaPx} fill="transparent" />
+                        <circle cx={ruta.fin.x} cy={ruta.fin.y} r={3.5 / escalaPx} fill="var(--scada-tuberia)" stroke="var(--scada-titulo)" strokeWidth={1 / escalaPx} />
                       </g>
                       <g
                         transform={`translate(${ruta.medio.x}, ${ruta.medio.y})`}
                         onMouseDown={(e) => onMouseDownExtremoConexion(e, c.id, 'elbo')}
                         style={{ cursor: 'move' }}
                       >
-                        <circle r={7} fill="var(--scada-subpanel)" stroke="var(--scada-tuberia)" strokeWidth={1} />
-                        <text textAnchor="middle" dominantBaseline="central" fontSize={9} fill="var(--scada-texto)">
+                        <circle r={7 / escalaPx} fill="var(--scada-subpanel)" stroke="var(--scada-tuberia)" strokeWidth={1 / escalaPx} />
+                        <text textAnchor="middle" dominantBaseline="central" fontSize={9 / escalaPx} fill="var(--scada-texto)">
                           ×
                         </text>
                       </g>
@@ -966,6 +1200,7 @@ export default function PortalSCADA({
                   return <circle cx={puntoCandidato.x} cy={puntoCandidato.y} r={6} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} pointerEvents="none" />;
                 })()}
             </svg>
+            </>
           )}
         </div>
       </div>
@@ -979,9 +1214,9 @@ const botonMini = { background: 'var(--scada-panel)', color: 'var(--scada-texto)
 
 function KpiTile({ label, valor, color }) {
   return (
-    <div style={{ background: 'var(--scada-panel)', padding: '4px 16px', display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 72 }}>
-      <span style={{ fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--scada-texto-2)' }}>{label}</span>
-      <span style={{ fontSize: 22, fontWeight: 700, color: color || 'var(--scada-texto)', fontVariantNumeric: 'tabular-nums' }}>{valor}</span>
+    <div style={{ background: 'var(--scada-panel)', height: 44, padding: '0 14px', display: 'flex', alignItems: 'center', gap: 8, minWidth: 72 }}>
+      <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--scada-texto-2)' }}>{label}</span>
+      <span style={{ fontSize: 18, fontWeight: 700, color: color || 'var(--scada-texto)', fontVariantNumeric: 'tabular-nums' }}>{valor}</span>
     </div>
   );
 }
