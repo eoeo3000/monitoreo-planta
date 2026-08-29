@@ -7,6 +7,7 @@ import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaP
 import './portalScada.css';
 
 const PAD_LIENZO = 100; // margen alrededor de los equipos
+const MAX_LADO_LIENZO = 1600; // tope de qué tan grande puede ponerse el lienzo (evita que un equipo aislado fuerce el zoom-out de toda la planta)
 const PAD_ZONA = 70;
 const PAD_HIT = 8; // margen del área invisible de clic/arrastre alrededor del glifo
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
@@ -160,10 +161,36 @@ export default function PortalSCADA({
   const posiciones = equiposDePlanta.map(posicionDe);
   const xs = posiciones.map((p) => p.x);
   const ys = posiciones.map((p) => p.y);
-  const minX = (xs.length ? Math.min(...xs) : 0) - PAD_LIENZO;
-  const minY = (ys.length ? Math.min(...ys) : 0) - PAD_LIENZO;
-  const maxX = (xs.length ? Math.max(...xs) : 900) + PAD_LIENZO;
-  const maxY = (ys.length ? Math.max(...ys) : 900) + PAD_LIENZO;
+  let minX = (xs.length ? Math.min(...xs) : 0) - PAD_LIENZO;
+  let minY = (ys.length ? Math.min(...ys) : 0) - PAD_LIENZO;
+  let maxX = (xs.length ? Math.max(...xs) : 900) + PAD_LIENZO;
+  let maxY = (ys.length ? Math.max(...ys) : 900) + PAD_LIENZO;
+
+  // Si un equipo queda muy lejos del resto (p. ej. uno recién creado que
+  // nunca se reubicó), no dejamos que el lienzo se aleje sin límite para
+  // "abarcarlo todo" — eso es lo que hacía ver a todos los demás equipos
+  // diminutos. Se limita el lado del lienzo a MAX_LADO, centrado en la
+  // mediana de las posiciones (no el promedio, para que un solo equipo
+  // aislado no arrastre el centro): así el grupo principal se sigue viendo
+  // a buen tamaño y el equipo suelto queda fuera de la vista hasta que se
+  // lo reubique.
+  const mediana = (valores) => {
+    const ordenados = [...valores].sort((a, b) => a - b);
+    const n = ordenados.length;
+    if (!n) return 0;
+    const mitad = Math.floor(n / 2);
+    return n % 2 ? ordenados[mitad] : (ordenados[mitad - 1] + ordenados[mitad]) / 2;
+  };
+  if (maxX - minX > MAX_LADO_LIENZO) {
+    const centroX = mediana(xs);
+    minX = centroX - MAX_LADO_LIENZO / 2;
+    maxX = centroX + MAX_LADO_LIENZO / 2;
+  }
+  if (maxY - minY > MAX_LADO_LIENZO) {
+    const centroY = mediana(ys);
+    minY = centroY - MAX_LADO_LIENZO / 2;
+    maxY = centroY + MAX_LADO_LIENZO / 2;
+  }
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
