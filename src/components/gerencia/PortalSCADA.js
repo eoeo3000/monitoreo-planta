@@ -657,7 +657,7 @@ export default function PortalSCADA({
             <svg
               ref={svgRef}
               viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`}
-              preserveAspectRatio="xMidYMid meet"
+              preserveAspectRatio="xMinYMin slice"
               style={{ width: '100%', height: '100%', display: 'block', cursor: modoConectar && origenConexion ? 'crosshair' : undefined }}
               onMouseMove={onMouseMove}
               onMouseUp={onMouseUp}
