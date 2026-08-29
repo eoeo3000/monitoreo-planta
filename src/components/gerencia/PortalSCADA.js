@@ -507,6 +507,35 @@ export default function PortalSCADA({
                         }}
                         style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px' }}
                       />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)', flex: 1 }}>
+                          X
+                          <input
+                            key={`${eqSel.id}-x`}
+                            type="number"
+                            defaultValue={Math.round((eqSel.posicion || { x: 80, y: 80 }).x)}
+                            onBlur={(e) => moverEquipo(eqSel.id, { ...(eqSel.posicion || { x: 80, y: 80 }), x: Number(e.target.value) || 0 })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.target.blur();
+                            }}
+                            style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
+                          />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 10, color: 'var(--scada-texto-2)', flex: 1 }}>
+                          Y
+                          <input
+                            key={`${eqSel.id}-y`}
+                            type="number"
+                            defaultValue={Math.round((eqSel.posicion || { x: 80, y: 80 }).y)}
+                            onBlur={(e) => moverEquipo(eqSel.id, { ...(eqSel.posicion || { x: 80, y: 80 }), y: Number(e.target.value) || 0 })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.target.blur();
+                            }}
+                            style={{ background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '6px 8px', width: '100%' }}
+                          />
+                        </label>
+                      </div>
+                      <p style={{ fontSize: 10, color: 'var(--scada-texto-2)', margin: 0 }}>Poné el mismo Y en dos equipos para alinearlos exacto.</p>
                       <button
                         onClick={() => setEquipoSeleccionado(duplicarEquipo(eqSel.id))}
                         style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer' }}
