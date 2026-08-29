@@ -4,6 +4,7 @@ import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
 import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
+import VistaSectores from './VistaSectores';
 import './portalScada.css';
 
 const PAD_LIENZO = 100; // margen alrededor de los equipos
@@ -75,6 +76,7 @@ export default function PortalSCADA({
   data,
   moverEquipo,
   crearPlanta,
+  generarPlantaDePrueba,
   crearConexion,
   eliminarConexion,
   actualizarConexion,
@@ -88,6 +90,11 @@ export default function PortalSCADA({
   const svgRef = useRef(null);
   const tagInputRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
+  // Sector elegido en la Vista de Sectores (null = todavía no se eligió
+  // ninguno, o la planta no tiene sectores y se muestra el lienzo completo
+  // como siempre). Guarda también los areaIds ya resueltos del grupo para no
+  // tener que buscar "sin sector" de nuevo al filtrar.
+  const [grupoActivo, setGrupoActivo] = useState(null);
   const [panelColapsado, setPanelColapsado] = useState(false);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [zoomLienzo, setZoomLienzo] = useState(1);
@@ -115,7 +122,13 @@ export default function PortalSCADA({
   // (sobre todo uno personalizado) no deja el espacio de abajo libre.
   const [etiquetaArrastre, setEtiquetaArrastre] = useState(null);
 
-  const areasDePlanta = data.areas.filter((a) => a.plantaId === plantaId);
+  const sectoresDePlanta = (data.sectores || []).filter((s) => s.plantaId === plantaId);
+  const areasDePlantaCompleta = data.areas.filter((a) => a.plantaId === plantaId);
+  // Mientras se muestra la Vista de Sectores (grupoActivo === null con
+  // sectores disponibles), se usan TODAS las áreas de la planta — así la
+  // franja de KPIs arriba sigue mostrando el total macro de la planta, y
+  // recién al elegir un sector el lienzo (y sus KPIs) se filtran a ese grupo.
+  const areasDePlanta = grupoActivo ? areasDePlantaCompleta.filter((a) => grupoActivo.areaIds.includes(a.id)) : areasDePlantaCompleta;
   const equiposDePlanta = data.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
   const conexionesDePlanta = data.conexiones.filter((c) => c.plantaId === plantaId);
 
@@ -426,8 +439,22 @@ export default function PortalSCADA({
     if (nombre && nombre.trim()) {
       const id = crearPlanta(nombre.trim());
       setPlantaId(id);
+      setGrupoActivo(null);
       setEquipoSeleccionado(null);
     }
+  };
+
+  const generarDemoEscala = () => {
+    if (
+      !window.confirm(
+        'Esto crea una planta nueva de prueba con 10 sectores, 200 ubicaciones y 500 equipos de nombres genéricos, para probar la Vista de Sectores. No modifica ninguna planta existente. ¿Continuar?'
+      )
+    )
+      return;
+    const id = generarPlantaDePrueba();
+    setPlantaId(id);
+    setGrupoActivo(null);
+    setEquipoSeleccionado(null);
   };
 
   return (
@@ -438,6 +465,7 @@ export default function PortalSCADA({
             value={plantaId || ''}
             onChange={(e) => {
               setPlantaId(e.target.value);
+              setGrupoActivo(null);
               setEquipoSeleccionado(null);
             }}
             style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, padding: '0 10px', height: '100%' }}
@@ -455,6 +483,21 @@ export default function PortalSCADA({
           >
             +
           </button>
+          <button
+            onClick={generarDemoEscala}
+            title="Generar planta de prueba a gran escala (10 sectores, 200 ubicaciones, 500 equipos)"
+            style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 11, padding: '0 10px', cursor: 'pointer' }}
+          >
+            Demo escala
+          </button>
+          {sectoresDePlanta.length > 0 && grupoActivo && (
+            <button
+              onClick={() => setGrupoActivo(null)}
+              style={{ background: 'var(--scada-panel)', color: 'var(--scada-titulo)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '0 10px', cursor: 'pointer' }}
+            >
+              ‹ Sectores · {grupoActivo.nombre}
+            </button>
+          )}
         </div>
         <KpiTile label="Equipos" valor={equiposDePlanta.length} />
         <KpiTile label="Alarma" valor={conteoPorEstado.alarma || 0} color="var(--e-alarma)" />
@@ -463,6 +506,15 @@ export default function PortalSCADA({
         <KpiTile label="Normal" valor={conteoPorEstado.normal || 0} color="var(--e-normal)" />
       </div>
 
+      {sectoresDePlanta.length > 0 && !grupoActivo ? (
+        <VistaSectores
+          sectores={sectoresDePlanta}
+          areas={areasDePlantaCompleta}
+          equipos={data.equipos.filter((eq) => areasDePlantaCompleta.some((a) => a.id === eq.areaId))}
+          diagnosticos={data.diagnosticos}
+          onSeleccionar={(grupo) => setGrupoActivo(grupo)}
+        />
+      ) : (
       <div style={{ display: 'flex', flexGrow: 1, minHeight: 0 }}>
         <div style={{ width: panelColapsado ? 26 : 220, flexShrink: 0, borderRight: '1px solid var(--scada-borde)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <button
@@ -898,6 +950,7 @@ export default function PortalSCADA({
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

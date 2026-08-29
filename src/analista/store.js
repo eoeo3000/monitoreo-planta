@@ -31,6 +31,12 @@ function datosSemilla() {
     // + puertos), para equipos que no están en el catálogo fijo de
     // mockData.js. Solo visuales por ahora: no tienen modoFalla propio.
     tiposPersonalizados: [],
+    // Agrupación de áreas por encima de "planta" — para plantas con muchas
+    // ubicaciones (ver generarPlantaDePrueba), el Portal SCADA muestra
+    // primero los sectores (vista macro) y recién al elegir uno entra al
+    // lienzo con sus áreas. Una planta sin sectores (como la semilla) se
+    // sigue viendo tal como siempre, sin este paso intermedio.
+    sectores: [],
   };
 }
 
@@ -222,6 +228,101 @@ export function useAnalistaData() {
     }));
   }, []);
 
+  // Genera una planta nueva (no toca las existentes) con muchos sectores,
+  // ubicaciones y equipos de nombres genéricos — para probar cómo se
+  // comporta la app (Vista de Sectores + Portal SCADA) con una cantidad de
+  // datos parecida a la de un Excel real grande. Diagnósticos y severidades
+  // son aleatorios, solo para que las tarjetas de sector muestren colores
+  // variados al probar la vista — no representan condición real de ningún
+  // equipo.
+  const generarPlantaDePrueba = useCallback(() => {
+    const plantaId = nuevoId('planta');
+    const NUM_SECTORES = 10;
+    const AREAS_POR_SECTOR = 20; // 10 x 20 = 200 ubicaciones
+    // El Portal SCADA dibuja todos los equipos de un sector en un único
+    // lienzo compartido, así que cada ubicación necesita su propia celda de
+    // coordenadas — si no, los equipos de las 20 ubicaciones de un sector
+    // terminan todos superpuestos en el mismo puñado de posiciones.
+    // 4 columnas x 5 filas de 340x175 = 1360x875, dentro del lienzo fijo del
+    // Portal SCADA (1400x900) — un sector completo de 20 ubicaciones entra
+    // sin tener que hacer zoom-out al entrar.
+    const AREA_COLS = 4;
+    const AREA_CELL_ANCHO = 340;
+    const AREA_CELL_ALTO = 175;
+    const sectores = [];
+    const areas = [];
+    const baseDeArea = {}; // areaId -> {x, y}, esquina de su celda dentro del sector
+    for (let s = 1; s <= NUM_SECTORES; s++) {
+      const sectorId = `${plantaId}_sector${s}`;
+      sectores.push({ id: sectorId, plantaId, nombre: `Sector ${s}` });
+      for (let a = 1; a <= AREAS_POR_SECTOR; a++) {
+        const nUbicacion = (s - 1) * AREAS_POR_SECTOR + a;
+        const areaId = `${plantaId}_area${nUbicacion}`;
+        areas.push({ id: areaId, plantaId, sectorId, nombre: `Ubicación ${nUbicacion}` });
+        const posEnSector = a - 1;
+        baseDeArea[areaId] = { x: (posEnSector % AREA_COLS) * AREA_CELL_ANCHO, y: Math.floor(posEnSector / AREA_COLS) * AREA_CELL_ALTO };
+      }
+    }
+
+    // 500 equipos repartidos en las 200 ubicaciones. "Reductor" no es todavía
+    // un tipo del catálogo (scadaIconos.js) — se usa "tanque" en su lugar
+    // para no crear equipos con un tipo sin ícono.
+    const composicion = [
+      { tipo: 'motor', cantidad: 300, prefijo: 'Motor' },
+      { tipo: 'bomba', cantidad: 150, prefijo: 'Bomba' },
+      { tipo: 'tanque', cantidad: 50, prefijo: 'Tanque' },
+    ];
+    const equipos = [];
+    const contadorPorArea = {};
+    let indiceArea = 0;
+    composicion.forEach(({ tipo, cantidad, prefijo }) => {
+      for (let i = 1; i <= cantidad; i++) {
+        const area = areas[indiceArea % areas.length];
+        indiceArea += 1;
+        const n = contadorPorArea[area.id] || 0;
+        contadorPorArea[area.id] = n + 1;
+        const col = n % 3;
+        const fila = Math.floor(n / 3);
+        const base = baseDeArea[area.id];
+        equipos.push({
+          id: nuevoId('eq'),
+          areaId: area.id,
+          tag: `${prefijo} ${i}`,
+          tipo,
+          descripcion: '',
+          posicion: { x: base.x + 80 + col * 140, y: base.y + 80 + fila * 120 },
+        });
+      }
+    });
+
+    const severidadesPonderadas = ['normal', 'normal', 'normal', 'normal', 'observacion', 'observacion', 'alerta', 'alarma'];
+    const diagnosticos = [];
+    equipos.forEach((eq) => {
+      if (Math.random() < 0.7) {
+        diagnosticos.push({
+          id: nuevoId('diag'),
+          equipoId: eq.id,
+          severidad: severidadesPonderadas[Math.floor(Math.random() * severidadesPonderadas.length)],
+          modoFalla: null,
+          diagnosticoTexto: 'Dato de demostración generado para probar la Vista de Sectores a gran escala.',
+          recomendacionTexto: '',
+          fechaHora: new Date().toISOString(),
+          usuario: USUARIO_ACTUAL,
+        });
+      }
+    });
+
+    setData((d) => ({
+      ...d,
+      plantas: [...d.plantas, { id: plantaId, nombre: `Planta Demo (${equipos.length} equipos)` }],
+      sectores: [...(d.sectores || []), ...sectores],
+      areas: [...d.areas, ...areas],
+      equipos: [...d.equipos, ...equipos],
+      diagnosticos: [...d.diagnosticos, ...diagnosticos],
+    }));
+    return plantaId;
+  }, []);
+
   // La validación de nombre/clave única vive en el formulario (Administración),
   // igual que crearEquipo: esta acción solo agrega el tipo tal como llega.
   const crearTipoPersonalizado = useCallback((tipoData) => {
@@ -278,6 +379,7 @@ export function useAnalistaData() {
     resetearDatos,
     crearPlanta,
     crearArea,
+    generarPlantaDePrueba,
     crearEquipo,
     moverEquipo,
     renombrarEquipo,
