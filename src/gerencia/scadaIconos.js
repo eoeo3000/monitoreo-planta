@@ -116,11 +116,18 @@ export const SCADA_ICONOS = {
       { tipo: 'circulo', cx: 25, cy: 9, r: 7 },
     ],
   }),
+  // altoBase queda en 29, no 26: el círculo (cy=16) no está centrado en un
+  // cuadro de 26 porque la tobera ocupa espacio arriba sin nada abajo que lo
+  // compense. Con 29, la distancia del borde inferior al centro del círculo
+  // (29-16=13) queda igual a la del motor (26-13=13) — mismo Y en los dos
+  // equipos alinea los centros de verdad, no solo los bordes inferiores. Los
+  // puertos y formas no cambian: la razón puerto.y/altoBase se mantiene
+  // porque bordeInferior sigue igual a altoBase.
   bomba: icono({
-    viewBox: '0 0 26 26',
+    viewBox: '0 0 26 29',
     anchoBase: 26,
-    altoBase: 26,
-    bordeInferior: 26,
+    altoBase: 29,
+    bordeInferior: 29,
     puertos: {
       succion: { x: 2, y: 16, dir: 'W' },
       descarga: { x: 24, y: 16, dir: 'E' },
