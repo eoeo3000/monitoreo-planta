@@ -261,10 +261,21 @@ export default function PortalSCADA({
       }
     }
     if (arrastre) {
+      // La cuadrícula ajusta el CENTRO visual, no el punto guardado (que es
+      // el borde inferior) — si ajustara el borde inferior directo, dos
+      // tipos de alto distinto quedarían con el centro en lugares distintos
+      // relativos a la grilla, aunque ambos "calzaran" con sus propios
+      // puntos de anclaje.
+      const eqArrastrado = equiposDePlanta.find((e) => e.id === arrastre.id);
+      const iconoArrastrado = eqArrastrado ? iconoConEscala(eqArrastrado, data) : null;
+      const altoIconoArrastrado = iconoArrastrado ? iconoArrastrado.altoBase * iconoArrastrado.escala : 0;
+      const xLibre = p.x - arrastre.offsetX;
+      const yLibre = p.y - arrastre.offsetY;
+      const centroYAjustado = ajustarACuadricula(yLibre - altoIconoArrastrado / 2);
       setPosicionArrastre({
         id: arrastre.id,
-        x: Math.max(0, ajustarACuadricula(p.x - arrastre.offsetX)),
-        y: Math.max(0, ajustarACuadricula(p.y - arrastre.offsetY)),
+        x: Math.max(0, ajustarACuadricula(xLibre)),
+        y: Math.max(0, centroYAjustado + altoIconoArrastrado / 2),
       });
     }
     if (modoConectar && origenConexion) {
