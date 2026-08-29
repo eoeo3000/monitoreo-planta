@@ -7,7 +7,7 @@ import { puntoDeContactoCercano } from '../../gerencia/formas';
 import { descargarDisposicionPlanta, importarDisposicionPlanta } from '../../analista/plantaCsv';
 import './gerenciaHMI.css';
 
-const TIPOS_FORMA_LABEL = { circulo: 'Círculo', rectangulo: 'Rectángulo', linea: 'Línea', texto: 'Texto' };
+const TIPOS_FORMA_LABEL = { circulo: 'Círculo', rectangulo: 'Rectángulo', linea: 'Línea', texto: 'Texto', poligono: 'Triángulo' };
 const DIRECCIONES_PUERTO = ['N', 'S', 'E', 'W'];
 
 const kicker = { fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)' };
@@ -181,14 +181,49 @@ function SeccionPlanta({ data, crearPlanta, crearArea, crearEquipo, crearConexio
 
 // Punto visible chico (no tapa el dibujo) + área de clic invisible más
 // grande alrededor, para poder agarrarlo sin que las manijas se vean
-// enormes ni se encimen entre sí cuando quedan varias juntas.
-function Manija({ x, y, onMouseDown, onDoubleClick }) {
-  return (
-    <g style={{ cursor: 'grab' }} onMouseDown={onMouseDown} onDoubleClick={onDoubleClick}>
-      <circle cx={x} cy={y} r={6} fill="transparent" />
-      <circle cx={x} cy={y} r={1.8} fill="#00a2e8" />
-    </g>
-  );
+// enormes ni se encimen entre sí cuando quedan varias juntas. Puramente
+// visual: el clic lo captura un solo manejador en el <svg> (ver
+// onMouseDownPreview), que elige la manija más cercana al cursor en vez de
+// depender de cuál quedó dibujada encima — así, cuando dos quedan pegadas,
+// siempre se mueve la que está más cerca de donde hiciste clic.
+function Manija({ x, y }) {
+  return <circle cx={x} cy={y} r={1.8} fill="#00a2e8" style={{ pointerEvents: 'none' }} />;
+}
+
+// Todos los puntos "agarrables" de la vista previa, con la info que necesita
+// onMouseDownForma para saber qué mover.
+function puntosInteractivosDe(formas) {
+  const puntos = [];
+  formas.forEach((f, i) => {
+    if (f.tipo === 'circulo') puntos.push({ x: f.cx, y: f.cy, indice: i, modo: 'circulo' });
+    else if (f.tipo === 'rectangulo') puntos.push({ x: f.x + f.ancho / 2, y: f.y + f.alto / 2, indice: i, modo: 'rectangulo' });
+    else if (f.tipo === 'texto') puntos.push({ x: f.x, y: f.y, indice: i, modo: 'texto', esTexto: true });
+    else if (f.tipo === 'linea') {
+      puntos.push({ x: f.x1, y: f.y1, indice: i, modo: 'linea1' });
+      puntos.push({ x: f.x2, y: f.y2, indice: i, modo: 'linea2' });
+    } else if (f.tipo === 'poligono') {
+      f.puntos.forEach((pt, vi) => puntos.push({ x: pt.x, y: pt.y, indice: i, modo: 'poligono-vertice', vertice: vi }));
+      const cx = f.puntos.reduce((s, pt) => s + pt.x, 0) / f.puntos.length;
+      const cy = f.puntos.reduce((s, pt) => s + pt.y, 0) / f.puntos.length;
+      puntos.push({ x: cx, y: cy, indice: i, modo: 'poligono' });
+    }
+  });
+  return puntos;
+}
+
+// El punto interactivo más cercano a `p`, dentro de un radio razonable — más
+// allá de ese radio, el clic no debería "robarse" ninguna manija lejana.
+function puntoInteractivoMasCercano(puntos, p, umbral = 8) {
+  let mejor = null;
+  let mejorDist = umbral;
+  puntos.forEach((pt) => {
+    const d = Math.hypot(p.x - pt.x, p.y - pt.y);
+    if (d <= mejorDist) {
+      mejorDist = d;
+      mejor = pt;
+    }
+  });
+  return mejor;
 }
 
 // No fusiona geométricamente dos formas superpuestas — apaga el borde de
@@ -250,11 +285,33 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
       setFormas((f) => [...f, { tipo: tipoForma, x1: 0, y1: Math.round(altoBase / 2), x2: anchoBase, y2: Math.round(altoBase / 2) }]);
     } else if (tipoForma === 'texto') {
       setFormas((f) => [...f, { tipo: tipoForma, x: Math.round(anchoBase / 2), y: Math.round(altoBase / 2), tamano: 10, contenido: 'texto', color: '#000000' }]);
+    } else if (tipoForma === 'poligono') {
+      // Triángulo — un solo conjunto de 3 vértices que se mueve entero desde
+      // el centro, en vez de 3 líneas sueltas que habría que arrastrar una
+      // por una para mantenerlas juntas.
+      setFormas((f) => [
+        ...f,
+        {
+          tipo: tipoForma,
+          puntos: [
+            { x: Math.round(anchoBase / 2), y: Math.round(altoBase * 0.2) },
+            { x: Math.round(anchoBase * 0.2), y: Math.round(altoBase * 0.8) },
+            { x: Math.round(anchoBase * 0.8), y: Math.round(altoBase * 0.8) },
+          ],
+          sinTrazo: false,
+        },
+      ]);
     }
   };
   const actualizarForma = (i, campo, valor) =>
     setFormas((fs) =>
       fs.map((f, idx) => (idx === i ? { ...f, [campo]: campo === 'contenido' || campo === 'color' ? valor : Number(valor) } : f))
+    );
+  const actualizarVerticePoligono = (i, indiceVertice, eje, valor) =>
+    setFormas((fs) =>
+      fs.map((f, idx) =>
+        idx === i ? { ...f, puntos: f.puntos.map((p, vi) => (vi === indiceVertice ? { ...p, [eje]: Number(valor) } : p)) } : f
+      )
     );
   const alternarTrazo = (i) => setFormas((fs) => fs.map((f, idx) => (idx === i ? { ...f, sinTrazo: !f.sinTrazo } : f)));
   const quitarForma = (i) => setFormas((fs) => fs.filter((_, idx) => idx !== i));
@@ -277,7 +334,7 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
   // "salte" a tener su punto de referencia justo bajo el cursor al arrastrar
   // (salvo en los extremos de línea, donde sí queremos que el punto siga
   // exacto al cursor, como si lo estuvieras dibujando de nuevo).
-  const onMouseDownForma = (event, indice, forma, modo) => {
+  const onMouseDownForma = (event, indice, forma, modo, vertice) => {
     event.stopPropagation();
     const p = puntoSvg(event);
     let offsetX = 0;
@@ -289,17 +346,37 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
       offsetX = p.x - forma.x;
       offsetY = p.y - forma.y;
     }
-    setFormaArrastre({ indice, modo, offsetX, offsetY });
+    // Mover el triángulo entero: se guarda el punto de partida y una foto de
+    // sus 3 vértices, para desplazarlos todos por la misma distancia sin que
+    // se deformen (a diferencia de mover un vértice suelto, que sí cambia la
+    // forma).
+    const puntosInicio = modo === 'poligono' ? forma.puntos.map((pt) => ({ ...pt })) : undefined;
+    setFormaArrastre({ indice, modo, offsetX, offsetY, vertice, startMouse: p, puntosInicio });
   };
-  // En los extremos de línea y el punto del texto (formas "de punto"), si el
-  // punto queda a 4 unidades o menos del borde de OTRA forma, se ajusta
-  // (snap) justo a ese borde — así un eje puede quedar pegado al cuerpo de
-  // un agitador, sin dejar un hueco, para cuando haga falta que se vean
-  // conectados.
+  // Un solo manejador de clic para toda la vista previa: busca la manija más
+  // cercana al punto donde se hizo clic (no la que quedó dibujada encima) y
+  // recién ahí arranca el arrastre correspondiente — así, si dos manijas
+  // quedan pegadas, siempre gana la más cercana al cursor.
+  const onMouseDownPreview = (event) => {
+    const p = puntoSvg(event);
+    const cercano = puntoInteractivoMasCercano(puntosInteractivosDe(formas), p);
+    if (!cercano) return;
+    onMouseDownForma(event, cercano.indice, formas[cercano.indice], cercano.modo, cercano.vertice);
+  };
+  const onDoubleClickPreview = (event) => {
+    const p = puntoSvg(event);
+    const cercano = puntoInteractivoMasCercano(puntosInteractivosDe(formas), p);
+    if (cercano?.esTexto) editarTexto(cercano.indice, formas[cercano.indice].contenido);
+  };
+  // En los extremos de línea, el punto del texto y los vértices de un
+  // triángulo (formas "de punto"), si el punto queda a 4 unidades o menos
+  // del borde de OTRA forma, se ajusta (snap) justo a ese borde — así un eje
+  // puede quedar pegado al cuerpo de un agitador, sin dejar un hueco, para
+  // cuando haga falta que se vean conectados.
   const onMouseMovePreview = (event) => {
     if (!formaArrastre) return;
     const p = puntoSvg(event);
-    const { indice, modo, offsetX, offsetY } = formaArrastre;
+    const { indice, modo, offsetX, offsetY, vertice, startMouse, puntosInicio } = formaArrastre;
     setFormas((fs) =>
       fs.map((f, idx) => {
         if (idx !== indice) return f;
@@ -314,6 +391,16 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
           const contacto = puntoDeContactoCercano(fs, p, indice);
           const punto = contacto || p;
           return modo === 'linea1' ? { ...f, x1: punto.x, y1: punto.y } : { ...f, x2: punto.x, y2: punto.y };
+        }
+        if (modo === 'poligono') {
+          const dx = p.x - startMouse.x;
+          const dy = p.y - startMouse.y;
+          return { ...f, puntos: puntosInicio.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })) };
+        }
+        if (modo === 'poligono-vertice') {
+          const contacto = puntoDeContactoCercano(fs, p, indice);
+          const punto = contacto || p;
+          return { ...f, puntos: f.puntos.map((pt, vi) => (vi === vertice ? { x: punto.x, y: punto.y } : pt)) };
         }
         return f;
       })
@@ -423,6 +510,17 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
                       <CampoMini label="y1" valor={f.y1} onChange={(v) => actualizarForma(i, 'y1', v)} />
                       <CampoMini label="x2" valor={f.x2} onChange={(v) => actualizarForma(i, 'x2', v)} />
                       <CampoMini label="y2" valor={f.y2} onChange={(v) => actualizarForma(i, 'y2', v)} />
+                    </>
+                  )}
+                  {f.tipo === 'poligono' && (
+                    <>
+                      {f.puntos.map((pt, vi) => (
+                        <span key={vi} style={{ display: 'flex', gap: 4 }}>
+                          <CampoMini label={`P${vi + 1}.x`} valor={pt.x} onChange={(v) => actualizarVerticePoligono(i, vi, 'x', v)} />
+                          <CampoMini label={`P${vi + 1}.y`} valor={pt.y} onChange={(v) => actualizarVerticePoligono(i, vi, 'y', v)} />
+                        </span>
+                      ))}
+                      <CasillaBorde sinTrazo={f.sinTrazo} onToggle={() => alternarTrazo(i)} />
                     </>
                   )}
                   {f.tipo === 'texto' && (
@@ -540,9 +638,11 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
               })()}
               width="100%"
               height={260}
+              onMouseDown={onMouseDownPreview}
               onMouseMove={onMouseMovePreview}
               onMouseUp={onMouseUpPreview}
               onMouseLeave={onMouseUpPreview}
+              onDoubleClick={onDoubleClickPreview}
             >
               <g fill="#a2a29d" stroke="#000" strokeWidth={1}>
                 {formas.map((f, i) => formaAJsx(f, i))}
@@ -551,32 +651,30 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
                 if (f.tipo === 'linea') {
                   return (
                     <g key={`manijas-${i}`}>
-                      <Manija x={f.x1} y={f.y1} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea1')} />
-                      <Manija x={f.x2} y={f.y2} onMouseDown={(e) => onMouseDownForma(e, i, f, 'linea2')} />
+                      <Manija x={f.x1} y={f.y1} />
+                      <Manija x={f.x2} y={f.y2} />
                     </g>
                   );
                 }
-                if (f.tipo === 'circulo') {
-                  return <Manija key={`manija-${i}`} x={f.cx} y={f.cy} onMouseDown={(e) => onMouseDownForma(e, i, f, 'circulo')} />;
-                }
-                if (f.tipo === 'rectangulo') {
-                  return <Manija key={`manija-${i}`} x={f.x + f.ancho / 2} y={f.y + f.alto / 2} onMouseDown={(e) => onMouseDownForma(e, i, f, 'rectangulo')} />;
-                }
-                if (f.tipo === 'texto') {
+                if (f.tipo === 'circulo') return <Manija key={`manija-${i}`} x={f.cx} y={f.cy} />;
+                if (f.tipo === 'rectangulo') return <Manija key={`manija-${i}`} x={f.x + f.ancho / 2} y={f.y + f.alto / 2} />;
+                if (f.tipo === 'texto') return <Manija key={`manija-${i}`} x={f.x} y={f.y} />;
+                if (f.tipo === 'poligono') {
+                  const cx = f.puntos.reduce((s, pt) => s + pt.x, 0) / f.puntos.length;
+                  const cy = f.puntos.reduce((s, pt) => s + pt.y, 0) / f.puntos.length;
                   return (
-                    <Manija
-                      key={`manija-${i}`}
-                      x={f.x}
-                      y={f.y}
-                      onMouseDown={(e) => onMouseDownForma(e, i, f, 'texto')}
-                      onDoubleClick={() => editarTexto(i, f.contenido)}
-                    />
+                    <g key={`manijas-${i}`}>
+                      {f.puntos.map((pt, vi) => (
+                        <Manija key={vi} x={pt.x} y={pt.y} />
+                      ))}
+                      <Manija x={cx} y={cy} />
+                    </g>
                   );
                 }
                 return null;
               })}
               {puertos.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#00a2e8" />
+                <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="#00a2e8" style={{ pointerEvents: 'none' }} />
               ))}
             </svg>
           </div>

@@ -18,7 +18,8 @@ export function formaAJsx(forma, key) {
     return <rect key={key} x={forma.x} y={forma.y} width={forma.ancho} height={forma.alto} stroke={forma.sinTrazo ? 'none' : undefined} />;
   if (forma.tipo === 'elipse')
     return <ellipse key={key} cx={forma.cx} cy={forma.cy} rx={forma.rx} ry={forma.ry} stroke={forma.sinTrazo ? 'none' : undefined} />;
-  if (forma.tipo === 'poligono') return <polygon key={key} points={forma.puntos.map((p) => `${p.x},${p.y}`).join(' ')} />;
+  if (forma.tipo === 'poligono')
+    return <polygon key={key} points={forma.puntos.map((p) => `${p.x},${p.y}`).join(' ')} stroke={forma.sinTrazo ? 'none' : undefined} />;
   if (forma.tipo === 'linea') return <line key={key} x1={forma.x1} y1={forma.y1} x2={forma.x2} y2={forma.y2} />;
   if (forma.tipo === 'texto') {
     return (
