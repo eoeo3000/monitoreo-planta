@@ -6,7 +6,8 @@ import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
 import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
 import './portalScada.css';
 
-const PAD_LIENZO = 100; // margen alrededor de los equipos: el glifo más alto (tanque/agitador) mide 90
+const PAD_LIENZO = 300; // margen alrededor de los equipos, para dejar bastante lugar libre donde ubicarlos
+const CANVAS_MINIMO = 900; // tamaño mínimo del lienzo aunque haya pocos equipos, para que no se sienta apretado
 const PAD_ZONA = 70;
 const PAD_HIT = 8; // margen del área invisible de clic/arrastre alrededor del glifo
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
@@ -160,8 +161,8 @@ export default function PortalSCADA({
   const posiciones = equiposDePlanta.map(posicionDe);
   const minX = Math.min(0, ...posiciones.map((p) => p.x)) - PAD_LIENZO;
   const minY = Math.min(0, ...posiciones.map((p) => p.y)) - PAD_LIENZO;
-  const maxX = Math.max(240, ...posiciones.map((p) => p.x)) + PAD_LIENZO;
-  const maxY = Math.max(240, ...posiciones.map((p) => p.y)) + PAD_LIENZO;
+  const maxX = Math.max(CANVAS_MINIMO, ...posiciones.map((p) => p.x)) + PAD_LIENZO;
+  const maxY = Math.max(CANVAS_MINIMO, ...posiciones.map((p) => p.y)) + PAD_LIENZO;
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
@@ -274,8 +275,8 @@ export default function PortalSCADA({
       const centroYAjustado = ajustarACuadricula(yLibre - altoIconoArrastrado / 2);
       setPosicionArrastre({
         id: arrastre.id,
-        x: Math.max(0, ajustarACuadricula(xLibre)),
-        y: Math.max(0, centroYAjustado + altoIconoArrastrado / 2),
+        x: ajustarACuadricula(xLibre),
+        y: centroYAjustado + altoIconoArrastrado / 2,
       });
     }
     if (modoConectar && origenConexion) {
