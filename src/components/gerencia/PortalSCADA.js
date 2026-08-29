@@ -158,10 +158,12 @@ export default function PortalSCADA({
   // siempre entra completo, y las coordenadas de mouse se convierten con la
   // matriz de pantalla del propio SVG (getScreenCTM), que ya la deshace sola.
   const posiciones = equiposDePlanta.map(posicionDe);
-  const minX = Math.min(0, ...posiciones.map((p) => p.x)) - PAD_LIENZO;
-  const minY = Math.min(0, ...posiciones.map((p) => p.y)) - PAD_LIENZO;
-  const maxX = Math.max(240, ...posiciones.map((p) => p.x)) + PAD_LIENZO;
-  const maxY = Math.max(240, ...posiciones.map((p) => p.y)) + PAD_LIENZO;
+  const xs = posiciones.map((p) => p.x);
+  const ys = posiciones.map((p) => p.y);
+  const minX = (xs.length ? Math.min(...xs) : 0) - PAD_LIENZO;
+  const minY = (ys.length ? Math.min(...ys) : 0) - PAD_LIENZO;
+  const maxX = (xs.length ? Math.max(...xs) : 240) + PAD_LIENZO;
+  const maxY = (ys.length ? Math.max(...ys) : 240) + PAD_LIENZO;
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
