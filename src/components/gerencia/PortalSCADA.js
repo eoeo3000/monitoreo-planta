@@ -12,6 +12,12 @@ const ALTO_LIENZO = 900; // alto fijo del lienzo
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 3;
 const ZOOM_PASO = 0.1;
+// Tamaño de fuente del TAG, calibrado para que a 100% de zoom (con el
+// lienzo fijo de ANCHO_LIENZO x ALTO_LIENZO) se vea con un tamaño legible
+// típico de pantallas HMI industriales (aprox. 12-13px en una ventana
+// normal) — ni tan chico que cueste leerlo, ni tan grande que domine sobre
+// el ícono del equipo.
+const FONT_SIZE_TAG = 13;
 const PAD_ZONA = 70;
 const PAD_HIT = 8; // margen del área invisible de clic/arrastre alrededor del glifo
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
@@ -805,7 +811,7 @@ export default function PortalSCADA({
                       x={anchoIcono / 2 + offsetEtiqueta.dx}
                       y={altoIcono + 13 + offsetEtiqueta.dy}
                       textAnchor="middle"
-                      fontSize={11}
+                      fontSize={FONT_SIZE_TAG}
                       fontWeight={700}
                       letterSpacing="0.02em"
                       fill={origen ? 'var(--scada-titulo)' : 'var(--scada-texto)'}
