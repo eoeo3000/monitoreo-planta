@@ -234,6 +234,8 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
   // modo: 'circulo' (mueve cx/cy), 'rectangulo' (mueve x/y, mismo tamaño),
   // 'texto' (mueve x/y), 'linea1'/'linea2' (mueve ese extremo nada más).
   const [formaArrastre, setFormaArrastre] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const cambiarZoom = (delta) => setZoom((z) => Math.min(3, Math.max(0.5, Math.round((z + delta) * 100) / 100)));
 
   const agregarForma = (tipoForma) => {
     setMensaje(null);
@@ -508,11 +510,34 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
         </div>
 
         <div style={{ flex: '0 1 280px', minWidth: 220 }}>
-          <div style={{ ...kicker, marginBottom: 6 }}>Vista previa</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 6 }}>
+            <div style={kicker}>Vista previa</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 1, marginLeft: 'auto', background: 'var(--color-neutral-300)' }}>
+              <button className="btn btn-secondary" onClick={() => cambiarZoom(-0.25)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 24, padding: 0 }}>
+                −
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setZoom(1)}
+                style={{ background: 'var(--color-bg)', borderRadius: 0, width: 42, padding: 0, fontSize: 11, fontVariantNumeric: 'tabular-nums' }}
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <button className="btn btn-secondary" onClick={() => cambiarZoom(0.25)} style={{ background: 'var(--color-bg)', borderRadius: 0, width: 24, padding: 0 }}>
+                +
+              </button>
+            </div>
+          </div>
           <div style={{ border: '1px solid var(--color-divider)', background: '#001830', padding: 8 }}>
             <svg
               ref={svgRef}
-              viewBox={`-4 -4 ${anchoBase + 8} ${altoBase + 8}`}
+              viewBox={(() => {
+                const cx = anchoBase / 2;
+                const cy = altoBase / 2;
+                const vbW = (anchoBase + 8) / zoom;
+                const vbH = (altoBase + 8) / zoom;
+                return `${cx - vbW / 2} ${cy - vbH / 2} ${vbW} ${vbH}`;
+              })()}
               width="100%"
               height={260}
               onMouseMove={onMouseMovePreview}
