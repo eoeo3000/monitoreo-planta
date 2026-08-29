@@ -7,7 +7,10 @@ import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaP
 import VistaSectores from './VistaSectores';
 import './portalScada.css';
 
-const PAD_LIENZO = 50; // margen alrededor de los equipos
+// Tiene que alcanzar para que el cuadro de una ubicación con el ícono más
+// alto del catálogo (tanque/agitador, 90 unidades) no quede cortado contra
+// el borde del lienzo cuando ese equipo está cerca del origen.
+const PAD_LIENZO = 90;
 const ANCHO_LIENZO = 1400; // ancho fijo del lienzo (unidades del viewBox), no depende de dónde estén los equipos
 const ALTO_LIENZO = 900; // alto fijo del lienzo
 const ZOOM_MIN = 0.3;
@@ -19,7 +22,7 @@ const ZOOM_PASO = 0.1;
 // normal) — ni tan chico que cueste leerlo, ni tan grande que domine sobre
 // el ícono del equipo.
 const FONT_SIZE_TAG = 13;
-const PAD_ZONA = 70;
+const PAD_ZONA = 40; // margen del cuadro punteado de la ubicación alrededor de sus equipos
 const PAD_HIT = 8; // margen del área invisible de clic/arrastre alrededor del glifo
 const UMBRAL_ARRASTRE = 4; // px de movimiento antes de considerar que es un arrastre y no un clic
 const CUADRICULA = 20; // px por celda — al mover un equipo, su posición se ajusta a este tamaño
@@ -161,13 +164,29 @@ export default function PortalSCADA({
   const cajaEquiposDeArea = (area) => {
     const eqs = equiposDePlanta.filter((eq) => eq.areaId === area.id);
     if (eqs.length === 0) return null;
-    const xs = eqs.map((eq) => posicionDe(eq).x);
-    const ys = eqs.map((eq) => posicionDe(eq).y);
+    // eq.posicion es el CENTRO horizontal y el borde INFERIOR vertical del
+    // ícono (bordeInferior === altoBase) — un margen plano sobre ese punto
+    // no encierra la silueta real cuando los íconos son altos (tanque y
+    // agitador miden 90 de alto): con PAD_ZONA chico, el título terminaba
+    // tapado por el propio ícono. Se calcula el borde real de cada equipo
+    // (centro ± mitad del ancho, borde inferior menos el alto) y PAD_ZONA
+    // queda como lo que debería ser: aire extra alrededor de la silueta.
+    const bordes = eqs.map((eq) => {
+      const pos = posicionDe(eq);
+      const icono = iconoConEscala(eq, data);
+      const ancho = icono ? icono.anchoBase * icono.escala : 0;
+      const alto = icono ? icono.altoBase * icono.escala : 0;
+      return { izq: pos.x - ancho / 2, der: pos.x + ancho / 2, arriba: pos.y - alto, abajo: pos.y };
+    });
+    const minX = Math.min(...bordes.map((b) => b.izq));
+    const maxX = Math.max(...bordes.map((b) => b.der));
+    const minY = Math.min(...bordes.map((b) => b.arriba));
+    const maxY = Math.max(...bordes.map((b) => b.abajo));
     return {
-      x: Math.min(...xs) - PAD_ZONA,
-      y: Math.min(...ys) - PAD_ZONA - 18,
-      width: Math.max(...xs) - Math.min(...xs) + PAD_ZONA * 2,
-      height: Math.max(...ys) - Math.min(...ys) + PAD_ZONA * 2 + 18,
+      x: minX - PAD_ZONA,
+      y: minY - PAD_ZONA - 18,
+      width: maxX - minX + PAD_ZONA * 2,
+      height: maxY - minY + PAD_ZONA * 2 + 18,
     };
   };
 

@@ -245,19 +245,19 @@ export function useAnalistaData() {
     // sin achicar a los equipos reales de otras plantas.
     const ESCALA_EQUIPO_DEMO = 1.3;
 
-    // "Ley" de espaciado: en vez de números fijos elegidos a ojo, la
-    // distancia entre equipos sale del tamaño REAL del ícono dominante
-    // (motor/bomba son el 90% de esta composición) — así queda compacto sin
-    // superponerse, y si el día de mañana cambia la composición o la
-    // escala, el espaciado se recalcula solo.
+    // "Ley" de espaciado: TODAS las distancias (entre equipos, del equipo al
+    // borde del cuadro de su ubicación, y entre ubicaciones vecinas) salen
+    // del tamaño REAL del ícono dominante (motor/bomba son el 90% de esta
+    // composición) multiplicado por un factor — así se usan los espacios de
+    // forma consistente, en vez de mezclar números sueltos elegidos a ojo.
     const iconoTipico = SCADA_ICONOS.motor;
     const anchoTipico = iconoTipico.anchoBase * ESCALA_EQUIPO_DEMO;
     const altoTipico = iconoTipico.altoBase * ESCALA_EQUIPO_DEMO;
     const MAX_POR_FILA = 3;
     const PASO_H = Math.round(anchoTipico * 2); // separación centro-a-centro entre equipos de una fila
     const PASO_V = Math.round(altoTipico + 30); // + lugar para el TAG debajo del ícono, por si hace falta una 2ª fila
-    const PAD_ZONA_APROX = 70; // espeja PAD_ZONA de PortalSCADA.js — margen del cuadro punteado de la ubicación
-    const GAP_ENTRE_UBICACIONES = 60; // separación visible entre los cuadros de dos ubicaciones vecinas
+    const PAD_ZONA_APROX = 40; // espeja PAD_ZONA de PortalSCADA.js — margen del cuadro punteado de la ubicación
+    const GAP_ENTRE_UBICACIONES = Math.round(anchoTipico); // separación entre los cuadros de dos ubicaciones vecinas: un ancho de ícono
 
     const AREA_COLS = 4;
     const AREA_CELL_ANCHO = PASO_H * (MAX_POR_FILA - 1) + PAD_ZONA_APROX * 2 + GAP_ENTRE_UBICACIONES;
