@@ -11,6 +11,7 @@ export default function TopBar({ vista, setVista, onResetear }) {
     <div
       style={{
         display: 'flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
         gap: 'var(--space-4)',
         padding: 'var(--space-3) var(--space-4)',

@@ -761,6 +761,7 @@ export default function Administracion({ data, crearPlanta, crearArea, crearEqui
       <header
         style={{
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'flex-end',
           gap: 'var(--space-4)',
           padding: 'var(--space-4) var(--space-6)',
