@@ -223,6 +223,16 @@ export function useAnalistaData() {
     return id;
   }, []);
 
+  // Edita un tipo personalizado ya creado (nombre/tamaño/formas/puertos) — la
+  // `clave` NO se toca acá: ya la usan los equipos existentes de ese tipo
+  // (eq.tipo) y cambiarla los dejaría apuntando a un tipo que ya no existe.
+  const actualizarTipoPersonalizado = useCallback((id, cambios) => {
+    setData((d) => ({
+      ...d,
+      tiposPersonalizados: (d.tiposPersonalizados || []).map((t) => (t.id === id ? { ...t, ...cambios, clave: t.clave } : t)),
+    }));
+  }, []);
+
   // Conexiones = flechas de flujo entre equipos, editadas desde el Portal SCADA.
   // Puramente visuales/informativas por ahora (no representan un dato de proceso
   // consultable en otras pantallas), tal como se acordó al construirlas.
@@ -269,6 +279,7 @@ export function useAnalistaData() {
     cambiarEscalaEquipo,
     moverTituloArea,
     crearTipoPersonalizado,
+    actualizarTipoPersonalizado,
     crearConexion,
     eliminarConexion,
     actualizarConexion,

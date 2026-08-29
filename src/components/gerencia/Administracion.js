@@ -1,15 +1,12 @@
 import React, { useRef, useState } from 'react';
 import Blueprint from '../../theme/Blueprint';
 import { CATALOGO_MODO_FALLA } from '../../analista/mockData';
-import { CATALOGO_SIMBOLOS, GRUPOS_SIMBOLOS, GRUPOS_INFO } from '../../gerencia/simbolosHMI';
+import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { formaAJsx } from '../../gerencia/tiposPersonalizados';
 import { puntoDeContactoCercano } from '../../gerencia/formas';
 import { descargarDisposicionPlanta, importarDisposicionPlanta } from '../../analista/plantaCsv';
 import './gerenciaHMI.css';
 
-const MOSTRAR_CODIGOS = true; // handoff §4 prop "mostrarCodigos"
-const SELECCION_MULTIPLE = true; // handoff §4 prop "seleccionMultiple"
-const GROSOR_TRAZO = 1.5; // handoff §4 prop "grosorTrazo" (1–2)
 const TIPOS_FORMA_LABEL = { circulo: 'Círculo', rectangulo: 'Rectángulo', linea: 'Línea', texto: 'Texto' };
 const DIRECCIONES_PUERTO = ['N', 'S', 'E', 'W'];
 
@@ -215,17 +212,23 @@ function CampoMini({ label, valor, onChange }) {
   );
 }
 
-// Crea un tipo de equipo nuevo (fuera del catálogo fijo de mockData.js) a
-// partir de formas simples (círculo/rectángulo/línea) + puertos de conexión
-// opcionales. Solo visual por ahora: no tiene modos de falla propios, así que
-// el Analista todavía no puede diagnosticar equipos de este tipo.
-function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
+// Crea un tipo de equipo nuevo (fuera del catálogo fijo de mockData.js), o
+// edita uno personalizado ya creado (tipoExistente) — a partir de formas
+// simples (círculo/rectángulo/línea/texto) + puertos de conexión opcionales.
+// Solo visual por ahora: no tiene modos de falla propios, así que el
+// Analista todavía no puede diagnosticar equipos de este tipo. Se monta con
+// `key={tipoExistente?.id || 'nuevo'}` desde SeccionEquipos para que cambiar
+// de tipo a editar (o volver a "crear nuevo") reinicie el formulario solo.
+function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonalizado, tipoExistente, alTerminarEdicion }) {
+  const editando = !!tipoExistente;
   const svgRef = useRef(null);
-  const [nombre, setNombre] = useState('');
-  const [anchoBase, setAnchoBase] = useState(40);
-  const [altoBase, setAltoBase] = useState(40);
-  const [formas, setFormas] = useState([]);
-  const [puertos, setPuertos] = useState([]);
+  const [nombre, setNombre] = useState(tipoExistente?.nombre || '');
+  const [anchoBase, setAnchoBase] = useState(tipoExistente?.anchoBase || 40);
+  const [altoBase, setAltoBase] = useState(tipoExistente?.altoBase || 40);
+  const [formas, setFormas] = useState(tipoExistente?.formas || []);
+  const [puertos, setPuertos] = useState(
+    tipoExistente ? Object.entries(tipoExistente.puertos || {}).map(([nombrePuerto, p]) => ({ nombre: nombrePuerto, ...p })) : []
+  );
   const [mensaje, setMensaje] = useState(null);
   // Arrastre de una forma en la vista previa — {indice, modo, offsetX, offsetY}.
   // modo: 'circulo' (mueve cx/cy), 'rectangulo' (mueve x/y, mismo tamaño),
@@ -329,6 +332,19 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
   const crear = () => {
     const nombreLimpio = nombre.trim();
     if (!nombreLimpio) return setMensaje({ tipo: 'error', texto: 'El nombre es obligatorio.' });
+    if (formas.length === 0) return setMensaje({ tipo: 'error', texto: 'Agrega al menos una forma.' });
+
+    const puertosObj = {};
+    puertos.forEach((p) => {
+      if (p.nombre.trim()) puertosObj[p.nombre.trim()] = { x: p.x, y: p.y, dir: p.dir };
+    });
+
+    if (editando) {
+      actualizarTipoPersonalizado(tipoExistente.id, { nombre: nombreLimpio, anchoBase, altoBase, formas, puertos: puertosObj });
+      setMensaje({ tipo: 'ok', texto: `Tipo "${nombreLimpio}" actualizado.` });
+      return;
+    }
+
     const clave = nombreLimpio
       .toLowerCase()
       .normalize('NFD')
@@ -337,12 +353,6 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
     if (!clave) return setMensaje({ tipo: 'error', texto: 'El nombre debe tener al menos una letra o número.' });
     const tiposExistentes = [...Object.keys(CATALOGO_MODO_FALLA), ...(data.tiposPersonalizados || []).map((t) => t.clave)];
     if (tiposExistentes.includes(clave)) return setMensaje({ tipo: 'error', texto: `Ya existe un tipo de equipo "${clave}".` });
-    if (formas.length === 0) return setMensaje({ tipo: 'error', texto: 'Agrega al menos una forma.' });
-
-    const puertosObj = {};
-    puertos.forEach((p) => {
-      if (p.nombre.trim()) puertosObj[p.nombre.trim()] = { x: p.x, y: p.y, dir: p.dir };
-    });
 
     crearTipoPersonalizado({ clave, nombre: nombreLimpio, anchoBase, altoBase, formas, puertos: puertosObj });
     setMensaje({ tipo: 'ok', texto: `Tipo "${nombreLimpio}" creado — ya aparece en "Tipo" y en el Portal SCADA.` });
@@ -354,14 +364,15 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
   return (
     <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
       <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>Alta de recursos</div>
-      <h3 style={{ fontSize: 20, margin: 0 }}>Crear tipo de equipo</h3>
+      <h3 style={{ fontSize: 20, margin: 0 }}>{editando ? `Editar tipo · ${tipoExistente.clave}` : 'Crear tipo de equipo'}</h3>
       <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-700)' }}>
-        Para equipos que no están en el catálogo fijo (motor, bomba, tanque, agitador, compresor, clarificador, secador). Solo
-        visual por ahora: no tiene modos de falla propios, así que el Analista todavía no puede diagnosticarlo.
+        {editando
+          ? 'Los equipos ya creados con este tipo van a usar la forma nueva apenas guardes.'
+          : 'Para equipos que no están en el catálogo fijo (motor, bomba, tanque, agitador, compresor, clarificador, secador). Solo visual por ahora: no tiene modos de falla propios, así que el Analista todavía no puede diagnosticarlo.'}
       </p>
       <Mensaje mensaje={mensaje} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 200px', gap: 'var(--space-4)', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 280px', gap: 'var(--space-4)', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'flex-end' }}>
             <label className="field" style={{ minWidth: 180 }}>
@@ -484,9 +495,16 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
             </button>
           </div>
 
-          <button className="btn btn-primary" onClick={crear} style={{ alignSelf: 'flex-start' }}>
-            Crear tipo
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button className="btn btn-primary" onClick={crear} style={{ alignSelf: 'flex-start' }}>
+              {editando ? 'Guardar cambios' : 'Crear tipo'}
+            </button>
+            {editando && (
+              <button className="btn btn-secondary" onClick={alTerminarEdicion} style={{ alignSelf: 'flex-start' }}>
+                Cancelar edición
+              </button>
+            )}
+          </div>
         </div>
 
         <div>
@@ -496,7 +514,7 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
               ref={svgRef}
               viewBox={`-4 -4 ${anchoBase + 8} ${altoBase + 8}`}
               width="100%"
-              height={160}
+              height={260}
               onMouseMove={onMouseMovePreview}
               onMouseUp={onMouseUpPreview}
               onMouseLeave={onMouseUpPreview}
@@ -543,8 +561,95 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado }) {
   );
 }
 
-// "Equipos": alta y listado de equipos (la ubicación/planta se elige, no se crea acá).
-function SeccionEquipos({ data, crearEquipo, crearTipoPersonalizado }) {
+// Una celda de la galería de tipos — el mismo dibujo (formaAJsx) que usa la
+// vista previa del formulario, ajustado a un viewBox propio por tipo para
+// que quepan bien tipos de tamaño muy distinto (26×29 la bomba, 90×50 el
+// secador) uno al lado del otro.
+function CeldaTipo({ nombre, clave, anchoBase, altoBase, formas, editable, onDoubleClick }) {
+  return (
+    <div
+      className="cell"
+      onDoubleClick={editable ? onDoubleClick : undefined}
+      title={editable ? 'Doble clic para editar' : 'Tipo de fábrica — para cambiarlo, pedímelo por chat'}
+      style={{
+        cursor: editable ? 'pointer' : 'default',
+        padding: 'var(--space-3) var(--space-2)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
+        textAlign: 'center',
+        background: 'var(--color-bg)',
+      }}
+    >
+      <svg width={56} height={56} viewBox={`-4 -4 ${anchoBase + 8} ${altoBase + 8}`}>
+        <g fill="#a2a29d" stroke="#000" strokeWidth={1}>
+          {formas.map((f, i) => formaAJsx(f, i))}
+        </g>
+      </svg>
+      <span style={{ fontFamily: 'var(--font-heading)', fontSize: 12, letterSpacing: '0.02em', textTransform: 'uppercase' }}>{nombre}</span>
+      <span style={{ fontSize: 10, color: 'var(--color-neutral-500)' }}>{clave}</span>
+    </div>
+  );
+}
+
+// Reemplaza al viejo Catálogo HMI (símbolos de línea fina de simbolosHMI.js,
+// sin relación con los tipos reales): esto muestra los tipos de equipo que
+// realmente existen en la app — de fábrica (fijos en scadaIconos.js) y
+// personalizados (data.tiposPersonalizados) — y deja editar estos últimos
+// con doble clic.
+function GaleriaTiposEquipo({ data, onEditar }) {
+  const [filtro, setFiltro] = useState('fabrica');
+  const personalizados = data.tiposPersonalizados || [];
+  const clavesFabrica = Object.keys(SCADA_ICONOS);
+
+  return (
+    <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+        <h3 style={{ fontSize: 20, margin: 0 }}>Tipos de equipo</h3>
+        <div className="seg" style={{ marginLeft: 'auto' }}>
+          <label className="seg-opt">
+            <input type="radio" checked={filtro === 'fabrica'} onChange={() => setFiltro('fabrica')} />
+            <span>De fábrica ({clavesFabrica.length})</span>
+          </label>
+          <label className="seg-opt">
+            <input type="radio" checked={filtro === 'personalizados'} onChange={() => setFiltro('personalizados')} />
+            <span>Personalizados ({personalizados.length})</span>
+          </label>
+        </div>
+      </div>
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>
+        {filtro === 'fabrica'
+          ? 'Fijos en el código de la app — para cambiar uno, pedímelo por chat.'
+          : personalizados.length > 0
+          ? 'Doble clic sobre un tipo para editarlo.'
+          : 'Todavía no creaste ningún tipo personalizado — usa el formulario de arriba.'}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 1, background: 'var(--color-neutral-300)' }}>
+        {filtro === 'fabrica'
+          ? clavesFabrica.map((clave) => (
+              <CeldaTipo
+                key={clave}
+                nombre={clave}
+                clave={clave}
+                anchoBase={SCADA_ICONOS[clave].anchoBase}
+                altoBase={SCADA_ICONOS[clave].altoBase}
+                formas={SCADA_ICONOS[clave].formas}
+                editable={false}
+              />
+            ))
+          : personalizados.map((t) => (
+              <CeldaTipo key={t.id} nombre={t.nombre} clave={t.clave} anchoBase={t.anchoBase} altoBase={t.altoBase} formas={t.formas} editable onDoubleClick={() => onEditar(t)} />
+            ))}
+      </div>
+    </Blueprint>
+  );
+}
+
+// "Equipos": alta de equipos (la ubicación/planta se elige, no se crea acá) +
+// alta/edición de tipos de equipo personalizados.
+function SeccionEquipos({ data, crearEquipo, crearTipoPersonalizado, actualizarTipoPersonalizado }) {
+  const [tipoEditando, setTipoEditando] = useState(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || '');
   const [areaId, setAreaId] = useState('');
   const [tag, setTag] = useState('');
@@ -633,224 +738,21 @@ function SeccionEquipos({ data, crearEquipo, crearTipoPersonalizado }) {
         </div>
       </Blueprint>
 
-      <CrearTipoEquipo data={data} crearTipoPersonalizado={crearTipoPersonalizado} />
+      <CrearTipoEquipo
+        key={tipoEditando?.id || 'nuevo'}
+        data={data}
+        crearTipoPersonalizado={crearTipoPersonalizado}
+        actualizarTipoPersonalizado={actualizarTipoPersonalizado}
+        tipoExistente={tipoEditando}
+        alTerminarEdicion={() => setTipoEditando(null)}
+      />
 
-      <Blueprint as="section" style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-        <h3 style={{ fontSize: 20, margin: 0 }}>Equipos existentes ({data.equipos.length})</h3>
-        {data.equipos.length === 0 ? (
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-neutral-600)' }}>Todavía no hay equipos creados.</p>
-        ) : (
-          <table className="table" style={{ width: '100%' }}>
-            <thead>
-              <tr>
-                <th style={{ width: 110 }}>TAG</th>
-                <th style={{ width: 160 }}>Planta</th>
-                <th style={{ width: 180 }}>Ubicación técnica</th>
-                <th style={{ width: 130 }}>Tipo</th>
-                <th>Descripción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.equipos.map((eq) => {
-                const area = data.areas.find((a) => a.id === eq.areaId);
-                const planta = data.plantas.find((p) => p.id === area?.plantaId);
-                return (
-                  <tr key={eq.id}>
-                    <td style={{ fontFamily: 'var(--font-heading)', letterSpacing: '0.04em' }}>{eq.tag}</td>
-                    <td>{planta?.nombre || '—'}</td>
-                    <td>{area?.nombre || '—'}</td>
-                    <td style={{ textTransform: 'uppercase', fontSize: 12, color: 'var(--color-neutral-600)' }}>{eq.tipo}</td>
-                    <td style={{ color: 'var(--color-neutral-700)' }}>{eq.descripcion || '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </Blueprint>
+      <GaleriaTiposEquipo data={data} onEditar={setTipoEditando} />
     </div>
   );
 }
 
-function CatalogoSimbolos() {
-  const [filtro, setFiltro] = useState('todos');
-  const [elegidos, setElegidos] = useState(['agitador', 'transmisorPresion']);
-  const [aplicado, setAplicado] = useState(null);
-
-  const toggle = (key) => {
-    setAplicado(null);
-    setElegidos((prev) => {
-      const on = prev.includes(key);
-      if (!SELECCION_MULTIPLE) return on ? [] : [key];
-      return on ? prev.filter((k) => k !== key) : [...prev, key];
-    });
-  };
-
-  const grupos = Array.from(new Set(CATALOGO_SIMBOLOS.map((s) => s.grupo)));
-  const simbolosDeGrupo = (g) => CATALOGO_SIMBOLOS.filter((s) => s.grupo === g);
-  const verGrupo = (g) => filtro === 'todos' || filtro === g;
-
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '232px minmax(0, 1fr) 272px',
-        alignItems: 'start',
-        gap: 'var(--space-4)',
-      }}
-    >
-      <nav style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', position: 'sticky', top: 'var(--space-4)' }}>
-        <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-neutral-600)', marginBottom: 'var(--space-1)' }}>
-          Tipo de equipo
-        </div>
-        {GRUPOS_SIMBOLOS.map((g) => {
-          const on = filtro === g.id;
-          const count = g.id === 'todos' ? CATALOGO_SIMBOLOS.length : simbolosDeGrupo(g.id).length;
-          return (
-            <div
-              key={g.id}
-              className="filtro"
-              onClick={() => setFiltro(g.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-3)',
-                cursor: 'pointer',
-                padding: 'var(--space-2) var(--space-3)',
-                fontSize: 14,
-                color: on ? 'var(--color-accent-900)' : 'var(--color-neutral-600)',
-                background: on ? 'var(--color-accent-100)' : 'transparent',
-                boxShadow: on ? 'inset 2px 0 0 var(--color-accent)' : 'none',
-              }}
-            >
-              <span style={{ fontFamily: 'var(--font-heading)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{g.label}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 11, fontVariantNumeric: 'tabular-nums', color: 'var(--color-neutral-500)' }}>
-                {String(count).padStart(2, '0')}
-              </span>
-            </div>
-          );
-        })}
-      </nav>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', minWidth: 0, strokeWidth: GROSOR_TRAZO }}>
-        {grupos.filter(verGrupo).map((g) => {
-          const info = GRUPOS_INFO[g];
-          return (
-            <Blueprint as="section" key={g} style={{ padding: 'var(--space-4)' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-                <span style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--color-neutral-500)' }}>{info.orden}</span>
-                <h3 style={{ fontSize: 19, margin: 0, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{info.titulo}</h3>
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-neutral-600)' }}>{info.nota}</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(132px, 1fr))', gap: 1, background: 'var(--color-neutral-300)' }}>
-                {simbolosDeGrupo(g).map((s) => {
-                  const on = elegidos.includes(s.key);
-                  return (
-                    <div
-                      key={s.key}
-                      className="cell"
-                      onClick={() => toggle(s.key)}
-                      style={{
-                        cursor: 'pointer',
-                        padding: 'var(--space-4) var(--space-2)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 'var(--space-3)',
-                        textAlign: 'center',
-                        background: on ? 'var(--color-accent-100)' : 'var(--color-bg)',
-                        boxShadow: on ? 'inset 0 0 0 1px var(--color-accent)' : 'none',
-                      }}
-                    >
-                      <svg
-                        width="36"
-                        height="36"
-                        viewBox="0 0 40 40"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{ color: on ? 'var(--color-accent-800)' : 'var(--color-neutral-700)' }}
-                      >
-                        {s.svg}
-                      </svg>
-                      <span style={{ fontFamily: 'var(--font-heading)', fontSize: 13, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                        {s.nombre}
-                      </span>
-                      {MOSTRAR_CODIGOS && (
-                        <span style={{ fontSize: 10, letterSpacing: '0.12em', color: 'var(--color-neutral-500)' }}>{s.codigo}</span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </Blueprint>
-          );
-        })}
-      </div>
-
-      <Blueprint
-        as="aside"
-        style={{ padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', position: 'sticky', top: 'var(--space-4)' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 'var(--space-3)' }}>
-          <div>
-            <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-accent-700)' }}>Vista HMI</div>
-            <h3 style={{ fontSize: 20, margin: 0 }}>Selección</h3>
-          </div>
-          <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-heading)', fontSize: 34, lineHeight: 0.9, color: 'var(--color-neutral-500)' }}>
-            {String(elegidos.length).padStart(2, '0')}
-          </span>
-        </div>
-
-        {elegidos.length === 0 && (
-          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--color-neutral-600)' }}>
-            Ningún símbolo seleccionado. Haz clic en una celda del catálogo para añadirla.
-          </p>
-        )}
-
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {elegidos.map((key) => {
-            const s = CATALOGO_SIMBOLOS.find((x) => x.key === key);
-            return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-2) 0', borderTop: '1px solid var(--color-neutral-300)' }}>
-                <span style={{ width: 6, height: 6, background: 'var(--color-accent)', flexShrink: 0 }} />
-                <span style={{ fontFamily: 'var(--font-heading)', fontSize: 14, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{s.nombre}</span>
-                <span style={{ fontSize: 10, letterSpacing: '0.1em', color: 'var(--color-neutral-500)' }}>{s.codigo}</span>
-                <button className="btn btn-ghost" onClick={() => toggle(key)} style={{ marginLeft: 'auto', fontSize: 13 }}>
-                  Quitar
-                </button>
-              </div>
-            );
-          })}
-        </div>
-
-        {aplicado && (
-          <div style={{ borderLeft: '2px solid var(--color-accent)', background: 'var(--color-neutral-100)', padding: 'var(--space-2) var(--space-3)', fontSize: 12, color: 'var(--color-accent-900)' }}>
-            {aplicado}
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 'var(--space-2)', borderTop: '1px solid var(--color-neutral-300)', paddingTop: 'var(--space-4)' }}>
-          <Blueprint
-            as="button"
-            className="btn btn-primary"
-            disabled={elegidos.length === 0}
-            onClick={() => setAplicado(`${elegidos.length} símbolo(s) aplicados a la vista de planta.`)}
-            style={{ position: 'relative' }}
-          >
-            Aplicar a la vista
-          </Blueprint>
-          <button className="btn btn-secondary" disabled={elegidos.length === 0} onClick={() => { setElegidos([]); setAplicado(null); }}>
-            Limpiar
-          </button>
-        </div>
-      </Blueprint>
-    </div>
-  );
-}
-
-export default function Administracion({ data, crearPlanta, crearArea, crearEquipo, crearConexion, crearTipoPersonalizado }) {
+export default function Administracion({ data, crearPlanta, crearArea, crearEquipo, crearConexion, crearTipoPersonalizado, actualizarTipoPersonalizado }) {
   const [seccion, setSeccion] = useState('equipos');
 
   return (
@@ -897,10 +799,12 @@ export default function Administracion({ data, crearPlanta, crearArea, crearEqui
           <SeccionPlanta data={data} crearPlanta={crearPlanta} crearArea={crearArea} crearEquipo={crearEquipo} crearConexion={crearConexion} />
         )}
         {seccion === 'equipos' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
-            <SeccionEquipos data={data} crearEquipo={crearEquipo} crearTipoPersonalizado={crearTipoPersonalizado} />
-            <CatalogoSimbolos />
-          </div>
+          <SeccionEquipos
+            data={data}
+            crearEquipo={crearEquipo}
+            crearTipoPersonalizado={crearTipoPersonalizado}
+            actualizarTipoPersonalizado={actualizarTipoPersonalizado}
+          />
         )}
       </div>
     </div>
