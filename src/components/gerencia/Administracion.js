@@ -372,8 +372,8 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
       </p>
       <Mensaje mensaje={mensaje} />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 280px', gap: 'var(--space-4)', alignItems: 'start' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-4)', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', flex: '1 1 420px', minWidth: 0 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-3)', alignItems: 'flex-end' }}>
             <label className="field" style={{ minWidth: 180 }}>
               <span style={kicker}>Nombre</span>
@@ -507,7 +507,7 @@ function CrearTipoEquipo({ data, crearTipoPersonalizado, actualizarTipoPersonali
           </div>
         </div>
 
-        <div>
+        <div style={{ flex: '0 1 280px', minWidth: 220 }}>
           <div style={{ ...kicker, marginBottom: 6 }}>Vista previa</div>
           <div style={{ border: '1px solid var(--color-divider)', background: '#001830', padding: 8 }}>
             <svg
@@ -573,6 +573,7 @@ function CeldaTipo({ nombre, clave, anchoBase, altoBase, formas, editable, onDou
       title={editable ? 'Doble clic para editar' : 'Tipo de fábrica — para cambiarlo, pedímelo por chat'}
       style={{
         cursor: editable ? 'pointer' : 'default',
+        opacity: editable ? 1 : 0.6,
         padding: 'var(--space-3) var(--space-2)',
         display: 'flex',
         flexDirection: 'column',
@@ -588,7 +589,7 @@ function CeldaTipo({ nombre, clave, anchoBase, altoBase, formas, editable, onDou
         </g>
       </svg>
       <span style={{ fontFamily: 'var(--font-heading)', fontSize: 12, letterSpacing: '0.02em', textTransform: 'uppercase' }}>{nombre}</span>
-      <span style={{ fontSize: 10, color: 'var(--color-neutral-500)' }}>{clave}</span>
+      <span style={{ fontSize: 10, color: 'var(--color-neutral-500)' }}>{editable ? 'doble clic para editar' : 'no editable acá'}</span>
     </div>
   );
 }
@@ -625,7 +626,7 @@ function GaleriaTiposEquipo({ data, onEditar }) {
           ? 'Doble clic sobre un tipo para editarlo.'
           : 'Todavía no creaste ningún tipo personalizado — usa el formulario de arriba.'}
       </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 1, background: 'var(--color-neutral-300)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 1, background: 'var(--color-neutral-300)' }}>
         {filtro === 'fabrica'
           ? clavesFabrica.map((clave) => (
               <CeldaTipo
@@ -727,7 +728,7 @@ function SeccionEquipos({ data, crearEquipo, crearTipoPersonalizado, actualizarT
             </select>
           </label>
 
-          <label className="field" style={{ minWidth: 200, flexGrow: 1 }}>
+          <label className="field" style={{ minWidth: 200, flexBasis: 200, flexGrow: 1 }}>
             <span style={kicker}>Descripción</span>
             <input className="input" value={descripcion} onChange={(e) => setDescripcion(e.target.value)} />
           </label>
