@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS, SEED_CONEXIONES } from './mockData';
+import { SCADA_ICONOS } from '../gerencia/scadaIconos';
 
 const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
@@ -239,24 +240,32 @@ export function useAnalistaData() {
     const plantaId = nuevoId('planta');
     const NUM_SECTORES = 10;
     const AREAS_POR_SECTOR = 20; // 10 x 20 = 200 ubicaciones
-    // El Portal SCADA dibuja todos los equipos de un sector en un único
-    // lienzo compartido, así que cada ubicación necesita su propia celda de
-    // coordenadas — si no, los equipos de las 20 ubicaciones de un sector
-    // terminan todos superpuestos en el mismo puñado de posiciones.
-    // Una ubicación con 3 equipos en fila ocupa hasta ~420 unidades de ancho
-    // (ver cajaEquiposDeArea en PortalSCADA.js: PAD_ZONA=70 de cada lado) —
-    // la celda tiene que ser más ancha que eso para que los cuadros
-    // punteados de ubicaciones vecinas no se toquen. Con 4 columnas, un
-    // sector completo de 20 ubicaciones queda algo más ancho que el lienzo
-    // fijo (1400): entra haciendo un zoom-out leve, a cambio de que los
-    // equipos se vean a buen tamaño y bien separados.
-    const AREA_COLS = 4;
-    const AREA_CELL_ANCHO = 520;
-    const AREA_CELL_ALTO = 200;
     // Tamaño propio de cada equipo de la demo (independiente de
     // escalasPorTipo, que es global a toda la app) — para que se vean bien
     // sin achicar a los equipos reales de otras plantas.
     const ESCALA_EQUIPO_DEMO = 1.3;
+
+    // "Ley" de espaciado: en vez de números fijos elegidos a ojo, la
+    // distancia entre equipos sale del tamaño REAL del ícono dominante
+    // (motor/bomba son el 90% de esta composición) — así queda compacto sin
+    // superponerse, y si el día de mañana cambia la composición o la
+    // escala, el espaciado se recalcula solo.
+    const iconoTipico = SCADA_ICONOS.motor;
+    const anchoTipico = iconoTipico.anchoBase * ESCALA_EQUIPO_DEMO;
+    const altoTipico = iconoTipico.altoBase * ESCALA_EQUIPO_DEMO;
+    const MAX_POR_FILA = 3;
+    const PASO_H = Math.round(anchoTipico * 2); // separación centro-a-centro entre equipos de una fila
+    const PASO_V = Math.round(altoTipico + 30); // + lugar para el TAG debajo del ícono, por si hace falta una 2ª fila
+    const PAD_ZONA_APROX = 70; // espeja PAD_ZONA de PortalSCADA.js — margen del cuadro punteado de la ubicación
+    const GAP_ENTRE_UBICACIONES = 60; // separación visible entre los cuadros de dos ubicaciones vecinas
+
+    const AREA_COLS = 4;
+    const AREA_CELL_ANCHO = PASO_H * (MAX_POR_FILA - 1) + PAD_ZONA_APROX * 2 + GAP_ENTRE_UBICACIONES;
+    // Con 500 equipos sobre 200 ubicaciones ninguna pasa de MAX_POR_FILA (ver
+    // el reparto más abajo), así que en la práctica siempre quedan en una
+    // sola fila — se deja el término de PASO_V igual por si el día de mañana
+    // cambia la mezcla y alguna ubicación necesita una 2ª fila.
+    const AREA_CELL_ALTO = PAD_ZONA_APROX * 2 + 18 + GAP_ENTRE_UBICACIONES;
     const sectores = [];
     const areas = [];
     const baseDeArea = {}; // areaId -> {x, y}, esquina de su celda dentro del sector
@@ -289,8 +298,8 @@ export function useAnalistaData() {
         indiceArea += 1;
         const n = contadorPorArea[area.id] || 0;
         contadorPorArea[area.id] = n + 1;
-        const col = n % 3;
-        const fila = Math.floor(n / 3);
+        const col = n % MAX_POR_FILA;
+        const fila = Math.floor(n / MAX_POR_FILA);
         const base = baseDeArea[area.id];
         equipos.push({
           id: nuevoId('eq'),
@@ -298,7 +307,7 @@ export function useAnalistaData() {
           tag: `${prefijo} ${i}`,
           tipo,
           descripcion: '',
-          posicion: { x: base.x + 40 + col * 160, y: base.y + 40 + fila * 140 },
+          posicion: { x: base.x + 40 + col * PASO_H, y: base.y + 40 + fila * PASO_V },
           escalaPropia: ESCALA_EQUIPO_DEMO,
         });
       }
