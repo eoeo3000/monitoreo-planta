@@ -7,7 +7,7 @@ import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaP
 import VistaSectores from './VistaSectores';
 import './portalScada.css';
 
-const PAD_LIENZO = 100; // margen alrededor de los equipos
+const PAD_LIENZO = 50; // margen alrededor de los equipos
 const ANCHO_LIENZO = 1400; // ancho fijo del lienzo (unidades del viewBox), no depende de dónde estén los equipos
 const ALTO_LIENZO = 900; // alto fijo del lienzo
 const ZOOM_MIN = 0.3;

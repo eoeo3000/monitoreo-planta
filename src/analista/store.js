@@ -243,12 +243,20 @@ export function useAnalistaData() {
     // lienzo compartido, así que cada ubicación necesita su propia celda de
     // coordenadas — si no, los equipos de las 20 ubicaciones de un sector
     // terminan todos superpuestos en el mismo puñado de posiciones.
-    // 4 columnas x 5 filas de 340x175 = 1360x875, dentro del lienzo fijo del
-    // Portal SCADA (1400x900) — un sector completo de 20 ubicaciones entra
-    // sin tener que hacer zoom-out al entrar.
+    // Una ubicación con 3 equipos en fila ocupa hasta ~420 unidades de ancho
+    // (ver cajaEquiposDeArea en PortalSCADA.js: PAD_ZONA=70 de cada lado) —
+    // la celda tiene que ser más ancha que eso para que los cuadros
+    // punteados de ubicaciones vecinas no se toquen. Con 4 columnas, un
+    // sector completo de 20 ubicaciones queda algo más ancho que el lienzo
+    // fijo (1400): entra haciendo un zoom-out leve, a cambio de que los
+    // equipos se vean a buen tamaño y bien separados.
     const AREA_COLS = 4;
-    const AREA_CELL_ANCHO = 340;
-    const AREA_CELL_ALTO = 175;
+    const AREA_CELL_ANCHO = 520;
+    const AREA_CELL_ALTO = 200;
+    // Tamaño propio de cada equipo de la demo (independiente de
+    // escalasPorTipo, que es global a toda la app) — para que se vean bien
+    // sin achicar a los equipos reales de otras plantas.
+    const ESCALA_EQUIPO_DEMO = 1.3;
     const sectores = [];
     const areas = [];
     const baseDeArea = {}; // areaId -> {x, y}, esquina de su celda dentro del sector
@@ -290,7 +298,8 @@ export function useAnalistaData() {
           tag: `${prefijo} ${i}`,
           tipo,
           descripcion: '',
-          posicion: { x: base.x + 80 + col * 140, y: base.y + 80 + fila * 120 },
+          posicion: { x: base.x + 40 + col * 160, y: base.y + 40 + fila * 140 },
+          escalaPropia: ESCALA_EQUIPO_DEMO,
         });
       }
     });
