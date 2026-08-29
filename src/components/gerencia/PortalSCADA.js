@@ -76,6 +76,7 @@ export default function PortalSCADA({
   const svgRef = useRef(null);
   const tagInputRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
+  const [panelColapsado, setPanelColapsado] = useState(false);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
@@ -415,7 +416,16 @@ export default function PortalSCADA({
       </div>
 
       <div style={{ display: 'flex', flexGrow: 1, minHeight: 0 }}>
-        <div style={{ width: 220, flexShrink: 0, borderRight: '1px solid var(--scada-borde)', padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', overflowY: 'auto' }}>
+        <div style={{ width: panelColapsado ? 26 : 220, flexShrink: 0, borderRight: '1px solid var(--scada-borde)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <button
+            onClick={() => setPanelColapsado((c) => !c)}
+            title={panelColapsado ? 'Mostrar panel' : 'Ocultar panel — más espacio para el lienzo'}
+            style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: 'none', borderBottom: '1px solid var(--scada-borde)', cursor: 'pointer', padding: '6px 0', fontSize: 12, flexShrink: 0 }}
+          >
+            {panelColapsado ? '»' : '«'}
+          </button>
+          {!panelColapsado && (
+          <div style={{ padding: 'var(--space-3)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', overflowY: 'auto', flexGrow: 1, minWidth: 196 }}>
           <div>
             <div style={tituloSeccion}>Sistemas</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -576,6 +586,8 @@ export default function PortalSCADA({
                   );
                 })()}
             </>
+          )}
+          </div>
           )}
         </div>
 
