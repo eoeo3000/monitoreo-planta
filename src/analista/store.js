@@ -159,15 +159,19 @@ export function useAnalistaData() {
     return id;
   }, []);
 
+  // Cada equipo nuevo se ubica en una celda de grilla propia dentro de su
+  // área (según cuántos equipos ya tiene esa área) en vez de nacer siempre
+  // en POSICION_DEFAULT — si no, dos equipos creados a mano en la misma
+  // área quedan apilados exactamente uno sobre el otro: al hacer clic
+  // siempre se selecciona el mismo (el que quedó arriba en el dibujo), y
+  // nunca se puede elegir el otro como destino de una conexión.
   const crearEquipo = useCallback((areaId, { tag, tipo, descripcion }) => {
     const id = nuevoId('eq');
-    setData((d) => ({
-      ...d,
-      equipos: [
-        ...d.equipos,
-        { id, areaId, tag, tipo, descripcion: descripcion || '', posicion: { ...POSICION_DEFAULT } },
-      ],
-    }));
+    setData((d) => {
+      const n = d.equipos.filter((eq) => eq.areaId === areaId).length;
+      const posicion = { x: POSICION_DEFAULT.x + (n % 5) * 140, y: POSICION_DEFAULT.y + Math.floor(n / 5) * 120 };
+      return { ...d, equipos: [...d.equipos, { id, areaId, tag, tipo, descripcion: descripcion || '', posicion }] };
+    });
     return id;
   }, []);
 
