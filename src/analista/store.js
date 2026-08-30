@@ -160,16 +160,41 @@ export function useAnalistaData() {
   }, []);
 
   // Cada equipo nuevo se ubica en una celda de grilla propia dentro de su
-  // área (según cuántos equipos ya tiene esa área) en vez de nacer siempre
-  // en POSICION_DEFAULT — si no, dos equipos creados a mano en la misma
-  // área quedan apilados exactamente uno sobre el otro: al hacer clic
-  // siempre se selecciona el mismo (el que quedó arriba en el dibujo), y
-  // nunca se puede elegir el otro como destino de una conexión.
+  // área (según cuántos equipos ya tiene esa área) en vez de apilarse sobre
+  // los que ya existen — si no, dos equipos creados a mano en la misma área
+  // quedan exactamente superpuestos: al hacer clic siempre se selecciona el
+  // mismo (el que quedó arriba en el dibujo), y nunca se puede elegir el
+  // otro como destino de una conexión.
+  //
+  // El ORIGEN de esa grilla ya no es un punto fijo (80,80): si el área ya
+  // tiene equipos, se ancla al primero de ellos (esté donde esté — el
+  // usuario pudo haberlo movido); si el área es nueva pero la planta ya
+  // tiene equipos en OTRAS áreas, se ancla pegado al borde derecho de ese
+  // grupo. Solo si la planta entera está vacía se usa POSICION_DEFAULT.
+  // Así un equipo (o un área) nuevo siempre aparece junto al resto de la
+  // planta, sin importar a qué parte del lienzo se haya movido el conjunto.
   const crearEquipo = useCallback((areaId, { tag, tipo, descripcion }) => {
     const id = nuevoId('eq');
     setData((d) => {
-      const n = d.equipos.filter((eq) => eq.areaId === areaId).length;
-      const posicion = { x: POSICION_DEFAULT.x + (n % 5) * 140, y: POSICION_DEFAULT.y + Math.floor(n / 5) * 120 };
+      const equiposDelArea = d.equipos.filter((eq) => eq.areaId === areaId);
+      const n = equiposDelArea.length;
+      let origen;
+      if (n > 0) {
+        origen = equiposDelArea[0].posicion || POSICION_DEFAULT;
+      } else {
+        const area = d.areas.find((a) => a.id === areaId);
+        const equiposDeOtrasAreas = area
+          ? d.equipos.filter((eq) => eq.areaId !== areaId && d.areas.find((a) => a.id === eq.areaId)?.plantaId === area.plantaId)
+          : [];
+        if (equiposDeOtrasAreas.length) {
+          const maxX = Math.max(...equiposDeOtrasAreas.map((eq) => (eq.posicion || POSICION_DEFAULT).x));
+          const minY = Math.min(...equiposDeOtrasAreas.map((eq) => (eq.posicion || POSICION_DEFAULT).y));
+          origen = { x: maxX + 160, y: minY };
+        } else {
+          origen = POSICION_DEFAULT;
+        }
+      }
+      const posicion = { x: origen.x + (n % 5) * 140, y: origen.y + Math.floor(n / 5) * 120 };
       return { ...d, equipos: [...d.equipos, { id, areaId, tag, tipo, descripcion: descripcion || '', posicion }] };
     });
     return id;
@@ -231,6 +256,39 @@ export function useAnalistaData() {
       ...d,
       equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, etiquetaOffset } : eq)),
     }));
+  }, []);
+
+  // Detecta equipos "sueltos" (lejos de la mediana del resto de la planta —
+  // mismo criterio que ya usa el Portal SCADA para no dejar que un equipo
+  // aislado estire el zoom) y los reubica pegados al borde de ese grupo
+  // principal, en una grilla propia para no superponerlos entre sí. Corrige
+  // de una sola vez plantas que ya quedaron con equipos perdidos, en vez de
+  // tener que arrastrarlos uno por uno a mano.
+  const reunirEquiposDispersos = useCallback((plantaId) => {
+    setData((d) => {
+      const areaIdsDePlanta = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
+      const equiposDePlanta = d.equipos.filter((eq) => areaIdsDePlanta.includes(eq.areaId));
+      if (equiposDePlanta.length < 2) return d;
+      const mediana = (valores) => {
+        const s = [...valores].sort((a, b) => a - b);
+        const mitad = Math.floor(s.length / 2);
+        return s.length % 2 ? s[mitad] : (s[mitad - 1] + s[mitad]) / 2;
+      };
+      const medX = mediana(equiposDePlanta.map((eq) => (eq.posicion || POSICION_DEFAULT).x));
+      const medY = mediana(equiposDePlanta.map((eq) => (eq.posicion || POSICION_DEFAULT).y));
+      const UMBRAL_DISPERSO = 1200;
+      let siguienteHueco = 0;
+      const equipos = d.equipos.map((eq) => {
+        if (!areaIdsDePlanta.includes(eq.areaId)) return eq;
+        const pos = eq.posicion || POSICION_DEFAULT;
+        if (Math.hypot(pos.x - medX, pos.y - medY) <= UMBRAL_DISPERSO) return eq;
+        const col = siguienteHueco % 5;
+        const fila = Math.floor(siguienteHueco / 5);
+        siguienteHueco += 1;
+        return { ...eq, posicion: { x: medX + 200 + col * 140, y: medY + fila * 120 } };
+      });
+      return { ...d, equipos };
+    });
   }, []);
 
   // Genera una planta nueva (no toca las existentes) con muchos sectores,
@@ -410,6 +468,7 @@ export function useAnalistaData() {
     cambiarEscalaEquipo,
     moverTituloArea,
     moverEtiquetaEquipo,
+    reunirEquiposDispersos,
     crearTipoPersonalizado,
     actualizarTipoPersonalizado,
     crearConexion,

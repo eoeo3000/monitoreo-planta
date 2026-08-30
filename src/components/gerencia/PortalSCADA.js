@@ -89,6 +89,7 @@ export default function PortalSCADA({
   cambiarEscalaEquipo,
   moverTituloArea,
   moverEtiquetaEquipo,
+  reunirEquiposDispersos,
 }) {
   const svgRef = useRef(null);
   const tagInputRef = useRef(null);
@@ -590,6 +591,17 @@ export default function PortalSCADA({
 
           {modoEdicion && (
             <>
+              <button
+                onClick={() => {
+                  if (window.confirm('Esto reubica los equipos que quedaron lejos del resto, pegándolos al grupo principal. No se puede deshacer. ¿Continuar?')) {
+                    reunirEquiposDispersos(plantaId);
+                  }
+                }}
+                title="Busca equipos alejados del resto de la planta y los reubica junto al grupo principal"
+                style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
+              >
+                Reunir equipos dispersos
+              </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                 <span style={{ color: 'var(--scada-texto-2)' }}>Zoom</span>
                 <button
