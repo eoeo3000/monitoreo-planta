@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS, SEED_CONEXIONES } from './mockData';
 import { SCADA_ICONOS } from '../gerencia/scadaIconos';
+import { iconoConEscala } from '../gerencia/iconos';
 
 const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
@@ -291,6 +292,123 @@ export function useAnalistaData() {
     });
   }, []);
 
+  // Reacomoda TODOS los equipos de una planta en una grilla apretada, área
+  // por área, y además reubica las áreas mismas (los cuadros punteados) una
+  // al lado de la otra sin huecos entre sí — a diferencia de
+  // reunirEquiposDispersos (que solo corrige equipos perdidos), esto
+  // reorganiza toda la planta de una para minimizar el espacio vacío.
+  //
+  // Misma "ley de espaciado" que usa generarPlantaDePrueba más abajo
+  // (distancias derivadas del tamaño REAL del ícono, no números sueltos),
+  // pero calculada por área a partir de sus propios equipos — una planta
+  // real mezcla tipos de tamaños distintos dentro de una misma área, así que
+  // no hay un "ícono típico" único como en la demo.
+  //
+  // PAD_ZONA_COMPACTAR (40) y ALTO_TITULO_COMPACTAR (18) espejan PAD_ZONA y
+  // el alto reservado al título en PortalSCADA.js — si esos cambian ahí, hay
+  // que actualizarlos acá para que el cuadro que resulta después de
+  // compactar siga siendo el mínimo posible (ni más chico, que recortaría
+  // el título, ni más grande, que dejaría aire de más).
+  const compactarPlanta = useCallback((plantaId) => {
+    const PAD_ZONA_COMPACTAR = 40;
+    const ALTO_TITULO_COMPACTAR = 18;
+    const AREA_COLS_COMPACTAR = 3;
+
+    setData((d) => {
+      const areasDePlanta = d.areas.filter((a) => a.plantaId === plantaId);
+      const equiposDePlanta = d.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
+
+      // Referencia única de espaciado ENTRE áreas — un ancho de ícono típico
+      // de esta planta (el más grande, para no dejar dos equipos de áreas
+      // vecinas casi tocándose si una de las dos usa íconos chicos).
+      const anchosPlanta = equiposDePlanta.map((eq) => iconoConEscala(eq, d)?.anchoBase * (iconoConEscala(eq, d)?.escala || 1)).filter((n) => n > 0);
+      const gapEntreAreas = Math.round(Math.max(...anchosPlanta, 60));
+
+      const posicionRelativa = {}; // equipoId -> {x, y} relativo al origen de SU área
+      const areaIdDeEquipo = {};
+      const bloques = []; // { areaId, ancho, alto }, en el mismo orden que areasDePlanta
+
+      areasDePlanta.forEach((area) => {
+        const eqs = d.equipos
+          .filter((eq) => eq.areaId === area.id)
+          .slice()
+          .sort((a, b) => {
+            const pa = a.posicion || POSICION_DEFAULT;
+            const pb = b.posicion || POSICION_DEFAULT;
+            return pa.y - pb.y || pa.x - pb.x;
+          });
+        if (eqs.length === 0) return;
+
+        const dimensiones = eqs.map((eq) => {
+          const icono = iconoConEscala(eq, d);
+          return { eq, ancho: icono ? icono.anchoBase * icono.escala : 0, alto: icono ? icono.altoBase * icono.escala : 0 };
+        });
+        const anchoMax = Math.max(...dimensiones.map((x) => x.ancho), 1);
+        const altoMax = Math.max(...dimensiones.map((x) => x.alto), 1);
+        const pasoH = Math.round(anchoMax * 2); // separación centro-a-centro entre equipos de una fila
+        const pasoV = Math.round(altoMax + 30); // + lugar para el TAG debajo del ícono
+        const cols = Math.max(1, Math.ceil(Math.sqrt(eqs.length))); // bloque lo más cuadrado posible
+        const filas = Math.ceil(eqs.length / cols);
+        const yBase = PAD_ZONA_COMPACTAR + ALTO_TITULO_COMPACTAR + altoMax;
+
+        dimensiones.forEach(({ eq }, i) => {
+          const col = i % cols;
+          const fila = Math.floor(i / cols);
+          areaIdDeEquipo[eq.id] = area.id;
+          // Todos los equipos del área se centran en una celda del mismo
+          // ancho (anchoMax), no en su propio ancho — así quedan alineados
+          // en columnas parejas aunque el área mezcle tipos de tamaños
+          // distintos, en vez de un borde izquierdo dentado.
+          posicionRelativa[eq.id] = { x: PAD_ZONA_COMPACTAR + anchoMax / 2 + col * pasoH, y: yBase + fila * pasoV };
+        });
+
+        bloques.push({
+          areaId: area.id,
+          ancho: PAD_ZONA_COMPACTAR * 2 + anchoMax + (cols - 1) * pasoH,
+          alto: PAD_ZONA_COMPACTAR * 2 + ALTO_TITULO_COMPACTAR + altoMax + (filas - 1) * pasoV,
+        });
+      });
+
+      // Empaqueta los bloques de área de a AREA_COLS_COMPACTAR por fila, cada
+      // fila apretada por el ancho REAL de sus propios bloques (no columnas
+      // alineadas entre filas) — así un área chica no hereda el ancho de una
+      // grande que quedó en la misma columna en otra fila.
+      const origenDeArea = {};
+      let y = 0;
+      for (let i = 0; i < bloques.length; i += AREA_COLS_COMPACTAR) {
+        const fila = bloques.slice(i, i + AREA_COLS_COMPACTAR);
+        let x = 0;
+        let altoFila = 0;
+        for (const b of fila) {
+          origenDeArea[b.areaId] = { x, y };
+          x += b.ancho + gapEntreAreas;
+          altoFila = Math.max(altoFila, b.alto);
+        }
+        y += altoFila + gapEntreAreas;
+      }
+
+      const equipos = d.equipos.map((eq) => {
+        const rel = posicionRelativa[eq.id];
+        if (!rel) return eq;
+        const origen = origenDeArea[areaIdDeEquipo[eq.id]];
+        return { ...eq, posicion: { x: Math.round(origen.x + rel.x), y: Math.round(origen.y + rel.y) } };
+      });
+
+      // El compactado reubica equipos a gran escala: un quiebre o puerto
+      // fijado a mano en una conexión de esta planta quedaría apuntando a
+      // coordenadas del layout viejo, ya sin relación con el nuevo — se
+      // resetean para que esas conexiones vuelvan al ruteo automático (que
+      // ya esquiva equipos por su cuenta).
+      const conexiones = d.conexiones.map((c) => {
+        if (c.plantaId !== plantaId) return c;
+        const { quiebreManual, puertoDe, puertoA, ...resto } = c;
+        return resto;
+      });
+
+      return { ...d, equipos, conexiones };
+    });
+  }, []);
+
   // Genera una planta nueva (no toca las existentes) con muchos sectores,
   // ubicaciones y equipos de nombres genéricos — para probar cómo se
   // comporta la app (Vista de Sectores + Portal SCADA) con una cantidad de
@@ -469,6 +587,7 @@ export function useAnalistaData() {
     moverTituloArea,
     moverEtiquetaEquipo,
     reunirEquiposDispersos,
+    compactarPlanta,
     crearTipoPersonalizado,
     actualizarTipoPersonalizado,
     crearConexion,
