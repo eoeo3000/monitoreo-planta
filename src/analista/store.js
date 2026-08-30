@@ -143,53 +143,83 @@ function calcularLayoutCompacto(d, plantaId, factorEscala, arObjetivo) {
 
   if (bloques.length === 0) return { equipos: d.equipos, densidad: 0, escalaMax: 0 };
 
-  // Empaqueta los bloques de área en filas — a diferencia de repartirlos en
-  // una cantidad fija de áreas por fila (deja una sola área chica ocupando
-  // una fila entera casi vacía cuando el resto no divide parejo) o de un
-  // ancho de fila calculado de antemano (con pocas áreas de tamaños muy
-  // distintos, una sola área grande alcanza para desviar mucho ese cálculo),
-  // cada área se agrega una por una a la fila que se está armando, EXCEPTO
-  // cuando agregarla dejaría la proporción ancho/alto del conjunto entero
-  // más lejos de arObjetivo que arrancar una fila nueva — ahí se prueban las
-  // dos opciones de verdad (con las filas ya cerradas más la que se está
-  // evaluando) y se elige la que da una proporción más parecida a la del
-  // panel real.
-  const distanciaAr = (ancho, alto) => (ancho > 0 && alto > 0 ? Math.abs(Math.log(ancho / alto / arObjetivo)) : Infinity);
-  const anchoDeFilas = (filas) => Math.max(0, ...filas.map((f) => f.ancho));
-  const altoDeFilas = (filas) => filas.reduce((acc, f) => acc + f.alto, 0) + Math.max(0, filas.length - 1) * gapEntreAreas;
-
-  const filasCerradas = [];
-  let filaActual = null;
-  bloques.forEach((b) => {
-    if (!filaActual) {
-      filaActual = { bloques: [b], ancho: b.ancho, alto: b.alto };
-      return;
-    }
-    const siSeAgrega = { bloques: [...filaActual.bloques, b], ancho: filaActual.ancho + gapEntreAreas + b.ancho, alto: Math.max(filaActual.alto, b.alto) };
-    const distSiAgrega = distanciaAr(anchoDeFilas([...filasCerradas, siSeAgrega]), altoDeFilas([...filasCerradas, siSeAgrega]));
-    const filaNueva = { bloques: [b], ancho: b.ancho, alto: b.alto };
-    const distSiNuevaFila = distanciaAr(anchoDeFilas([...filasCerradas, filaActual, filaNueva]), altoDeFilas([...filasCerradas, filaActual, filaNueva]));
-    if (distSiAgrega <= distSiNuevaFila) {
-      filaActual = siSeAgrega;
-    } else {
-      filasCerradas.push(filaActual);
-      filaActual = filaNueva;
-    }
-  });
-  if (filaActual) filasCerradas.push(filaActual);
-
+  // Empaqueta los bloques de área por "skyline" (el mismo tipo de algoritmo
+  // que se usa para acomodar sprites en una textura de videojuego): en vez
+  // de repartir las áreas en filas rígidas —donde la fila entera queda tan
+  // alta como su miembro más alto, y todo lo que sigue debajo de esa fila
+  // arranca recién después, aunque el resto de sus miembros fueran mucho
+  // más bajos y hubiera dejado hueco libre a los costados—, cada área se
+  // ubica donde quede MÁS ARRIBA posible dentro de un ancho objetivo fijo
+  // (`anchoObjetivo`, calculado del área total de los bloques y la
+  // proporción real del panel). Así una área baja puede terminar bien
+  // pegada debajo de una vecina más alta, en vez de esperar a que termine
+  // toda una fila completa.
+  //
+  // El "skyline" es el perfil de altura ya ocupada en cada tramo de X —
+  // arranca como un único tramo de altura 0 que cubre anchoObjetivo. Se
+  // procesan las áreas de más alta a más baja (empaqueta mejor: las altas
+  // definen la forma general primero, y las bajas van rellenando los
+  // huecos que van quedando) — el orden de llegada de las áreas no importa
+  // para el resultado, solo para qué tan parejo queda.
+  let anchoObjetivo = Math.sqrt(bloques.reduce((acc, b) => acc + b.ancho * b.alto, 0) * arObjetivo) || 1;
+  let skyline = [{ x: 0, ancho: anchoObjetivo, y: 0 }];
   const origenDeArea = {};
-  let y = 0;
-  filasCerradas.forEach((fila) => {
-    let x = 0;
-    fila.bloques.forEach((b) => {
-      origenDeArea[b.areaId] = { x, y };
-      x += b.ancho + gapEntreAreas;
+
+  const alturaEnTramo = (xIni, ancho) => {
+    let y = 0;
+    const xFin = xIni + ancho;
+    skyline.forEach((seg) => {
+      if (seg.x + seg.ancho <= xIni || seg.x >= xFin) return;
+      y = Math.max(y, seg.y);
     });
-    y += fila.alto + gapEntreAreas;
-  });
-  const anchoTotal = anchoDeFilas(filasCerradas);
-  const altoTotal = altoDeFilas(filasCerradas);
+    return y;
+  };
+
+  [...bloques]
+    .sort((a, b) => b.alto - a.alto)
+    .forEach((b) => {
+      // Candidatos: el borde izquierdo de cada tramo del skyline — son los
+      // únicos puntos donde tiene sentido empezar un rectángulo nuevo.
+      let mejorX = 0;
+      let mejorY = Infinity;
+      skyline.forEach((seg) => {
+        const y = alturaEnTramo(seg.x, b.ancho);
+        if (y < mejorY) {
+          mejorY = y;
+          mejorX = seg.x;
+        }
+      });
+      // Si ni el mejor candidato entra en el ancho objetivo (un área más
+      // ancha que todo el resto junto), se agranda lo justo y necesario —
+      // no debería angostar el resto del empaquetado.
+      if (mejorX + b.ancho > anchoObjetivo) anchoObjetivo = mejorX + b.ancho;
+
+      origenDeArea[b.areaId] = { x: mejorX, y: mejorY };
+
+      // Actualiza el skyline: los tramos que este bloque cubre pasan a su
+      // nueva altura (con el margen entre áreas ya sumado); lo que quede
+      // de esos tramos a los costados se conserva a su altura de antes.
+      const xFin = mejorX + b.ancho;
+      const nuevoSkyline = [];
+      let agregado = false;
+      skyline.forEach((seg) => {
+        const segFin = seg.x + seg.ancho;
+        if (segFin <= mejorX || seg.x >= xFin) {
+          nuevoSkyline.push(seg);
+          return;
+        }
+        if (seg.x < mejorX) nuevoSkyline.push({ x: seg.x, ancho: mejorX - seg.x, y: seg.y });
+        if (!agregado) {
+          nuevoSkyline.push({ x: mejorX, ancho: b.ancho, y: mejorY + b.alto + gapEntreAreas });
+          agregado = true;
+        }
+        if (segFin > xFin) nuevoSkyline.push({ x: xFin, ancho: segFin - xFin, y: seg.y });
+      });
+      skyline = nuevoSkyline.sort((s1, s2) => s1.x - s2.x);
+    });
+
+  const anchoTotal = bloques.reduce((max, b) => Math.max(max, origenDeArea[b.areaId].x + b.ancho), 0);
+  const altoTotal = bloques.reduce((max, b) => Math.max(max, origenDeArea[b.areaId].y + b.alto), 0);
 
   const equipos = d.equipos.map((eq) => {
     const rel = posicionRelativa[eq.id];
