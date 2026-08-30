@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
-import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
+import { iconoConEscala } from '../../gerencia/iconos';
 import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto, cajaEquipo } from '../../gerencia/puertos';
 import VistaSectores from './VistaSectores';
 import './portalScada.css';
@@ -76,26 +76,6 @@ function buscarPosicionSinSolape(posDeseada, iconoMovido, idExcluir, equiposDePl
   return posDeseada;
 }
 
-// Resuelve el ícono de un tipo tanto si es de fábrica (scadaIconos.js) como
-// si fue creado por el usuario (data.tiposPersonalizados) — el resto del
-// componente no distingue entre ambos casos.
-function iconoBaseDe(tipo, data) {
-  if (SCADA_ICONOS[tipo]) return SCADA_ICONOS[tipo];
-  const personalizado = (data.tiposPersonalizados || []).find((t) => t.clave === tipo);
-  return personalizado ? iconoDeTipoPersonalizado(personalizado) : null;
-}
-
-// El panel "Tamaños de equipo" sobrescribe, por tipo, un multiplicador de
-// escala sobre el tamaño base del ícono (data.escalasPorTipo); el doble clic
-// sobre UN equipo puede sobrescribirlo de nuevo solo para ese equipo
-// (eq.escalaPropia) — el más específico gana.
-function iconoConEscala(eq, data) {
-  const base = iconoBaseDe(eq.tipo, data);
-  if (!base) return null;
-  const escala = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
-  return { ...base, escala };
-}
-
 // `conexion` puede traer puertoDe/puertoA (fijados a mano arrastrando el
 // extremo) y quiebreManual (el tramo medio movido a mano) — cuando no los
 // trae, se comporta como antes: puerto automático según dirección, quiebre
@@ -133,6 +113,7 @@ export default function PortalSCADA({
   moverTituloArea,
   moverEtiquetaEquipo,
   reunirEquiposDispersos,
+  compactarPlanta,
 }) {
   const svgRef = useRef(null);
   // Tamaño real en píxeles del panel del lienzo — lo usa el encuadre de más
@@ -767,6 +748,21 @@ export default function PortalSCADA({
                 style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
               >
                 Reunir equipos dispersos
+              </button>
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      'Esto reacomoda TODOS los equipos de la planta en una grilla apretada, área por área, y reubica las áreas mismas una al lado de la otra sin huecos. También resetea los quiebres/puertos de conexión fijados a mano (quedan libres para el ruteo automático). No se puede deshacer. ¿Continuar?'
+                    )
+                  ) {
+                    compactarPlanta(plantaId);
+                  }
+                }}
+                title="Reacomoda equipos y áreas en una grilla apretada para minimizar el espacio vacío"
+                style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
+              >
+                Compactar planta
               </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                 <span style={{ color: 'var(--scada-texto-2)' }}>Zoom</span>
