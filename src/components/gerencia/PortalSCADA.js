@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { iconoDeTipoPersonalizado } from '../../gerencia/tiposPersonalizados';
-import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto } from '../../gerencia/puertos';
+import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto, cajaEquipo } from '../../gerencia/puertos';
 import VistaSectores from './VistaSectores';
 import './portalScada.css';
 
@@ -41,6 +41,40 @@ const SIN_DIAGNOSTICO = 'var(--e-sindiagnostico)';
 const TIPOS_VASIJA = ['tanque', 'agitador'];
 
 const ajustarACuadricula = (v) => Math.round(v / CUADRICULA) * CUADRICULA;
+// Separación mínima entre equipos al corregir un solapamiento, y hasta dónde
+// se aleja la búsqueda del hueco libre más cercano — mismo patrón en espiral
+// que usa puertos.js para buscar un quiebre libre al esquivar una tubería.
+const MARGEN_SOLAPAMIENTO = 4;
+const RADIO_LIBRE_MAX = 1000;
+
+const cajasSolapan = (a, b, margen) => a.izq - margen < b.der && a.der + margen > b.izq && a.arriba - margen < b.abajo && a.abajo + margen > b.arriba;
+
+// Al soltar un equipo, si su posición final queda pisando a otro, busca en
+// espiral (en pasos de CUADRICULA) el hueco libre más cercano — nunca deja
+// dos equipos exactamente superpuestos ni el que "gana" el clic dependiendo
+// de cuál se dibujó último. Si no encuentra hueco dentro de RADIO_LIBRE_MAX
+// (zona realmente saturada), se resigna y deja la posición pedida.
+function buscarPosicionSinSolape(posDeseada, iconoMovido, idExcluir, equiposDePlanta, data, posicionDe) {
+  const otrasCajas = equiposDePlanta
+    .filter((eq) => eq.id !== idExcluir)
+    .map((eq) => cajaEquipo(posicionDe(eq), iconoConEscala(eq, data)))
+    .filter(Boolean);
+  const libre = (pos) => {
+    const caja = cajaEquipo(pos, iconoMovido);
+    return !otrasCajas.some((otra) => cajasSolapan(caja, otra, MARGEN_SOLAPAMIENTO));
+  };
+  if (libre(posDeseada)) return posDeseada;
+  for (let radio = CUADRICULA; radio <= RADIO_LIBRE_MAX; radio += CUADRICULA) {
+    for (let dx = -radio; dx <= radio; dx += CUADRICULA) {
+      for (let dy = -radio; dy <= radio; dy += CUADRICULA) {
+        if (Math.abs(dx) !== radio && Math.abs(dy) !== radio) continue;
+        const candidato = { x: ajustarACuadricula(posDeseada.x + dx), y: ajustarACuadricula(posDeseada.y + dy) };
+        if (libre(candidato)) return candidato;
+      }
+    }
+  }
+  return posDeseada;
+}
 
 // Resuelve el ícono de un tipo tanto si es de fábrica (scadaIconos.js) como
 // si fue creado por el usuario (data.tiposPersonalizados) — el resto del
@@ -65,15 +99,17 @@ function iconoConEscala(eq, data) {
 // `conexion` puede traer puertoDe/puertoA (fijados a mano arrastrando el
 // extremo) y quiebreManual (el tramo medio movido a mano) — cuando no los
 // trae, se comporta como antes: puerto automático según dirección, quiebre
-// automático a mitad de camino.
-function rutaEntreEquiposScada(conexion, deEq, aEq, posDe, posA, data) {
+// automático a mitad de camino (o esquivando obstáculos si `cajasEquipos`
+// trae las cajas de los demás equipos de la planta — ver rutaPuertos).
+function rutaEntreEquiposScada(conexion, deEq, aEq, posDe, posA, data, cajasEquipos) {
   const iconoDe = iconoConEscala(deEq, data);
   const iconoA = iconoConEscala(aEq, data);
   if (!iconoDe || !iconoA) return null;
   const puertoDe = puertoElegido(posDe, iconoDe, posA, conexion.puertoDe);
   const puertoA = puertoElegido(posA, iconoA, posDe, conexion.puertoA);
   if (!puertoDe || !puertoA) return null;
-  return rutaPuertos(puertoDe, puertoA, conexion.quiebreManual);
+  const obstaculos = cajasEquipos ? cajasEquipos.filter((c) => c.id !== deEq.id && c.id !== aEq.id).map((c) => c.caja) : undefined;
+  return rutaPuertos(puertoDe, puertoA, conexion.quiebreManual, obstaculos);
 }
 
 // Portal de gerencia: gramática visual aparte de Industry (piel "Overlook
@@ -151,6 +187,14 @@ export default function PortalSCADA({
   const conexionesDePlanta = data.conexiones.filter((c) => c.plantaId === plantaId);
 
   const posicionDe = (eq) => (posicionArrastre?.id === eq.id ? posicionArrastre : eq.posicion) || { x: 80, y: 80 };
+  // Caja de cada equipo de la planta, recalculada en cada render — la usa el
+  // ruteo de conexiones (rutaEntreEquiposScada) para saber qué esquivar al
+  // trazar una tubería. Vive acá y no dentro de rutaEntreEquiposScada porque
+  // esta última se llama una vez por conexión y no tiene por qué recorrer
+  // todos los equipos cada vez.
+  const cajasEquiposPlanta = equiposDePlanta
+    .map((eq) => ({ id: eq.id, caja: cajaEquipo(posicionDe(eq), iconoConEscala(eq, data)) }))
+    .filter((c) => c.caja);
   const estadoDe = (eq) => {
     const cond = condicionActual(eq.id, data.diagnosticos);
     return cond ? cond.severidad : null;
@@ -186,13 +230,7 @@ export default function PortalSCADA({
     // tapado por el propio ícono. Se calcula el borde real de cada equipo
     // (centro ± mitad del ancho, borde inferior menos el alto) y PAD_ZONA
     // queda como lo que debería ser: aire extra alrededor de la silueta.
-    const bordes = eqs.map((eq) => {
-      const pos = posicionDe(eq);
-      const icono = iconoConEscala(eq, data);
-      const ancho = icono ? icono.anchoBase * icono.escala : 0;
-      const alto = icono ? icono.altoBase * icono.escala : 0;
-      return { izq: pos.x - ancho / 2, der: pos.x + ancho / 2, arriba: pos.y - alto, abajo: pos.y };
-    });
+    const bordes = eqs.map((eq) => cajaEquipo(posicionDe(eq), iconoConEscala(eq, data)) || { izq: 0, der: 0, arriba: 0, abajo: 0 });
     const minX = Math.min(...bordes.map((b) => b.izq));
     const maxX = Math.max(...bordes.map((b) => b.der));
     const minY = Math.min(...bordes.map((b) => b.arriba));
@@ -345,7 +383,7 @@ export default function PortalSCADA({
       const de = equiposDePlanta.find((eq) => eq.id === c.deId);
       const a = equiposDePlanta.find((eq) => eq.id === c.aId);
       if (!de || !a) return;
-      const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data);
+      const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data, cajasEquiposPlanta);
       if (!ruta) return;
       [ruta.inicio, ruta.medio, ruta.fin].forEach((p) => {
         const dx = Math.abs(punto.x - p.x);
@@ -465,7 +503,12 @@ export default function PortalSCADA({
       return;
     }
     if (posicionArrastre) {
-      moverEquipo(posicionArrastre.id, { x: posicionArrastre.x, y: posicionArrastre.y });
+      const eqArrastrado = equiposDePlanta.find((e) => e.id === posicionArrastre.id);
+      const iconoArrastrado = eqArrastrado ? iconoConEscala(eqArrastrado, data) : null;
+      const posFinal = iconoArrastrado
+        ? buscarPosicionSinSolape({ x: posicionArrastre.x, y: posicionArrastre.y }, iconoArrastrado, posicionArrastre.id, equiposDePlanta, data, posicionDe)
+        : { x: posicionArrastre.x, y: posicionArrastre.y };
+      moverEquipo(posicionArrastre.id, posFinal);
     } else if (mousedownInfo && modoConectar) {
       const eq = equiposDePlanta.find((e) => e.id === mousedownInfo.id);
       if (eq) onClickNodo(eq);
@@ -911,7 +954,7 @@ export default function PortalSCADA({
                 const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                 const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                 if (!de || !a) return null;
-                const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data);
+                const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data, cajasEquiposPlanta);
                 if (!ruta) return null;
                 return (
                   <g key={c.id}>
@@ -999,7 +1042,7 @@ export default function PortalSCADA({
                   const de = equiposDePlanta.find((eq) => eq.id === c.deId);
                   const a = equiposDePlanta.find((eq) => eq.id === c.aId);
                   if (!de || !a) return null;
-                  const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data);
+                  const ruta = rutaEntreEquiposScada(c, de, a, posicionDe(de), posicionDe(a), data, cajasEquiposPlanta);
                   if (!ruta) return null;
                   return (
                     <g key={`manijas-${c.id}`}>
@@ -1049,7 +1092,7 @@ export default function PortalSCADA({
                   if (!de || !a) return null;
                   if (conexionArrastre.extremo === 'elbo') {
                     const alineado = alinearConOtrasLineas(mousePos, conexion.id);
-                    const rutaTentativa = rutaEntreEquiposScada({ ...conexion, quiebreManual: alineado }, de, a, posicionDe(de), posicionDe(a), data);
+                    const rutaTentativa = rutaEntreEquiposScada({ ...conexion, quiebreManual: alineado }, de, a, posicionDe(de), posicionDe(a), data, cajasEquiposPlanta);
                     if (!rutaTentativa) return null;
                     return <path d={rutaTentativa.d} fill="none" stroke="var(--scada-titulo)" strokeWidth={2} strokeDasharray="4 3" pointerEvents="none" />;
                   }
