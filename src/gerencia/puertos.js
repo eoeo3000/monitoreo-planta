@@ -61,7 +61,13 @@ export function elegirPuerto(icono, posicion, posicionOtro) {
 export function puertoHacia(posicion, icono, posicionOtro) {
   if (!icono) return null;
   const nombre = elegirPuerto(icono, posicion, posicionOtro);
-  return nombre ? puntoAbsoluto(posicion, icono, nombre) : null;
+  if (nombre) return puntoAbsoluto(posicion, icono, nombre);
+  // Sin puertos declarados (p. ej. un tipo personalizado creado sin agregar
+  // ninguno): en vez de no conectar nada, se usa el mismo mecanismo que ya
+  // existe para arrastrar un extremo a mano — el punto real del contorno
+  // más cercano a la posición del otro equipo.
+  const perimetral = puntoPerimetroCercano(posicion, icono, posicionOtro);
+  return perimetral ? puntoDeManual(posicion, icono, perimetral) : null;
 }
 
 function dimensionesIcono(icono) {
