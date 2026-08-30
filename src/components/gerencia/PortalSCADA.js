@@ -11,16 +11,18 @@ import './portalScada.css';
 // alto del catálogo (tanque/agitador, 90 unidades) no quede cortado contra
 // el borde del lienzo cuando ese equipo está cerca del origen.
 const PAD_LIENZO = 90;
-const ANCHO_LIENZO = 1400; // ancho fijo del lienzo (unidades del viewBox), no depende de dónde estén los equipos
-const ALTO_LIENZO = 900; // alto fijo del lienzo
+// Tope de qué tan grande puede ponerse el lienzo (evita que un equipo
+// aislado fuerce el zoom-out de toda la planta): más allá de esto, el
+// encuadre se centra en la mediana de las posiciones en vez de en el
+// mínimo/máximo real.
+const MAX_LADO_LIENZO = 1600;
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 3;
 const ZOOM_PASO = 0.1;
-// Tamaño de fuente del TAG, calibrado para que a 100% de zoom (con el
-// lienzo fijo de ANCHO_LIENZO x ALTO_LIENZO) se vea con un tamaño legible
-// típico de pantallas HMI industriales (aprox. 12-13px en una ventana
-// normal) — ni tan chico que cueste leerlo, ni tan grande que domine sobre
-// el ícono del equipo.
+// Tamaño de fuente del TAG, calibrado para que a 100% de zoom se vea con un
+// tamaño legible típico de pantallas HMI industriales (aprox. 12-13px en
+// una ventana normal) — ni tan chico que cueste leerlo, ni tan grande que
+// domine sobre el ícono del equipo.
 const FONT_SIZE_TAG = 13;
 const PAD_ZONA = 40; // margen del cuadro punteado de la ubicación alrededor de sus equipos
 const PAD_HIT = 8; // margen del área invisible de clic/arrastre alrededor del glifo
@@ -203,14 +205,45 @@ export default function PortalSCADA({
     return { x, y, width: maxX - x, height: maxY - y };
   };
 
-  // Caja del lienzo: tamaño FIJO (no depende de dónde estén los equipos), así
-  // que un equipo aislado lejos del resto ya no puede forzar un zoom-out que
-  // empequeñezca a todos los demás. El zoom es manual (control en el panel,
-  // solo visible en modo edición) y ajusta cuánto de ese lienzo fijo se ve.
-  const minX = -PAD_LIENZO;
-  const minY = -PAD_LIENZO;
-  const maxX = minX + ANCHO_LIENZO / zoomLienzo;
-  const maxY = minY + ALTO_LIENZO / zoomLienzo;
+  // Caja del lienzo: se ajusta a la posición REAL de los equipos (no un
+  // tamaño fijo) — si no, un equipo importado o arrastrado lejos del resto
+  // termina fuera del rango visible sin importar cuánto se reubiquen los
+  // demás. Un único equipo aislado no puede estirarla sin límite gracias a
+  // MAX_LADO_LIENZO (se centra en la mediana en ese caso). El zoom manual
+  // (control en el panel, solo visible en modo edición) divide este tamaño
+  // ya ajustado, no un tamaño fijo.
+  const posicionesEquipos = equiposDePlanta.map(posicionDe);
+  const xsEquipos = posicionesEquipos.map((p) => p.x);
+  const ysEquipos = posicionesEquipos.map((p) => p.y);
+  let baseMinX = (xsEquipos.length ? Math.min(...xsEquipos) : 0) - PAD_LIENZO;
+  let baseMinY = (ysEquipos.length ? Math.min(...ysEquipos) : 0) - PAD_LIENZO;
+  let baseMaxX = (xsEquipos.length ? Math.max(...xsEquipos) : 900) + PAD_LIENZO;
+  let baseMaxY = (ysEquipos.length ? Math.max(...ysEquipos) : 900) + PAD_LIENZO;
+  const mediana = (valores) => {
+    const ordenados = [...valores].sort((a, b) => a - b);
+    const n = ordenados.length;
+    if (!n) return 0;
+    const mitad = Math.floor(n / 2);
+    return n % 2 ? ordenados[mitad] : (ordenados[mitad - 1] + ordenados[mitad]) / 2;
+  };
+  if (baseMaxX - baseMinX > MAX_LADO_LIENZO) {
+    const centroX = mediana(xsEquipos);
+    baseMinX = centroX - MAX_LADO_LIENZO / 2;
+    baseMaxX = centroX + MAX_LADO_LIENZO / 2;
+  }
+  if (baseMaxY - baseMinY > MAX_LADO_LIENZO) {
+    const centroY = mediana(ysEquipos);
+    baseMinY = centroY - MAX_LADO_LIENZO / 2;
+    baseMaxY = centroY + MAX_LADO_LIENZO / 2;
+  }
+  const centroXBase = (baseMinX + baseMaxX) / 2;
+  const centroYBase = (baseMinY + baseMaxY) / 2;
+  const anchoBase = (baseMaxX - baseMinX) / zoomLienzo;
+  const altoBase = (baseMaxY - baseMinY) / zoomLienzo;
+  const minX = centroXBase - anchoBase / 2;
+  const minY = centroYBase - altoBase / 2;
+  const maxX = minX + anchoBase;
+  const maxY = minY + altoBase;
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
@@ -783,7 +816,7 @@ export default function PortalSCADA({
             <svg
               ref={svgRef}
               viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`}
-              preserveAspectRatio="xMinYMin slice"
+              preserveAspectRatio="xMidYMid meet"
               style={{ width: '100%', height: '100%', display: 'block', cursor: modoConectar && origenConexion ? 'crosshair' : undefined }}
               onMouseMove={onMouseMove}
               onMouseUp={onMouseUp}
