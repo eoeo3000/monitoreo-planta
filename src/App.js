@@ -12,7 +12,7 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
       <TopBar vista={vista} setVista={setVista} onResetear={analista.resetearDatos} />
-      <div style={{ flexGrow: 1, minHeight: 0, overflowY: vista === 'portalScada' ? 'hidden' : 'auto', overflowX: 'auto' }}>
+      <div style={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
         {vista === 'analista' && <AnalistaApp {...analista} />}
         {vista === 'administracion' && <Administracion {...analista} />}
         {vista === 'portalScada' && <PortalSCADA {...analista} />}

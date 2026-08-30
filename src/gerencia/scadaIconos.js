@@ -21,15 +21,8 @@ function icono(datos) {
   return { ...datos, silueta: datos.formas.map((f, i) => formaAJsx(f, i)) };
 }
 
-// Tres clases fijas de tamaño relativo — reemplazan la escala libre por
-// tipo (que dejaba romper la proporción del conjunto). "mayor" son los
-// equipos de proceso grandes, "inline" los que van sobre una tubería,
-// "bubble" los chicos tipo burbuja de instrumento (motor incluido).
-export const CLASES_ESCALA = { mayor: 1, inline: 0.45, bubble: 0.34 };
-
 export const SCADA_ICONOS = {
   tanque: icono({
-    clase: 'mayor',
     viewBox: '0 0 44 90',
     anchoBase: 44,
     altoBase: 90,
@@ -48,7 +41,6 @@ export const SCADA_ICONOS = {
   }),
   agitador: {
     ...icono({
-      clase: 'mayor',
       viewBox: '0 0 44 90',
       anchoBase: 44,
       altoBase: 90,
@@ -69,7 +61,6 @@ export const SCADA_ICONOS = {
     decoracion: <line x1="22" y1="10" x2="22" y2="38" stroke="var(--scada-subpanel)" strokeWidth="2" />,
   },
   clarificador: icono({
-    clase: 'mayor',
     viewBox: '0 0 80 56',
     anchoBase: 80,
     altoBase: 56,
@@ -87,7 +78,6 @@ export const SCADA_ICONOS = {
     ],
   }),
   secador: icono({
-    clase: 'mayor',
     viewBox: '0 0 90 50',
     anchoBase: 90,
     altoBase: 50,
@@ -104,7 +94,6 @@ export const SCADA_ICONOS = {
     ],
   }),
   compresor: icono({
-    clase: 'inline',
     viewBox: '0 0 50 36',
     anchoBase: 50,
     altoBase: 36,
@@ -135,7 +124,6 @@ export const SCADA_ICONOS = {
   // puertos y formas no cambian: la razón puerto.y/altoBase se mantiene
   // porque bordeInferior sigue igual a altoBase.
   bomba: icono({
-    clase: 'inline',
     viewBox: '0 0 26 29',
     anchoBase: 26,
     altoBase: 29,
@@ -152,7 +140,6 @@ export const SCADA_ICONOS = {
   }),
   motor: {
     ...icono({
-      clase: 'bubble',
       viewBox: '0 0 26 26',
       anchoBase: 26,
       altoBase: 26,
