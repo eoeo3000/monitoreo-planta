@@ -135,6 +135,11 @@ export default function PortalSCADA({
   reunirEquiposDispersos,
 }) {
   const svgRef = useRef(null);
+  // Tamaño real en píxeles del panel del lienzo — lo usa el encuadre de más
+  // abajo para estirar el rectángulo visible a la proporción exacta del
+  // panel (ver anchoFinal/altoFinal) y evitar que preserveAspectRatio deje
+  // franjas vacías (letterboxing) repartidas en los bordes.
+  const [tamanioSvg, setTamanioSvg] = useState(null);
   const contenidoRef = useRef(null);
   // Caja real del contenido (zonas + títulos + conexiones + equipos + sus
   // TAGs), medida con getBBox() después de cada render — no una
@@ -306,8 +311,49 @@ export default function PortalSCADA({
   const altoBase = (baseMaxY - baseMinY) / zoomLienzo;
   const minX = centroXBase - anchoBase / 2;
   const minY = centroYBase - altoBase / 2;
-  const maxX = minX + anchoBase;
-  const maxY = minY + altoBase;
+  // Si ya se conoce la proporción real del panel (tamanioSvg, medido más
+  // abajo), se estira SOLO el lado que haga falta — nunca los dos — para
+  // igualar esa proporción, sin mover minX/minY. El aire de más que hace
+  // falta agregar para calzar la proporción queda siempre a la derecha o
+  // abajo, nunca a la izquierda ni arriba: junto con
+  // preserveAspectRatio="xMinYMin meet" del <svg>, el contenido arranca
+  // pegado a la esquina superior izquierda del panel en vez de quedar
+  // centrado con aire sobrante repartido en los cuatro bordes — y de paso
+  // deja el zoom al máximo posible sin recortar nada.
+  let anchoFinal = anchoBase;
+  let altoFinal = altoBase;
+  if (tamanioSvg && tamanioSvg.ancho > 0 && tamanioSvg.alto > 0) {
+    const arPanel = tamanioSvg.ancho / tamanioSvg.alto;
+    const arContenido = anchoBase / altoBase;
+    if (arContenido < arPanel) {
+      anchoFinal = altoBase * arPanel;
+    } else {
+      altoFinal = anchoBase / arPanel;
+    }
+  }
+  const maxX = minX + anchoFinal;
+  const maxY = minY + altoFinal;
+
+  // Mide el tamaño real en píxeles del panel después de cada render (mismo
+  // patrón que la medición de cajaMedida, más abajo: sin lista de
+  // dependencias puntual, con guard de "sin cambios reales" para no entrar
+  // en loop) — más un listener de resize de la ventana, que no dispara un
+  // re-render por sí solo.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const medir = () => {
+      const el = svgRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      setTamanioSvg((prev) =>
+        prev && Math.abs(prev.ancho - rect.width) < 1 && Math.abs(prev.alto - rect.height) < 1 ? prev : { ancho: rect.width, alto: rect.height }
+      );
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  });
 
   // Mide la caja real del contenido después de cada render (no engancha a
   // ninguna dependencia puntual — moverse, arrastrar un título, crear un
@@ -903,7 +949,7 @@ export default function PortalSCADA({
             <svg
               ref={svgRef}
               viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`}
-              preserveAspectRatio="xMidYMid meet"
+              preserveAspectRatio="xMinYMin meet"
               style={{ width: '100%', height: '100%', display: 'block', cursor: modoConectar && origenConexion ? 'crosshair' : undefined }}
               onMouseMove={onMouseMove}
               onMouseUp={onMouseUp}
