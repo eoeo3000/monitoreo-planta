@@ -94,6 +94,13 @@ export default function PortalSCADA({
   reunirEquiposDispersos,
 }) {
   const svgRef = useRef(null);
+  const contenidoRef = useRef(null);
+  // Caja real del contenido (zonas + títulos + conexiones + equipos + sus
+  // TAGs), medida con getBBox() después de cada render — no una
+  // aproximación a mano a partir de las posiciones de los equipos, que se
+  // queda corta con títulos arrastrados aparte o TAGs largos y deja algo
+  // asomando por el borde del lienzo.
+  const [cajaMedida, setCajaMedida] = useState(null);
   const tagInputRef = useRef(null);
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
   // Sector elegido en la Vista de Sectores (null = todavía no se eligió
@@ -205,20 +212,34 @@ export default function PortalSCADA({
     return { x, y, width: maxX - x, height: maxY - y };
   };
 
-  // Caja del lienzo: se ajusta a la posición REAL de los equipos (no un
-  // tamaño fijo) — si no, un equipo importado o arrastrado lejos del resto
-  // termina fuera del rango visible sin importar cuánto se reubiquen los
-  // demás. Un único equipo aislado no puede estirarla sin límite gracias a
-  // MAX_LADO_LIENZO (se centra en la mediana en ese caso). El zoom manual
-  // (control en el panel, solo visible en modo edición) divide este tamaño
-  // ya ajustado, no un tamaño fijo.
+  // Caja del lienzo: se ajusta a lo que REALMENTE está dibujado (medido con
+  // getBBox más abajo) — no un tamaño fijo ni una aproximación a partir de
+  // las posiciones de los equipos, que no ve títulos arrastrados aparte ni
+  // el ancho real de los TAGs y deja cosas asomando por el borde. Mientras
+  // no haya una medición todavía (primer render) se usa un cálculo a partir
+  // de los equipos como piso de emergencia. Un único equipo aislado no
+  // puede estirar el lienzo sin límite gracias a MAX_LADO_LIENZO (se centra
+  // en la mediana en ese caso). El zoom manual (panel, solo en modo
+  // edición) divide este tamaño ya ajustado, no un tamaño fijo.
   const posicionesEquipos = equiposDePlanta.map(posicionDe);
   const xsEquipos = posicionesEquipos.map((p) => p.x);
   const ysEquipos = posicionesEquipos.map((p) => p.y);
-  let baseMinX = (xsEquipos.length ? Math.min(...xsEquipos) : 0) - PAD_LIENZO;
-  let baseMinY = (ysEquipos.length ? Math.min(...ysEquipos) : 0) - PAD_LIENZO;
-  let baseMaxX = (xsEquipos.length ? Math.max(...xsEquipos) : 900) + PAD_LIENZO;
-  let baseMaxY = (ysEquipos.length ? Math.max(...ysEquipos) : 900) + PAD_LIENZO;
+  const MARGEN_MEDIDO = 24;
+  let baseMinX;
+  let baseMinY;
+  let baseMaxX;
+  let baseMaxY;
+  if (cajaMedida) {
+    baseMinX = cajaMedida.x - MARGEN_MEDIDO;
+    baseMinY = cajaMedida.y - MARGEN_MEDIDO;
+    baseMaxX = cajaMedida.x + cajaMedida.width + MARGEN_MEDIDO;
+    baseMaxY = cajaMedida.y + cajaMedida.height + MARGEN_MEDIDO;
+  } else {
+    baseMinX = (xsEquipos.length ? Math.min(...xsEquipos) : 0) - PAD_LIENZO;
+    baseMinY = (ysEquipos.length ? Math.min(...ysEquipos) : 0) - PAD_LIENZO;
+    baseMaxX = (xsEquipos.length ? Math.max(...xsEquipos) : 900) + PAD_LIENZO;
+    baseMaxY = (ysEquipos.length ? Math.max(...ysEquipos) : 900) + PAD_LIENZO;
+  }
   const mediana = (valores) => {
     const ordenados = [...valores].sort((a, b) => a - b);
     const n = ordenados.length;
@@ -244,6 +265,24 @@ export default function PortalSCADA({
   const minY = centroYBase - altoBase / 2;
   const maxX = minX + anchoBase;
   const maxY = minY + altoBase;
+
+  // Mide la caja real del contenido después de cada render (no engancha a
+  // ninguna dependencia puntual — moverse, arrastrar un título, crear un
+  // equipo, cambiar de planta, todo cambia el DOM y amerita re-medir). El
+  // guard de "sin cambios reales" de más abajo (no una lista de
+  // dependencias) es lo que evita que esto dispare un loop de renders.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!contenidoRef.current) return;
+    const caja = contenidoRef.current.getBBox();
+    if (!caja.width || !caja.height) return;
+    setCajaMedida((prev) => {
+      if (prev && Math.abs(prev.x - caja.x) < 0.5 && Math.abs(prev.y - caja.y) < 0.5 && Math.abs(prev.width - caja.width) < 0.5 && Math.abs(prev.height - caja.height) < 0.5) {
+        return prev;
+      }
+      return { x: caja.x, y: caja.y, width: caja.width, height: caja.height };
+    });
+  });
 
   const puntoSvg = (event) => {
     const svg = svgRef.current;
@@ -836,6 +875,11 @@ export default function PortalSCADA({
 
               {modoEdicion && <rect x={minX} y={minY} width={maxX - minX} height={maxY - minY} fill="url(#scadaCuadricula)" pointerEvents="none" />}
 
+              {/* Único grupo que se mide con getBBox para el ajuste del lienzo —
+                  zonas, títulos, conexiones y equipos con sus TAGs. Deja afuera a
+                  propósito la grilla de fondo y las manijas/previsualizaciones de
+                  edición, que no son parte del contenido real de la planta. */}
+              <g ref={contenidoRef}>
               {areasDePlanta.map((area) => {
                 const cajaEquipos = cajaEquiposDeArea(area);
                 if (!cajaEquipos) return null;
@@ -939,6 +983,7 @@ export default function PortalSCADA({
                   </g>
                 );
               })}
+              </g>
 
               {/* Manijas de conexión y previsualizaciones: por encima de los equipos a
                   propósito — si el punto libre quedó pegado al contorno de un equipo,
