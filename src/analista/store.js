@@ -487,7 +487,21 @@ export function useAnalistaData() {
         return resto;
       });
 
-      return { ...d, equipos: mejor.equipos, conexiones };
+      // Mismo motivo: un título de área o un TAG de equipo arrastrados a
+      // mano ANTES de compactar quedan con un desplazamiento fijo en
+      // píxeles (tituloOffset/etiquetaOffset) — relativo a dónde estaba el
+      // área o el equipo en el layout viejo. Con el bloque ya reubicado en
+      // otra parte del lienzo, ese desplazamiento puede dejar el título
+      // lejos de sus equipos: PortalSCADA.js agranda el cuadro punteado
+      // para seguir encerrándolo, y aparece como un hueco enorme entre el
+      // título y los equipos reales (el bug que reportó el usuario). Se
+      // resetean para que título y TAG vuelvan a su posición por defecto,
+      // pegada al bloque recién compactado.
+      const areasDePlantaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
+      const areas = d.areas.map((a) => (areasDePlantaIds.includes(a.id) ? { ...a, tituloOffset: undefined } : a));
+      const equipos = mejor.equipos.map((eq) => (areasDePlantaIds.includes(eq.areaId) ? { ...eq, etiquetaOffset: undefined } : eq));
+
+      return { ...d, equipos, areas, conexiones };
     });
   }, []);
 

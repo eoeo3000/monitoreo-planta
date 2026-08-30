@@ -753,7 +753,7 @@ export default function PortalSCADA({
                 onClick={() => {
                   if (
                     window.confirm(
-                      'Esto reacomoda TODOS los equipos de la planta en una grilla apretada, área por área, agranda los equipos mientras eso siga aprovechando mejor el espacio del panel, y reubica las áreas mismas una al lado de la otra sin huecos (según la proporción real del panel). También fija el tamaño de cada equipo (ya no va a cambiar solo si después ajustás el tamaño del tipo) y resetea los quiebres/puertos de conexión fijados a mano (quedan libres para el ruteo automático). No se puede deshacer. ¿Continuar?'
+                      'Esto reacomoda TODOS los equipos de la planta en una grilla apretada, área por área, agranda los equipos mientras eso siga aprovechando mejor el espacio del panel, y reubica las áreas mismas una al lado de la otra sin huecos (según la proporción real del panel). También fija el tamaño de cada equipo (ya no va a cambiar solo si después ajustás el tamaño del tipo) y resetea los quiebres/puertos de conexión, los títulos de área y los TAG movidos a mano (vuelven a su posición por defecto). No se puede deshacer. ¿Continuar?'
                     )
                   ) {
                     compactarPlanta(plantaId, tamanioSvg ? tamanioSvg.ancho / tamanioSvg.alto : undefined);
