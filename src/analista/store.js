@@ -59,6 +59,153 @@ export function condicionActual(equipoId, diagnosticos) {
   return historial[0] || null;
 }
 
+// PAD_ZONA_COMPACTAR (40) y ALTO_TITULO_COMPACTAR (18) espejan PAD_ZONA y
+// el alto reservado al título en PortalSCADA.js — si esos cambian ahí, hay
+// que actualizarlos acá para que el cuadro que resulta después de compactar
+// siga siendo el mínimo posible (ni más chico, que recortaría el título, ni
+// más grande, que dejaría aire de más).
+const PAD_ZONA_COMPACTAR = 40;
+const ALTO_TITULO_COMPACTAR = 18;
+
+// Calcula (sin escribir nada todavía) cómo quedaría una planta si se
+// compacta con un multiplicador de tamaño `factorEscala` sobre el tamaño
+// actual de cada equipo, empaquetando las áreas en filas cuyo ancho objetivo
+// sale de `arObjetivo` (ancho/alto real del panel) — así un área sola no
+// queda ocupando una fila entera casi vacía ni las filas dejan de lado ancho
+// disponible, como pasaba con una cantidad fija de áreas por fila.
+// compactarPlanta, en el hook de más abajo, prueba varios factorEscala y se
+// queda con el que mejor aprovecha el espacio antes de escribir el
+// resultado — por eso esta función es pura (no toca setData).
+function calcularLayoutCompacto(d, plantaId, factorEscala, arObjetivo) {
+  const areasDePlanta = d.areas.filter((a) => a.plantaId === plantaId);
+  const equiposDePlanta = d.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
+
+  // Referencia única de espaciado ENTRE áreas — un ancho de ícono típico de
+  // esta planta (el más grande, para no dejar dos equipos de áreas vecinas
+  // casi tocándose si una de las dos usa íconos chicos).
+  const anchosPlanta = equiposDePlanta
+    .map((eq) => {
+      const icono = iconoConEscala(eq, d);
+      return icono ? icono.anchoBase * icono.escala * factorEscala : 0;
+    })
+    .filter((n) => n > 0);
+  const gapEntreAreas = Math.round(Math.max(...anchosPlanta, 60));
+
+  const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
+  const areaIdDeEquipo = {};
+  const bloques = []; // { areaId, ancho, alto }, en el mismo orden que areasDePlanta
+  let areaIconos = 0; // suma de ancho×alto de todos los íconos, para medir densidad al final
+  let escalaMax = 0;
+
+  areasDePlanta.forEach((area) => {
+    const eqs = d.equipos
+      .filter((eq) => eq.areaId === area.id)
+      .slice()
+      .sort((a, b) => {
+        const pa = a.posicion || POSICION_DEFAULT;
+        const pb = b.posicion || POSICION_DEFAULT;
+        return pa.y - pb.y || pa.x - pb.x;
+      });
+    if (eqs.length === 0) return;
+
+    const dimensiones = eqs.map((eq) => {
+      const icono = iconoConEscala(eq, d);
+      const escalaFinal = (icono ? icono.escala : 1) * factorEscala;
+      return { eq, escalaFinal, ancho: icono ? icono.anchoBase * escalaFinal : 0, alto: icono ? icono.altoBase * escalaFinal : 0 };
+    });
+    const anchoMax = Math.max(...dimensiones.map((x) => x.ancho), 1);
+    const altoMax = Math.max(...dimensiones.map((x) => x.alto), 1);
+    const pasoH = Math.round(anchoMax * 2); // separación centro-a-centro entre equipos de una fila
+    const pasoV = Math.round(altoMax + 30); // + lugar para el TAG debajo del ícono
+    const cols = Math.max(1, Math.ceil(Math.sqrt(eqs.length))); // bloque lo más cuadrado posible
+    const filas = Math.ceil(eqs.length / cols);
+    const yBase = PAD_ZONA_COMPACTAR + ALTO_TITULO_COMPACTAR + altoMax;
+
+    dimensiones.forEach(({ eq, ancho, alto, escalaFinal }, i) => {
+      const col = i % cols;
+      const fila = Math.floor(i / cols);
+      areaIdDeEquipo[eq.id] = area.id;
+      // Todos los equipos del área se centran en una celda del mismo ancho
+      // (anchoMax), no en su propio ancho — así quedan alineados en
+      // columnas parejas aunque el área mezcle tipos de tamaños distintos,
+      // en vez de un borde izquierdo dentado.
+      posicionRelativa[eq.id] = { x: PAD_ZONA_COMPACTAR + anchoMax / 2 + col * pasoH, y: yBase + fila * pasoV, escalaFinal };
+      areaIconos += ancho * alto;
+      escalaMax = Math.max(escalaMax, escalaFinal);
+    });
+
+    bloques.push({
+      areaId: area.id,
+      ancho: PAD_ZONA_COMPACTAR * 2 + anchoMax + (cols - 1) * pasoH,
+      alto: PAD_ZONA_COMPACTAR * 2 + ALTO_TITULO_COMPACTAR + altoMax + (filas - 1) * pasoV,
+    });
+  });
+
+  if (bloques.length === 0) return { equipos: d.equipos, densidad: 0, escalaMax: 0 };
+
+  // Empaqueta los bloques de área en filas — a diferencia de repartirlos en
+  // una cantidad fija de áreas por fila (deja una sola área chica ocupando
+  // una fila entera casi vacía cuando el resto no divide parejo) o de un
+  // ancho de fila calculado de antemano (con pocas áreas de tamaños muy
+  // distintos, una sola área grande alcanza para desviar mucho ese cálculo),
+  // cada área se agrega una por una a la fila que se está armando, EXCEPTO
+  // cuando agregarla dejaría la proporción ancho/alto del conjunto entero
+  // más lejos de arObjetivo que arrancar una fila nueva — ahí se prueban las
+  // dos opciones de verdad (con las filas ya cerradas más la que se está
+  // evaluando) y se elige la que da una proporción más parecida a la del
+  // panel real.
+  const distanciaAr = (ancho, alto) => (ancho > 0 && alto > 0 ? Math.abs(Math.log(ancho / alto / arObjetivo)) : Infinity);
+  const anchoDeFilas = (filas) => Math.max(0, ...filas.map((f) => f.ancho));
+  const altoDeFilas = (filas) => filas.reduce((acc, f) => acc + f.alto, 0) + Math.max(0, filas.length - 1) * gapEntreAreas;
+
+  const filasCerradas = [];
+  let filaActual = null;
+  bloques.forEach((b) => {
+    if (!filaActual) {
+      filaActual = { bloques: [b], ancho: b.ancho, alto: b.alto };
+      return;
+    }
+    const siSeAgrega = { bloques: [...filaActual.bloques, b], ancho: filaActual.ancho + gapEntreAreas + b.ancho, alto: Math.max(filaActual.alto, b.alto) };
+    const distSiAgrega = distanciaAr(anchoDeFilas([...filasCerradas, siSeAgrega]), altoDeFilas([...filasCerradas, siSeAgrega]));
+    const filaNueva = { bloques: [b], ancho: b.ancho, alto: b.alto };
+    const distSiNuevaFila = distanciaAr(anchoDeFilas([...filasCerradas, filaActual, filaNueva]), altoDeFilas([...filasCerradas, filaActual, filaNueva]));
+    if (distSiAgrega <= distSiNuevaFila) {
+      filaActual = siSeAgrega;
+    } else {
+      filasCerradas.push(filaActual);
+      filaActual = filaNueva;
+    }
+  });
+  if (filaActual) filasCerradas.push(filaActual);
+
+  const origenDeArea = {};
+  let y = 0;
+  filasCerradas.forEach((fila) => {
+    let x = 0;
+    fila.bloques.forEach((b) => {
+      origenDeArea[b.areaId] = { x, y };
+      x += b.ancho + gapEntreAreas;
+    });
+    y += fila.alto + gapEntreAreas;
+  });
+  const anchoTotal = anchoDeFilas(filasCerradas);
+  const altoTotal = altoDeFilas(filasCerradas);
+
+  const equipos = d.equipos.map((eq) => {
+    const rel = posicionRelativa[eq.id];
+    if (!rel) return eq;
+    const origen = origenDeArea[areaIdDeEquipo[eq.id]];
+    return {
+      ...eq,
+      posicion: { x: Math.round(origen.x + rel.x), y: Math.round(origen.y + rel.y) },
+      escalaPropia: Math.round(rel.escalaFinal * 100) / 100,
+    };
+  });
+
+  const densidad = anchoTotal > 0 && altoTotal > 0 ? areaIconos / (anchoTotal * altoTotal) : 0;
+  return { equipos, densidad, escalaMax };
+}
+
 export function useAnalistaData() {
   const [data, setData] = useState(loadInitial);
 
@@ -304,95 +451,30 @@ export function useAnalistaData() {
   // real mezcla tipos de tamaños distintos dentro de una misma área, así que
   // no hay un "ícono típico" único como en la demo.
   //
-  // PAD_ZONA_COMPACTAR (40) y ALTO_TITULO_COMPACTAR (18) espejan PAD_ZONA y
-  // el alto reservado al título en PortalSCADA.js — si esos cambian ahí, hay
-  // que actualizarlos acá para que el cuadro que resulta después de
-  // compactar siga siendo el mínimo posible (ni más chico, que recortaría
-  // el título, ni más grande, que dejaría aire de más).
-  const compactarPlanta = useCallback((plantaId) => {
-    const PAD_ZONA_COMPACTAR = 40;
-    const ALTO_TITULO_COMPACTAR = 18;
-    const AREA_COLS_COMPACTAR = 3;
+  // Además de acomodar, agranda los equipos en pasos del 10% mientras eso
+  // siga aumentando la densidad real (ícono/espacio total) — parar apenas
+  // agrandar deja de ayudar, no en un número fijo de pasos — y nunca más
+  // allá de ESCALA_MAX (mismo tope que ya usa el panel "Tamaños de equipo"),
+  // para que no crezca sin límite si se compacta varias veces seguidas.
+  // `arObjetivo` (ancho/alto real del panel donde se dibuja) decide cómo se
+  // reparten las áreas en filas — si no se pasa, se asume panel ancho (16:9).
+  const compactarPlanta = useCallback((plantaId, arObjetivo) => {
+    const PASO_CRECIMIENTO = 1.1;
+    const MAX_ITERACIONES = 20;
+    const MEJORA_MINIMA = 0.005; // 0.5% de densidad — debajo de esto no vale la pena seguir agrandando
+    const ESCALA_MAX = 4;
+    const ar = arObjetivo && arObjetivo > 0 ? arObjetivo : 16 / 9;
 
     setData((d) => {
-      const areasDePlanta = d.areas.filter((a) => a.plantaId === plantaId);
-      const equiposDePlanta = d.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
-
-      // Referencia única de espaciado ENTRE áreas — un ancho de ícono típico
-      // de esta planta (el más grande, para no dejar dos equipos de áreas
-      // vecinas casi tocándose si una de las dos usa íconos chicos).
-      const anchosPlanta = equiposDePlanta.map((eq) => iconoConEscala(eq, d)?.anchoBase * (iconoConEscala(eq, d)?.escala || 1)).filter((n) => n > 0);
-      const gapEntreAreas = Math.round(Math.max(...anchosPlanta, 60));
-
-      const posicionRelativa = {}; // equipoId -> {x, y} relativo al origen de SU área
-      const areaIdDeEquipo = {};
-      const bloques = []; // { areaId, ancho, alto }, en el mismo orden que areasDePlanta
-
-      areasDePlanta.forEach((area) => {
-        const eqs = d.equipos
-          .filter((eq) => eq.areaId === area.id)
-          .slice()
-          .sort((a, b) => {
-            const pa = a.posicion || POSICION_DEFAULT;
-            const pb = b.posicion || POSICION_DEFAULT;
-            return pa.y - pb.y || pa.x - pb.x;
-          });
-        if (eqs.length === 0) return;
-
-        const dimensiones = eqs.map((eq) => {
-          const icono = iconoConEscala(eq, d);
-          return { eq, ancho: icono ? icono.anchoBase * icono.escala : 0, alto: icono ? icono.altoBase * icono.escala : 0 };
-        });
-        const anchoMax = Math.max(...dimensiones.map((x) => x.ancho), 1);
-        const altoMax = Math.max(...dimensiones.map((x) => x.alto), 1);
-        const pasoH = Math.round(anchoMax * 2); // separación centro-a-centro entre equipos de una fila
-        const pasoV = Math.round(altoMax + 30); // + lugar para el TAG debajo del ícono
-        const cols = Math.max(1, Math.ceil(Math.sqrt(eqs.length))); // bloque lo más cuadrado posible
-        const filas = Math.ceil(eqs.length / cols);
-        const yBase = PAD_ZONA_COMPACTAR + ALTO_TITULO_COMPACTAR + altoMax;
-
-        dimensiones.forEach(({ eq }, i) => {
-          const col = i % cols;
-          const fila = Math.floor(i / cols);
-          areaIdDeEquipo[eq.id] = area.id;
-          // Todos los equipos del área se centran en una celda del mismo
-          // ancho (anchoMax), no en su propio ancho — así quedan alineados
-          // en columnas parejas aunque el área mezcle tipos de tamaños
-          // distintos, en vez de un borde izquierdo dentado.
-          posicionRelativa[eq.id] = { x: PAD_ZONA_COMPACTAR + anchoMax / 2 + col * pasoH, y: yBase + fila * pasoV };
-        });
-
-        bloques.push({
-          areaId: area.id,
-          ancho: PAD_ZONA_COMPACTAR * 2 + anchoMax + (cols - 1) * pasoH,
-          alto: PAD_ZONA_COMPACTAR * 2 + ALTO_TITULO_COMPACTAR + altoMax + (filas - 1) * pasoV,
-        });
-      });
-
-      // Empaqueta los bloques de área de a AREA_COLS_COMPACTAR por fila, cada
-      // fila apretada por el ancho REAL de sus propios bloques (no columnas
-      // alineadas entre filas) — así un área chica no hereda el ancho de una
-      // grande que quedó en la misma columna en otra fila.
-      const origenDeArea = {};
-      let y = 0;
-      for (let i = 0; i < bloques.length; i += AREA_COLS_COMPACTAR) {
-        const fila = bloques.slice(i, i + AREA_COLS_COMPACTAR);
-        let x = 0;
-        let altoFila = 0;
-        for (const b of fila) {
-          origenDeArea[b.areaId] = { x, y };
-          x += b.ancho + gapEntreAreas;
-          altoFila = Math.max(altoFila, b.alto);
-        }
-        y += altoFila + gapEntreAreas;
+      let mejor = calcularLayoutCompacto(d, plantaId, 1, ar);
+      let factor = 1;
+      for (let i = 0; i < MAX_ITERACIONES; i++) {
+        const siguienteFactor = factor * PASO_CRECIMIENTO;
+        const candidato = calcularLayoutCompacto(d, plantaId, siguienteFactor, ar);
+        if (candidato.escalaMax > ESCALA_MAX || candidato.densidad - mejor.densidad < MEJORA_MINIMA) break;
+        mejor = candidato;
+        factor = siguienteFactor;
       }
-
-      const equipos = d.equipos.map((eq) => {
-        const rel = posicionRelativa[eq.id];
-        if (!rel) return eq;
-        const origen = origenDeArea[areaIdDeEquipo[eq.id]];
-        return { ...eq, posicion: { x: Math.round(origen.x + rel.x), y: Math.round(origen.y + rel.y) } };
-      });
 
       // El compactado reubica equipos a gran escala: un quiebre o puerto
       // fijado a mano en una conexión de esta planta quedaría apuntando a
@@ -405,7 +487,7 @@ export function useAnalistaData() {
         return resto;
       });
 
-      return { ...d, equipos, conexiones };
+      return { ...d, equipos: mejor.equipos, conexiones };
     });
   }, []);
 
