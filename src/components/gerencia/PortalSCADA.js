@@ -14,8 +14,13 @@ const PAD_LIENZO = 90;
 // Tope de qué tan grande puede ponerse el lienzo (evita que un equipo
 // aislado fuerce el zoom-out de toda la planta): más allá de esto, el
 // encuadre se centra en la mediana de las posiciones en vez de en el
-// mínimo/máximo real.
-const MAX_LADO_LIENZO = 1600;
+// mínimo/máximo real. Generoso a propósito — este tope solo mira
+// posiciones de equipos, no títulos de área, así que si se activa puede
+// volver a recortar un título que la medición real (getBBox) sí incluía;
+// mejor que rara vez se active en una planta grande pero bien organizada,
+// y quede solo para el caso de un equipo realmente aislado (para eso está
+// además "Reunir equipos dispersos", que corrige la causa de raíz).
+const MAX_LADO_LIENZO = 3500;
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 3;
 const ZOOM_PASO = 0.1;
