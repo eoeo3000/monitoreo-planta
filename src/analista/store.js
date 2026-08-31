@@ -66,82 +66,117 @@ export function condicionActual(equipoId, diagnosticos) {
 // más grande, que dejaría aire de más).
 const PAD_ZONA_COMPACTAR = 40;
 const ALTO_TITULO_COMPACTAR = 18;
+// Tope de escala por área al agrandar equipos — mismo tope que ya usa el
+// panel "Tamaños de equipo" para el multiplicador por tipo.
+const ESCALA_MAX_COMPACTAR = 4;
+const PASO_CRECIMIENTO_AREA = 1.1;
+
+// Arma la grilla de equipos de UN área a un factor de escala dado —
+// separado en su propia función porque se llama varias veces por área: una
+// para el tamaño base (factor 1, con el que se empaquetan las áreas entre
+// sí) y una por cada intento de agrandarla después, en
+// agrandarAreaSinSolape.
+function calcularGrillaArea(eqs, d, factor) {
+  const dimensiones = eqs.map((eq) => {
+    const icono = iconoConEscala(eq, d);
+    const escalaFinal = (icono ? icono.escala : 1) * factor;
+    return { eq, escalaFinal, ancho: icono ? icono.anchoBase * escalaFinal : 0, alto: icono ? icono.altoBase * escalaFinal : 0 };
+  });
+  const anchoMax = Math.max(...dimensiones.map((x) => x.ancho), 1);
+  const altoMax = Math.max(...dimensiones.map((x) => x.alto), 1);
+  const pasoH = Math.round(anchoMax * 2); // separación centro-a-centro entre equipos de una fila
+  const pasoV = Math.round(altoMax + 30); // + lugar para el TAG debajo del ícono
+  const cols = Math.max(1, Math.ceil(Math.sqrt(eqs.length))); // bloque lo más cuadrado posible
+  const filas = Math.ceil(eqs.length / cols);
+  const yBase = PAD_ZONA_COMPACTAR + ALTO_TITULO_COMPACTAR + altoMax;
+
+  const posiciones = dimensiones.map(({ eq, escalaFinal }, i) => {
+    const col = i % cols;
+    const fila = Math.floor(i / cols);
+    // Todos los equipos del área se centran en una celda del mismo ancho
+    // (anchoMax), no en su propio ancho — así quedan alineados en columnas
+    // parejas aunque el área mezcle tipos de tamaños distintos, en vez de
+    // un borde izquierdo dentado.
+    return { eq, escalaFinal, x: PAD_ZONA_COMPACTAR + anchoMax / 2 + col * pasoH, y: yBase + fila * pasoV };
+  });
+
+  return {
+    posiciones,
+    ancho: PAD_ZONA_COMPACTAR * 2 + anchoMax + (cols - 1) * pasoH,
+    alto: PAD_ZONA_COMPACTAR * 2 + ALTO_TITULO_COMPACTAR + altoMax + (filas - 1) * pasoV,
+  };
+}
+
+const cajasSolapanArea = (a, b) => a.x < b.x + b.ancho && a.x + a.ancho > b.x && a.y < b.y + b.alto && a.y + a.alto > b.y;
+
+// Agranda el bloque de un área, paso a paso (10% por vez), mientras el
+// resultado no invada el bloque BASE (el tamaño con el que se empaquetó,
+// antes de que nadie creciera) de ninguna otra área. Comparar siempre
+// contra el bloque base ajeno —nunca contra cuánto creció ya esa vecina—
+// es lo que hace que el resultado no dependa del orden en que se procesan
+// las áreas: cada una compite solo por el espacio que quedó libre desde el
+// principio. Nunca pasa ESCALA_MAX_COMPACTAR.
+function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase) {
+  let mejor = calcularGrillaArea(eqs, d, 1);
+  let factor = 1;
+  while (factor * PASO_CRECIMIENTO_AREA <= ESCALA_MAX_COMPACTAR) {
+    const siguienteFactor = factor * PASO_CRECIMIENTO_AREA;
+    const candidato = calcularGrillaArea(eqs, d, siguienteFactor);
+    const caja = { x: origen.x, y: origen.y, ancho: candidato.ancho, alto: candidato.alto };
+    if (otrasCajasBase.some((otra) => cajasSolapanArea(caja, otra))) break;
+    mejor = candidato;
+    factor = siguienteFactor;
+  }
+  return mejor;
+}
 
 // Calcula (sin escribir nada todavía) cómo quedaría una planta si se
-// compacta con un multiplicador de tamaño `factorEscala` sobre el tamaño
-// actual de cada equipo, empaquetando las áreas en filas cuyo ancho objetivo
-// sale de `arObjetivo` (ancho/alto real del panel) — así un área sola no
-// queda ocupando una fila entera casi vacía ni las filas dejan de lado ancho
-// disponible, como pasaba con una cantidad fija de áreas por fila.
-// compactarPlanta, en el hook de más abajo, prueba varios factorEscala y se
-// queda con el que mejor aprovecha el espacio antes de escribir el
-// resultado — por eso esta función es pura (no toca setData).
-function calcularLayoutCompacto(d, plantaId, factorEscala, arObjetivo) {
+// compacta. Dos pasadas:
+// 1. Arma la grilla de equipos de cada área a su tamaño BASE (factor 1) y
+//    empaqueta esas áreas por "skyline" (ver más abajo) según esos tamaños
+//    — esto fija dónde va cada área.
+// 2. Con las áreas ya ubicadas, intenta agrandar cada una por separado
+//    hasta el borde de la vecina más cercana (agrandarAreaSinSolape) — así
+//    un área con lugar de sobra alrededor puede crecer aunque el resto de
+//    la planta ya esté apretado al límite, en vez de depender de una sola
+//    escala global para toda la planta (que un área enorme como "Bombeo"
+//    podía dejar sin margen de mejora real, aunque hubiera espacio suelto
+//    en otra parte).
+function calcularLayoutCompacto(d, plantaId, arObjetivo) {
   const areasDePlanta = d.areas.filter((a) => a.plantaId === plantaId);
-  const equiposDePlanta = d.equipos.filter((eq) => areasDePlanta.some((a) => a.id === eq.areaId));
+  const equiposPorArea = areasDePlanta
+    .map((area) => ({
+      area,
+      eqs: d.equipos
+        .filter((eq) => eq.areaId === area.id)
+        .slice()
+        .sort((a, b) => {
+          const pa = a.posicion || POSICION_DEFAULT;
+          const pb = b.posicion || POSICION_DEFAULT;
+          return pa.y - pb.y || pa.x - pb.x;
+        }),
+    }))
+    .filter((x) => x.eqs.length > 0);
+
+  if (equiposPorArea.length === 0) return { equipos: d.equipos };
 
   // Referencia única de espaciado ENTRE áreas — un ancho de ícono típico de
-  // esta planta (el más grande, para no dejar dos equipos de áreas vecinas
-  // casi tocándose si una de las dos usa íconos chicos).
-  const anchosPlanta = equiposDePlanta
+  // esta planta al tamaño base (el más grande, para no dejar dos equipos de
+  // áreas vecinas casi tocándose si una de las dos usa íconos chicos).
+  const anchosPlanta = equiposPorArea
+    .flatMap(({ eqs }) => eqs)
     .map((eq) => {
       const icono = iconoConEscala(eq, d);
-      return icono ? icono.anchoBase * icono.escala * factorEscala : 0;
+      return icono ? icono.anchoBase * icono.escala : 0;
     })
     .filter((n) => n > 0);
   const gapEntreAreas = Math.round(Math.max(...anchosPlanta, 60));
 
-  const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
-  const areaIdDeEquipo = {};
-  const bloques = []; // { areaId, ancho, alto }, en el mismo orden que areasDePlanta
-  let areaIconos = 0; // suma de ancho×alto de todos los íconos, para medir densidad al final
-  let escalaMax = 0;
-
-  areasDePlanta.forEach((area) => {
-    const eqs = d.equipos
-      .filter((eq) => eq.areaId === area.id)
-      .slice()
-      .sort((a, b) => {
-        const pa = a.posicion || POSICION_DEFAULT;
-        const pb = b.posicion || POSICION_DEFAULT;
-        return pa.y - pb.y || pa.x - pb.x;
-      });
-    if (eqs.length === 0) return;
-
-    const dimensiones = eqs.map((eq) => {
-      const icono = iconoConEscala(eq, d);
-      const escalaFinal = (icono ? icono.escala : 1) * factorEscala;
-      return { eq, escalaFinal, ancho: icono ? icono.anchoBase * escalaFinal : 0, alto: icono ? icono.altoBase * escalaFinal : 0 };
-    });
-    const anchoMax = Math.max(...dimensiones.map((x) => x.ancho), 1);
-    const altoMax = Math.max(...dimensiones.map((x) => x.alto), 1);
-    const pasoH = Math.round(anchoMax * 2); // separación centro-a-centro entre equipos de una fila
-    const pasoV = Math.round(altoMax + 30); // + lugar para el TAG debajo del ícono
-    const cols = Math.max(1, Math.ceil(Math.sqrt(eqs.length))); // bloque lo más cuadrado posible
-    const filas = Math.ceil(eqs.length / cols);
-    const yBase = PAD_ZONA_COMPACTAR + ALTO_TITULO_COMPACTAR + altoMax;
-
-    dimensiones.forEach(({ eq, ancho, alto, escalaFinal }, i) => {
-      const col = i % cols;
-      const fila = Math.floor(i / cols);
-      areaIdDeEquipo[eq.id] = area.id;
-      // Todos los equipos del área se centran en una celda del mismo ancho
-      // (anchoMax), no en su propio ancho — así quedan alineados en
-      // columnas parejas aunque el área mezcle tipos de tamaños distintos,
-      // en vez de un borde izquierdo dentado.
-      posicionRelativa[eq.id] = { x: PAD_ZONA_COMPACTAR + anchoMax / 2 + col * pasoH, y: yBase + fila * pasoV, escalaFinal };
-      areaIconos += ancho * alto;
-      escalaMax = Math.max(escalaMax, escalaFinal);
-    });
-
-    bloques.push({
-      areaId: area.id,
-      ancho: PAD_ZONA_COMPACTAR * 2 + anchoMax + (cols - 1) * pasoH,
-      alto: PAD_ZONA_COMPACTAR * 2 + ALTO_TITULO_COMPACTAR + altoMax + (filas - 1) * pasoV,
-    });
+  const bloques = []; // { areaId, ancho, alto } al tamaño base, para empaquetar
+  equiposPorArea.forEach(({ area, eqs }) => {
+    const grilla = calcularGrillaArea(eqs, d, 1);
+    bloques.push({ areaId: area.id, ancho: grilla.ancho, alto: grilla.alto });
   });
-
-  if (bloques.length === 0) return { equipos: d.equipos, densidad: 0, escalaMax: 0 };
 
   // Empaqueta los bloques de área por "skyline" (el mismo tipo de algoritmo
   // que se usa para acomodar sprites en una textura de videojuego): en vez
@@ -218,8 +253,21 @@ function calcularLayoutCompacto(d, plantaId, factorEscala, arObjetivo) {
       skyline = nuevoSkyline.sort((s1, s2) => s1.x - s2.x);
     });
 
-  const anchoTotal = bloques.reduce((max, b) => Math.max(max, origenDeArea[b.areaId].x + b.ancho), 0);
-  const altoTotal = bloques.reduce((max, b) => Math.max(max, origenDeArea[b.areaId].y + b.alto), 0);
+  // Con cada área ya ubicada (origenDeArea), se intenta agrandar una por
+  // una — siempre comparando contra el bloque BASE (bloques, calculado más
+  // arriba) de las demás, nunca contra cuánto creció ya alguna vecina.
+  const cajasBase = bloques.map((b) => ({ areaId: b.areaId, x: origenDeArea[b.areaId].x, y: origenDeArea[b.areaId].y, ancho: b.ancho, alto: b.alto }));
+
+  const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
+  const areaIdDeEquipo = {};
+  equiposPorArea.forEach(({ area, eqs }) => {
+    const otrasCajasBase = cajasBase.filter((c) => c.areaId !== area.id);
+    const grillaFinal = agrandarAreaSinSolape(eqs, d, origenDeArea[area.id], otrasCajasBase);
+    grillaFinal.posiciones.forEach(({ eq, escalaFinal, x, y }) => {
+      areaIdDeEquipo[eq.id] = area.id;
+      posicionRelativa[eq.id] = { x, y, escalaFinal };
+    });
+  });
 
   const equipos = d.equipos.map((eq) => {
     const rel = posicionRelativa[eq.id];
@@ -232,8 +280,7 @@ function calcularLayoutCompacto(d, plantaId, factorEscala, arObjetivo) {
     };
   });
 
-  const densidad = anchoTotal > 0 && altoTotal > 0 ? areaIconos / (anchoTotal * altoTotal) : 0;
-  return { equipos, densidad, escalaMax };
+  return { equipos };
 }
 
 export function useAnalistaData() {
@@ -481,30 +528,19 @@ export function useAnalistaData() {
   // real mezcla tipos de tamaños distintos dentro de una misma área, así que
   // no hay un "ícono típico" único como en la demo.
   //
-  // Además de acomodar, agranda los equipos en pasos del 10% mientras eso
-  // siga aumentando la densidad real (ícono/espacio total) — parar apenas
-  // agrandar deja de ayudar, no en un número fijo de pasos — y nunca más
-  // allá de ESCALA_MAX (mismo tope que ya usa el panel "Tamaños de equipo"),
-  // para que no crezca sin límite si se compacta varias veces seguidas.
-  // `arObjetivo` (ancho/alto real del panel donde se dibuja) decide cómo se
-  // reparten las áreas en filas — si no se pasa, se asume panel ancho (16:9).
+  // Además de acomodar, agranda los equipos de cada área por separado,
+  // hasta el borde de la vecina más cercana (ver agrandarAreaSinSolape) —
+  // así un área con lugar de sobra puede crecer aunque el resto de la
+  // planta ya esté apretado al límite: agrandar TODA la planta con una sola
+  // escala global (como se hacía antes) casi no mejoraba nada cuando un
+  // área enorme dominaba el cálculo, aunque hubiera espacio suelto en otra
+  // parte. `arObjetivo` (ancho/alto real del panel donde se dibuja) decide
+  // cómo se reparten las áreas — si no se pasa, se asume panel ancho (16:9).
   const compactarPlanta = useCallback((plantaId, arObjetivo) => {
-    const PASO_CRECIMIENTO = 1.1;
-    const MAX_ITERACIONES = 20;
-    const MEJORA_MINIMA = 0.005; // 0.5% de densidad — debajo de esto no vale la pena seguir agrandando
-    const ESCALA_MAX = 4;
     const ar = arObjetivo && arObjetivo > 0 ? arObjetivo : 16 / 9;
 
     setData((d) => {
-      let mejor = calcularLayoutCompacto(d, plantaId, 1, ar);
-      let factor = 1;
-      for (let i = 0; i < MAX_ITERACIONES; i++) {
-        const siguienteFactor = factor * PASO_CRECIMIENTO;
-        const candidato = calcularLayoutCompacto(d, plantaId, siguienteFactor, ar);
-        if (candidato.escalaMax > ESCALA_MAX || candidato.densidad - mejor.densidad < MEJORA_MINIMA) break;
-        mejor = candidato;
-        factor = siguienteFactor;
-      }
+      const resultado = calcularLayoutCompacto(d, plantaId, ar);
 
       // El compactado reubica equipos a gran escala: un quiebre o puerto
       // fijado a mano en una conexión de esta planta quedaría apuntando a
@@ -529,7 +565,7 @@ export function useAnalistaData() {
       // pegada al bloque recién compactado.
       const areasDePlantaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
       const areas = d.areas.map((a) => (areasDePlantaIds.includes(a.id) ? { ...a, tituloOffset: undefined } : a));
-      const equipos = mejor.equipos.map((eq) => (areasDePlantaIds.includes(eq.areaId) ? { ...eq, etiquetaOffset: undefined } : eq));
+      const equipos = resultado.equipos.map((eq) => (areasDePlantaIds.includes(eq.areaId) ? { ...eq, etiquetaOffset: undefined } : eq));
 
       return { ...d, equipos, areas, conexiones };
     });
