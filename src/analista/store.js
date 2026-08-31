@@ -79,7 +79,15 @@ const PASO_CRECIMIENTO_AREA = 1.1;
 function calcularGrillaArea(eqs, d, factor) {
   const dimensiones = eqs.map((eq) => {
     const icono = iconoConEscala(eq, d);
-    const escalaFinal = (icono ? icono.escala : 1) * factor;
+    // Si ESTE equipo puntual ya viene con una escala guardada por encima
+    // del tope (datos de antes del arreglo del crecimiento compuesto: un
+    // solo equipo con escalaPropia de 20x, 50x…), se lo trata como si ya
+    // estuviera en el tope antes de aplicar el factor de esta pasada — así
+    // se autocorrige sin arrastrar hacia abajo a sus vecinos del área que
+    // sí tenían un tamaño normal (aplicar un factor único para toda el
+    // área, calculado a partir del peor equipo, los encogía a todos).
+    const escalaBase = Math.min(icono ? icono.escala : 1, ESCALA_MAX_COMPACTAR);
+    const escalaFinal = escalaBase * factor;
     return { eq, escalaFinal, ancho: icono ? icono.anchoBase * escalaFinal : 0, alto: icono ? icono.altoBase * escalaFinal : 0 };
   });
   const anchoMax = Math.max(...dimensiones.map((x) => x.ancho), 1);
@@ -124,8 +132,12 @@ const cajasSolapanArea = (a, b) => a.x < b.x + b.ancho && a.x + a.ancho > b.x &&
 // anterior (ej. 3.5, cerca del tope), "factor hasta 4" lo multiplicaría de
 // nuevo por 4 y lo mandaría a 14 — el tope se corre de una compactada a la
 // siguiente en vez de frenar en 4 de verdad.
+//
 function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase) {
-  const escalaBaseMax = Math.max(...eqs.map((eq) => iconoConEscala(eq, d)?.escala || 1));
+  // escalaBaseMax ya viene acotada a ESCALA_MAX_COMPACTAR: calcularGrillaArea
+  // corrige cada equipo corrupto individualmente antes de este cálculo (ver
+  // más arriba), así que esta cuenta nunca parte por encima del tope.
+  const escalaBaseMax = Math.min(Math.max(...eqs.map((eq) => iconoConEscala(eq, d)?.escala || 1)), ESCALA_MAX_COMPACTAR);
   let mejor = calcularGrillaArea(eqs, d, 1);
   let factor = 1;
   while (escalaBaseMax * (factor * PASO_CRECIMIENTO_AREA) <= ESCALA_MAX_COMPACTAR) {
