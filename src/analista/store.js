@@ -204,22 +204,21 @@ function calcularLayoutCompacto(d, plantaId, arObjetivo) {
 
   if (equiposPorArea.length === 0) return { equipos: d.equipos };
 
-  // Área total ocupada por los equipos de TODA la planta (a su escala base
-  // ya acotada), para estimar un ancho de lienzo compartido a la
-  // proporción real del panel — el mismo cálculo que antes se hacía por
-  // área, ahora una sola vez para la planta entera.
-  const areaTotalEquipos = equiposPorArea.reduce((acc, { eqs }) => {
-    return (
-      acc +
-      eqs.reduce((acc2, eq) => {
-        const icono = iconoConEscala(eq, d);
-        if (!icono) return acc2;
-        const escalaBase = Math.min(icono.escala, ESCALA_MAX_COMPACTAR);
-        return acc2 + icono.anchoBase * escalaBase * icono.altoBase * escalaBase;
-      }, 0)
-    );
+  // Ancho de lienzo compartido, estimado del área de cada bloque de
+  // referencia (la forma CUADRADA de cada área, calculada con
+  // calcularGrillaArea) y la proporción real del panel. Se usa el bloque de
+  // referencia — no el área "cruda" de los íconos (ancho×alto de cada
+  // equipo) — porque la grilla real deja el doble de espacio entre equipos
+  // por separación (pasoH = anchoMax×2) más el margen y el título de cada
+  // área: el área cruda no ve nada de eso y sale muy por debajo del ancho
+  // que realmente hace falta, dejando pocas columnas por área y una
+  // columna angosta que deja vacío el resto del lienzo.
+  const areaTotalBloques = equiposPorArea.reduce((acc, { eqs }) => {
+    const colsCuadrado = Math.max(1, Math.ceil(Math.sqrt(eqs.length)));
+    const bloqueRef = calcularGrillaArea(eqs, d, 1, colsCuadrado);
+    return acc + bloqueRef.ancho * bloqueRef.alto;
   }, 0);
-  const anchoObjetivo = Math.max(Math.sqrt((areaTotalEquipos || 1) * (arObjetivo || 1)), 200);
+  const anchoObjetivo = Math.max(Math.sqrt((areaTotalBloques || 1) * (arObjetivo || 1)), 200);
 
   // Aire entre el borde inferior de una área y el título de la siguiente —
   // cada caja ya trae su propio PAD_ZONA_COMPACTAR de margen arriba y
