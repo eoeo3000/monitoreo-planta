@@ -150,19 +150,42 @@ function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase, cols) {
   return mejor;
 }
 
+// Ancho base más grande entre los equipos dados (a la escala YA acotada por
+// ESCALA_MAX_COMPACTAR) — determina cuántos entran por fila a un ancho
+// objetivo dado. Separado de calcularGrillaArea porque hace falta ANTES de
+// saber "cols" (para poder calcular cols a partir de él).
+function anchoMaxDeEquipos(eqs, d) {
+  const anchos = eqs.map((eq) => {
+    const icono = iconoConEscala(eq, d);
+    if (!icono) return 0;
+    return icono.anchoBase * Math.min(icono.escala, ESCALA_MAX_COMPACTAR);
+  });
+  return Math.max(...anchos, 1);
+}
+
 // Calcula (sin escribir nada todavía) cómo quedaría una planta si se
-// compacta. Dos pasadas:
-// 1. Ubica las áreas por "skyline", eligiendo para cada una, en el momento
-//    de ubicarla, la FORMA de grilla (cuántas columnas) que deja el borde
-//    inferior más bajo — no siempre la más cuadrada. Esto fija dónde va
-//    cada área y con qué forma.
-// 2. Con las áreas ya ubicadas y su forma fija, intenta agrandar cada una
-//    por separado hasta el borde de la vecina más cercana
-//    (agrandarAreaSinSolape) — así un área con lugar de sobra alrededor
-//    puede crecer aunque el resto de la planta ya esté apretado al límite,
-//    en vez de depender de una sola escala global para toda la planta (que
-//    un área enorme como "Bombeo" podía dejar sin margen de mejora real,
-//    aunque hubiera espacio suelto en otra parte).
+// compacta. Ya no se empaqueta cada área como un rectángulo aparte (el
+// "skyline" que se usó antes): eso obligaba a que la PRIMERA área ubicada
+// eligiera su forma sin nada por delante que la limitara, y como achatarse
+// (más columnas, menos filas) siempre baja su propio borde inferior sin
+// nada que lo compense, terminaba tomando para sí todo el ancho del
+// lienzo — dejando a las áreas chicas apiladas en una columna angosta
+// debajo, con un espacio enorme sin usar al costado.
+//
+// En cambio, dos pasadas:
+// 1. Todas las áreas comparten un mismo ancho de lienzo (`anchoObjetivo`,
+//    estimado del área total de equipos de la planta y la proporción real
+//    del panel) y se apilan una debajo de la otra, cada una envolviendo sus
+//    propios equipos en filas hasta ese ancho — ninguna elige su propia
+//    forma "óptima" a costa de las demás. La caja de cada área queda tan
+//    angosta como sus equipos lo permitan (una con pocos equipos no se
+//    estira para llenar el ancho objetivo), y se calcula sola después, a
+//    partir de dónde terminaron sus equipos — no se reserva de antemano.
+// 2. Con las áreas ya apiladas, se intenta agrandar cada una por separado
+//    hasta el borde de la vecina más cercana (agrandarAreaSinSolape) — así
+//    un área con lugar de sobra arriba y abajo puede crecer aunque el
+//    resto de la planta ya esté apretado, en vez de depender de una sola
+//    escala global para toda la planta.
 function calcularLayoutCompacto(d, plantaId, arObjetivo) {
   const areasDePlanta = d.areas.filter((a) => a.plantaId === plantaId);
   const equiposPorArea = areasDePlanta
@@ -181,141 +204,57 @@ function calcularLayoutCompacto(d, plantaId, arObjetivo) {
 
   if (equiposPorArea.length === 0) return { equipos: d.equipos };
 
-  // Referencia única de espaciado ENTRE áreas — un ancho de ícono típico de
-  // esta planta al tamaño base (el más grande, para no dejar dos equipos de
-  // áreas vecinas casi tocándose si una de las dos usa íconos chicos).
-  const anchosPlanta = equiposPorArea
-    .flatMap(({ eqs }) => eqs)
-    .map((eq) => {
-      const icono = iconoConEscala(eq, d);
-      return icono ? icono.anchoBase * icono.escala : 0;
-    })
-    .filter((n) => n > 0);
-  const gapEntreAreas = Math.round(Math.max(...anchosPlanta, 60));
+  // Área total ocupada por los equipos de TODA la planta (a su escala base
+  // ya acotada), para estimar un ancho de lienzo compartido a la
+  // proporción real del panel — el mismo cálculo que antes se hacía por
+  // área, ahora una sola vez para la planta entera.
+  const areaTotalEquipos = equiposPorArea.reduce((acc, { eqs }) => {
+    return (
+      acc +
+      eqs.reduce((acc2, eq) => {
+        const icono = iconoConEscala(eq, d);
+        if (!icono) return acc2;
+        const escalaBase = Math.min(icono.escala, ESCALA_MAX_COMPACTAR);
+        return acc2 + icono.anchoBase * escalaBase * icono.altoBase * escalaBase;
+      }, 0)
+    );
+  }, 0);
+  const anchoObjetivo = Math.max(Math.sqrt((areaTotalEquipos || 1) * (arObjetivo || 1)), 200);
 
-  // Bloque de referencia (forma cuadrada) de cada área — solo para decidir
-  // el ORDEN en que se procesan (de más alta a más baja) y una primera
-  // estimación de anchoObjetivo. La forma FINAL de cada área se decide más
-  // abajo, al ubicarla — no tiene por qué ser la cuadrada.
-  const referencia = equiposPorArea.map(({ area, eqs }) => {
-    const colsCuadrado = Math.max(1, Math.ceil(Math.sqrt(eqs.length)));
-    return { area, eqs, colsCuadrado, bloqueRef: calcularGrillaArea(eqs, d, 1, colsCuadrado) };
+  // Aire entre el borde inferior de una área y el título de la siguiente —
+  // cada caja ya trae su propio PAD_ZONA_COMPACTAR de margen arriba y
+  // abajo, esto es solo para que las dos cajas punteadas no se toquen.
+  const GAP_ENTRE_AREAS = 30;
+
+  const origenDeArea = {};
+  const colsDeArea = {};
+  let y = 0;
+  equiposPorArea.forEach(({ area, eqs }) => {
+    const anchoMax = anchoMaxDeEquipos(eqs, d);
+    const pasoH = Math.round(anchoMax * 2);
+    const cols = Math.max(1, Math.min(eqs.length, Math.floor(anchoObjetivo / pasoH) || 1));
+    colsDeArea[area.id] = cols;
+    origenDeArea[area.id] = { x: 0, y };
+    y += calcularGrillaArea(eqs, d, 1, cols).alto + GAP_ENTRE_AREAS;
   });
 
-  // Empaqueta las áreas por "skyline" (el mismo tipo de algoritmo que se
-  // usa para acomodar sprites en una textura de videojuego): cada área se
-  // ubica donde quede MÁS ARRIBA posible dentro de un ancho objetivo fijo
-  // (`anchoObjetivo`, estimado del área total de referencia y la
-  // proporción real del panel). El "skyline" es el perfil de altura ya
-  // ocupada en cada tramo de X — arranca como un único tramo de altura 0.
-  // Se procesan las áreas de más alta a más baja (empaqueta mejor: las
-  // altas definen la forma general primero, y las bajas van rellenando los
-  // huecos que van quedando).
-  let anchoObjetivo = Math.sqrt(referencia.reduce((acc, r) => acc + r.bloqueRef.ancho * r.bloqueRef.alto, 0) * arObjetivo) || 1;
-  let skyline = [{ x: 0, ancho: anchoObjetivo, y: 0 }];
-  const origenDeArea = {};
-  const bloques = []; // { areaId, ancho, alto, cols } — la forma FINAL elegida, para el crecimiento posterior
-
-  const alturaEnTramo = (xIni, ancho) => {
-    let y = 0;
-    const xFin = xIni + ancho;
-    skyline.forEach((seg) => {
-      if (seg.x + seg.ancho <= xIni || seg.x >= xFin) return;
-      y = Math.max(y, seg.y);
-    });
-    return y;
-  };
-
-  // Dónde ubicaría el skyline un bloque de este ancho, ahora mismo — el
-  // borde izquierdo de cada tramo es el único punto donde tiene sentido
-  // empezar un rectángulo nuevo.
-  const mejorPosicionPara = (ancho) => {
-    let mejorX = 0;
-    let mejorY = Infinity;
-    skyline.forEach((seg) => {
-      const y = alturaEnTramo(seg.x, ancho);
-      if (y < mejorY) {
-        mejorY = y;
-        mejorX = seg.x;
-      }
-    });
-    return { x: mejorX, y: mejorY };
-  };
-
-  [...referencia]
-    .sort((a, b) => b.bloqueRef.alto - a.bloqueRef.alto)
-    .forEach(({ area, eqs, colsCuadrado }) => {
-      // No se usa solo la forma cuadrada: se prueban varias cantidades de
-      // columnas (mitad a doble de la cuadrada — evita formas degeneradas,
-      // una sola columna altísima o una sola fila kilométrica) y, para cada
-      // una, se calcula dónde la ubicaría el skyline — quedándose con la
-      // que deja el BORDE INFERIOR más bajo (dónde ubicaría el skyline +
-      // su propio alto). Una vecina más alta define una altura a igualar:
-      // la forma que más se acerca a esa altura dejando el bloque más bajo
-      // posible es la que menos hueco deja debajo suyo — a diferencia de
-      // "maximizar la escala del equipo" (lo que se probó antes), este
-      // criterio no premia formas angostas degeneradas: una columna de una
-      // sola celda tiene MENOS ancho pero MÁS alto, así que su borde
-      // inferior empeora en vez de mejorar.
-      const colsMin = Math.max(1, Math.floor(colsCuadrado / 2));
-      const colsMax = Math.min(eqs.length, colsCuadrado * 2);
-
-      let mejor = null;
-      for (let cols = colsMin; cols <= colsMax; cols++) {
-        const bloque = calcularGrillaArea(eqs, d, 1, cols);
-        const pos = mejorPosicionPara(bloque.ancho);
-        const bordeInferior = pos.y + bloque.alto;
-        if (!mejor || bordeInferior < mejor.bordeInferior) {
-          mejor = { cols, bloque, pos, bordeInferior };
-        }
-      }
-
-      const { cols, bloque, pos } = mejor;
-      // Si ni la mejor forma entra en el ancho objetivo (un área más ancha
-      // que todo el resto junto), se agranda lo justo y necesario — no
-      // debería angostar el resto del empaquetado.
-      if (pos.x + bloque.ancho > anchoObjetivo) anchoObjetivo = pos.x + bloque.ancho;
-
-      origenDeArea[area.id] = pos;
-      bloques.push({ areaId: area.id, ancho: bloque.ancho, alto: bloque.alto, cols });
-
-      // Actualiza el skyline: los tramos que este bloque cubre pasan a su
-      // nueva altura (con el margen entre áreas ya sumado); lo que quede
-      // de esos tramos a los costados se conserva a su altura de antes.
-      const xFin = pos.x + bloque.ancho;
-      const nuevoSkyline = [];
-      let agregado = false;
-      skyline.forEach((seg) => {
-        const segFin = seg.x + seg.ancho;
-        if (segFin <= pos.x || seg.x >= xFin) {
-          nuevoSkyline.push(seg);
-          return;
-        }
-        if (seg.x < pos.x) nuevoSkyline.push({ x: seg.x, ancho: pos.x - seg.x, y: seg.y });
-        if (!agregado) {
-          nuevoSkyline.push({ x: pos.x, ancho: bloque.ancho, y: pos.y + bloque.alto + gapEntreAreas });
-          agregado = true;
-        }
-        if (segFin > xFin) nuevoSkyline.push({ x: xFin, ancho: segFin - xFin, y: seg.y });
-      });
-      skyline = nuevoSkyline.sort((s1, s2) => s1.x - s2.x);
-    });
-
-  // Con cada área ya ubicada y con su forma final fijada (bloques), se
-  // intenta agrandar una por una — siempre comparando contra el bloque BASE
-  // de las demás, nunca contra cuánto creció ya alguna vecina, y sin
-  // recalcular la forma (cols) — esa ya quedó fijada arriba.
-  const cajasBase = bloques.map((b) => ({ areaId: b.areaId, x: origenDeArea[b.areaId].x, y: origenDeArea[b.areaId].y, ancho: b.ancho, alto: b.alto }));
+  // Cajas BASE (sin agrandar) de cada área, para que el crecimiento de la
+  // siguiente pasada compare siempre contra el tamaño con el que se apiló
+  // originalmente — nunca contra cuánto ya creció una vecina.
+  const cajasBase = equiposPorArea.map(({ area, eqs }) => {
+    const bloque = calcularGrillaArea(eqs, d, 1, colsDeArea[area.id]);
+    return { areaId: area.id, x: origenDeArea[area.id].x, y: origenDeArea[area.id].y, ancho: bloque.ancho, alto: bloque.alto };
+  });
 
   const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
   const areaIdDeEquipo = {};
   equiposPorArea.forEach(({ area, eqs }) => {
-    const { cols } = bloques.find((b) => b.areaId === area.id);
+    const cols = colsDeArea[area.id];
     const otrasCajasBase = cajasBase.filter((c) => c.areaId !== area.id);
     const grillaFinal = agrandarAreaSinSolape(eqs, d, origenDeArea[area.id], otrasCajasBase, cols);
-    grillaFinal.posiciones.forEach(({ eq, escalaFinal, x, y }) => {
+    grillaFinal.posiciones.forEach(({ eq, escalaFinal, x, y: yRel }) => {
       areaIdDeEquipo[eq.id] = area.id;
-      posicionRelativa[eq.id] = { x, y, escalaFinal };
+      posicionRelativa[eq.id] = { x, y: yRel, escalaFinal };
     });
   });
 
