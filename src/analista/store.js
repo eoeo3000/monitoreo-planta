@@ -115,11 +115,20 @@ const cajasSolapanArea = (a, b) => a.x < b.x + b.ancho && a.x + a.ancho > b.x &&
 // contra el bloque base ajeno —nunca contra cuánto creció ya esa vecina—
 // es lo que hace que el resultado no dependa del orden en que se procesan
 // las áreas: cada una compite solo por el espacio que quedó libre desde el
-// principio. Nunca pasa ESCALA_MAX_COMPACTAR.
+// principio.
+//
+// El tope es la escala ABSOLUTA final de cada equipo (escalaBaseMax, la más
+// grande entre los del área, multiplicada por el factor de esta pasada) —
+// nunca pasa ESCALA_MAX_COMPACTAR. No alcanza con topar el FACTOR de esta
+// pasada sola: si un equipo ya venía con escalaPropia de una compactada
+// anterior (ej. 3.5, cerca del tope), "factor hasta 4" lo multiplicaría de
+// nuevo por 4 y lo mandaría a 14 — el tope se corre de una compactada a la
+// siguiente en vez de frenar en 4 de verdad.
 function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase) {
+  const escalaBaseMax = Math.max(...eqs.map((eq) => iconoConEscala(eq, d)?.escala || 1));
   let mejor = calcularGrillaArea(eqs, d, 1);
   let factor = 1;
-  while (factor * PASO_CRECIMIENTO_AREA <= ESCALA_MAX_COMPACTAR) {
+  while (escalaBaseMax * (factor * PASO_CRECIMIENTO_AREA) <= ESCALA_MAX_COMPACTAR) {
     const siguienteFactor = factor * PASO_CRECIMIENTO_AREA;
     const candidato = calcularGrillaArea(eqs, d, siguienteFactor);
     const caja = { x: origen.x, y: origen.y, ancho: candidato.ancho, alto: candidato.alto };
