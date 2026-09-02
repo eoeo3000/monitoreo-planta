@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS, SEED_CONEXIONES } from './mockData';
 import { SCADA_ICONOS } from '../gerencia/scadaIconos';
-import { iconoConEscala } from '../gerencia/iconos';
+import { iconoBaseDe } from '../gerencia/iconos';
 
 const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
@@ -71,6 +71,27 @@ const ALTO_TITULO_COMPACTAR = 18;
 const ESCALA_MAX_COMPACTAR = 4;
 const PASO_CRECIMIENTO_AREA = 1.1;
 
+// La escala de la que PARTE el compactado: la del tipo (panel "Tamaños de
+// equipo"), salvo que el usuario le haya puesto una a mano a ESE equipo.
+//
+// Una escalaPropia que coincide con lo que anotó la compactación anterior
+// (escalaAuto) es obra del algoritmo, no del usuario, y se descarta. Sin
+// esto cada compactada se apila sobre el resultado de la anterior —de ahí
+// salieron los bugs de escala compuesta— y, peor con un factor único para
+// toda la planta, bastaría UN equipo cerca del tope de 4 para que ninguna
+// área pudiera volver a crecer nunca. Descartarla hace que compactar dos
+// veces seguidas dé exactamente el mismo resultado.
+function escalaDeCatalogo(eq, d) {
+  const delTipo = d.escalasPorTipo?.[eq.tipo] ?? 1;
+  if (eq.escalaPropia === undefined || eq.escalaPropia === null) return delTipo;
+  // Sin marca es dato anterior a este cambio: casi siempre lo escribió una
+  // compactada vieja, así que se descarta igual. Un tamaño puesto a mano
+  // después de compactar sí queda marcado y se respeta.
+  if (eq.escalaAuto === undefined || eq.escalaAuto === null) return delTipo;
+  const loCambioElUsuario = Math.abs(eq.escalaPropia - eq.escalaAuto) > 0.005;
+  return loCambioElUsuario ? eq.escalaPropia : delTipo;
+}
+
 // Arma la grilla de equipos de UN área a un factor de escala y una
 // cantidad de columnas dados — separado en su propia función porque se
 // llama muchas veces por área: una vez por cada forma candidata al
@@ -78,15 +99,12 @@ const PASO_CRECIMIENTO_AREA = 1.1;
 // agrandarla después, en agrandarAreaSinSolape.
 function calcularGrillaArea(eqs, d, factor, cols) {
   const dimensiones = eqs.map((eq) => {
-    const icono = iconoConEscala(eq, d);
-    // Si ESTE equipo puntual ya viene con una escala guardada por encima
-    // del tope (datos de antes del arreglo del crecimiento compuesto: un
-    // solo equipo con escalaPropia de 20x, 50x…), se lo trata como si ya
-    // estuviera en el tope antes de aplicar el factor de esta pasada — así
-    // se autocorrige sin arrastrar hacia abajo a sus vecinos del área que
-    // sí tenían un tamaño normal (aplicar un factor único para toda el
-    // área, calculado a partir del peor equipo, los encogía a todos).
-    const escalaBase = Math.min(icono ? icono.escala : 1, ESCALA_MAX_COMPACTAR);
+    const icono = iconoBaseDe(eq.tipo, d);
+    // Si ESTE equipo puntual viene con una escala a mano por encima del
+    // tope, se lo trata como si ya estuviera en el tope antes de aplicar el
+    // factor — así se autocorrige sin arrastrar hacia abajo a sus vecinos
+    // del área que sí tenían un tamaño normal.
+    const escalaBase = Math.min(escalaDeCatalogo(eq, d), ESCALA_MAX_COMPACTAR);
     const escalaFinal = escalaBase * factor;
     return { eq, escalaFinal, ancho: icono ? icono.anchoBase * escalaFinal : 0, alto: icono ? icono.altoBase * escalaFinal : 0 };
   });
@@ -116,38 +134,30 @@ function calcularGrillaArea(eqs, d, factor, cols) {
 
 const cajasSolapanArea = (a, b) => a.x < b.x + b.ancho && a.x + a.ancho > b.x && a.y < b.y + b.alto && a.y + a.alto > b.y;
 
-// Agranda el bloque de un área, paso a paso (10% por vez), mientras el
-// resultado no invada el bloque BASE (el tamaño con el que se empaquetó,
-// antes de que nadie creciera) de ninguna otra área. Comparar siempre
-// contra el bloque base ajeno —nunca contra cuánto creció ya esa vecina—
-// es lo que hace que el resultado no dependa del orden en que se procesan
-// las áreas: cada una compite solo por el espacio que quedó libre desde el
-// principio.
+// Cuánto PODRÍA crecer un área por su cuenta: se prueba de a 10% por vez
+// mientras el resultado no invada el bloque BASE (el tamaño con el que se
+// empaquetó, antes de que nadie creciera) de ninguna otra. Comparar siempre
+// contra el bloque base ajeno —nunca contra cuánto creció ya esa vecina— es
+// lo que hace que el resultado no dependa del orden en que se procesan.
+//
+// Solo MIDE: no arma la grilla definitiva. Quien la arma es resolverLayout,
+// con el mínimo de estos factores aplicado a toda la planta (ver allá el
+// porqué).
 //
 // El tope es la escala ABSOLUTA final de cada equipo (escalaBaseMax, la más
-// grande entre los del área, multiplicada por el factor de esta pasada) —
-// nunca pasa ESCALA_MAX_COMPACTAR. No alcanza con topar el FACTOR de esta
-// pasada sola: si un equipo ya venía con escalaPropia de una compactada
-// anterior (ej. 3.5, cerca del tope), "factor hasta 4" lo multiplicaría de
-// nuevo por 4 y lo mandaría a 14 — el tope se corre de una compactada a la
-// siguiente en vez de frenar en 4 de verdad.
-//
-function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase, cols, anchoMinimo) {
-  // escalaBaseMax ya viene acotada a ESCALA_MAX_COMPACTAR: calcularGrillaArea
-  // corrige cada equipo corrupto individualmente antes de este cálculo (ver
-  // más arriba), así que esta cuenta nunca parte por encima del tope.
-  const escalaBaseMax = Math.min(Math.max(...eqs.map((eq) => iconoConEscala(eq, d)?.escala || 1)), ESCALA_MAX_COMPACTAR);
-  let mejor = calcularGrillaArea(eqs, d, 1, cols);
+// grande entre los del área, por el factor de esta pasada) — nunca pasa
+// ESCALA_MAX_COMPACTAR.
+function factorMaximoDeArea(eqs, d, origen, otrasCajasBase, cols, anchoMinimo) {
+  const escalaBaseMax = Math.min(Math.max(...eqs.map((eq) => escalaDeCatalogo(eq, d))), ESCALA_MAX_COMPACTAR);
   let factor = 1;
   while (escalaBaseMax * (factor * PASO_CRECIMIENTO_AREA) <= ESCALA_MAX_COMPACTAR) {
     const siguienteFactor = factor * PASO_CRECIMIENTO_AREA;
     const candidato = calcularGrillaArea(eqs, d, siguienteFactor, cols);
     const caja = { x: origen.x, y: origen.y, ancho: Math.max(candidato.ancho, anchoMinimo || 0), alto: candidato.alto };
     if (otrasCajasBase.some((otra) => cajasSolapanArea(caja, otra))) break;
-    mejor = candidato;
     factor = siguienteFactor;
   }
-  return mejor;
+  return factor;
 }
 
 // Ancho base más grande entre los equipos dados (a la escala YA acotada por
@@ -156,9 +166,9 @@ function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase, cols, anchoMinimo
 // saber "cols" (para poder calcular cols a partir de él).
 function anchoMaxDeEquipos(eqs, d) {
   const anchos = eqs.map((eq) => {
-    const icono = iconoConEscala(eq, d);
+    const icono = iconoBaseDe(eq.tipo, d);
     if (!icono) return 0;
-    return icono.anchoBase * Math.min(icono.escala, ESCALA_MAX_COMPACTAR);
+    return icono.anchoBase * Math.min(escalaDeCatalogo(eq, d), ESCALA_MAX_COMPACTAR);
   });
   return Math.max(...anchos, 1);
 }
@@ -299,14 +309,38 @@ function resolverLayout(equiposPorArea, d, anchoObjetivo) {
     alto: bloqueDeArea[area.id].alto,
   }));
 
+  // Crecimiento en dos fases. Primero se MIDE cuánto podría crecer cada
+  // área por su cuenta; después manda el MÍNIMO, aplicado a todas por
+  // igual. Un factor por área —lo que se hacía antes— hacía que la escala
+  // final dijera cuánto lugar libre le tocó al área, no qué equipo es: en
+  // la planta de prueba Bombeo terminaba en 3.8x contra 1.33x de
+  // Agitación, y una bomba (el ícono más chico del catálogo) quedaba más
+  // alta que el clarificador y que el secador. Con un factor único, las
+  // proporciones del catálogo quedan intactas.
+  //
+  // No puede aparecer un solapamiento nuevo: el factor global es menor o
+  // igual que el que cada área ya podía permitirse, y una caja más chica no
+  // choca donde la más grande no chocaba.
+  const factorGlobal = Math.min(
+    ...equiposPorArea.map(({ area, eqs }) =>
+      factorMaximoDeArea(
+        eqs,
+        d,
+        origenDeArea[area.id],
+        cajasBase.filter((c) => c.areaId !== area.id),
+        colsDeArea[area.id],
+        anchoDeTitulo(area.nombre)
+      )
+    )
+  );
+
   const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
   const areaIdDeEquipo = {};
   let ancho = 0;
   let alto = 0;
   equiposPorArea.forEach(({ area, eqs }) => {
-    const otrasCajasBase = cajasBase.filter((c) => c.areaId !== area.id);
     const anchoTitulo = anchoDeTitulo(area.nombre);
-    const grillaFinal = agrandarAreaSinSolape(eqs, d, origenDeArea[area.id], otrasCajasBase, colsDeArea[area.id], anchoTitulo);
+    const grillaFinal = calcularGrillaArea(eqs, d, factorGlobal, colsDeArea[area.id]);
     const origen = origenDeArea[area.id];
     ancho = Math.max(ancho, origen.x + Math.max(grillaFinal.ancho, anchoTitulo));
     alto = Math.max(alto, origen.y + grillaFinal.alto);
@@ -342,11 +376,11 @@ function resolverLayout(equiposPorArea, d, anchoObjetivo) {
 //    cuadrado que la pantalla, el encuadre estira el lienzo a lo ancho
 //    para no deformar los íconos, y ese estiramiento es exactamente el
 //    espacio vacío que se veía al costado.
-// 3. CRECIMIENTO: con las áreas ya ubicadas y su forma fija, se intenta
-//    agrandar cada una por separado hasta el borde de la vecina más
-//    cercana (agrandarAreaSinSolape) — así un área con lugar de sobra
-//    alrededor puede crecer aunque el resto de la planta ya esté apretado,
-//    en vez de depender de una sola escala global para toda la planta.
+// 3. CRECIMIENTO: se mide cuánto podría crecer cada área hasta la vecina
+//    más cercana (factorMaximoDeArea) y se aplica el MÍNIMO a toda la
+//    planta — un factor por área hacía que la escala terminara diciendo
+//    cuánto lugar libre tenía el área en vez de qué equipo es (ver
+//    resolverLayout).
 //
 // La caja punteada de cada área no se reserva de antemano en ningún
 // momento: la calcula sola PortalSCADA.js a partir de dónde terminaron sus
@@ -396,6 +430,11 @@ function calcularLayoutCompacto(d, plantaId, arObjetivo) {
   // (ya con las áreas agrandadas, que es lo que se termina dibujando) más
   // parecido a la proporción del panel. Resolver es barato — son unas
   // pocas áreas — así que probar diez opciones no se nota.
+  // Muestrear más fino que esto no sirve: la cantidad de columnas de cada
+  // área es un entero, así que los layouts alcanzables son un conjunto
+  // discreto y saltan de a escalones grandes (medido en la planta de
+  // prueba: se salta de una proporción de 1.46 a una de 2.03, sin nada en
+  // el medio). Los candidatos de acá ya caen a ambos lados de esos saltos.
   const arDestino = arObjetivo || 1;
   let mejor = null;
   [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2].forEach((multiplicador) => {
@@ -410,10 +449,17 @@ function calcularLayoutCompacto(d, plantaId, arObjetivo) {
     const rel = mejor.posicionRelativa[eq.id];
     if (!rel) return eq;
     const origen = mejor.origenDeArea[mejor.areaIdDeEquipo[eq.id]];
+    const escala = Math.round(rel.escalaFinal * 100) / 100;
     return {
       ...eq,
       posicion: { x: Math.round(origen.x + rel.x), y: Math.round(origen.y + rel.y) },
-      escalaPropia: Math.round(rel.escalaFinal * 100) / 100,
+      // escalaPropia es lo que lee el renderizado; escalaAuto es la misma
+      // cifra guardada como marca de "esto lo escribió el compactado".
+      // Si después el usuario cambia el tamaño a mano, las dos dejan de
+      // coincidir y la próxima compactada respeta su cambio en vez de
+      // pisarlo (ver escalaDeCatalogo).
+      escalaPropia: escala,
+      escalaAuto: escala,
     };
   });
 
