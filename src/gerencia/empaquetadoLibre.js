@@ -13,7 +13,7 @@ import { iconoBaseDe } from './iconos';
 // empaquetado— sin mezclarla con el crecimiento de escala.
 
 const SEPARACION = 14; // aire entre equipos vecinos
-const ALTO_TAG = 18; // alto reservado al TAG debajo del ícono
+export const ALTO_TAG = 18; // alto reservado al TAG debajo del ícono
 // El TAG puede ser MÁS ANCHO que su ícono (una bomba mide 26 y "PMP-100"
 // unos 53): si la celda no lo contempla, las etiquetas se pisan entre sí
 // justo cuando el empaquetado se pone denso, que es de lo que se trata esto.
@@ -128,6 +128,56 @@ export function empaquetarLibre(equipos, data, { arObjetivo = 16 / 9, agruparPor
   });
 
   return mejor;
+}
+
+const PAD_CAJA = 10;
+
+// Caja que encierra a los equipos de cada área, calculada DESPUÉS de
+// ubicarlos — igual que hace PortalSCADA.js con el cuadro punteado. Sirve
+// para responder la pregunta que decide si este método es usable: al no
+// reservar un rectángulo por área, ¿los equipos de un mismo sistema igual
+// quedan juntos, o se dispersan y el diagrama deja de leerse como planta?
+export function cajasPorArea(piezas) {
+  const porArea = new Map();
+  piezas.forEach((p) => {
+    const izq = p.x - p.anchoIcono / 2;
+    const der = p.x + p.anchoIcono / 2;
+    const arriba = p.y - p.altoIcono;
+    const abajo = p.y + ALTO_TAG;
+    const c = porArea.get(p.eq.areaId);
+    if (!c) {
+      porArea.set(p.eq.areaId, { areaId: p.eq.areaId, x0: izq, x1: der, y0: arriba, y1: abajo });
+      return;
+    }
+    c.x0 = Math.min(c.x0, izq);
+    c.x1 = Math.max(c.x1, der);
+    c.y0 = Math.min(c.y0, arriba);
+    c.y1 = Math.max(c.y1, abajo);
+  });
+  return [...porArea.values()].map((c) => ({
+    areaId: c.areaId,
+    x: c.x0 - PAD_CAJA,
+    y: c.y0 - PAD_CAJA,
+    ancho: c.x1 - c.x0 + PAD_CAJA * 2,
+    alto: c.y1 - c.y0 + PAD_CAJA * 2,
+  }));
+}
+
+// Cuánto se pisan entre sí esas cajas. Si da cero, cada área quedó en una
+// zona propia y se le puede volver a dibujar el cuadro punteado sin que
+// choque con el de otra: densidad Y legibilidad, no una u otra.
+export function solapamientoDeCajas(cajas) {
+  let total = 0;
+  for (let i = 0; i < cajas.length; i += 1) {
+    for (let j = i + 1; j < cajas.length; j += 1) {
+      const a = cajas[i];
+      const b = cajas[j];
+      const w = Math.min(a.x + a.ancho, b.x + b.ancho) - Math.max(a.x, b.x);
+      const h = Math.min(a.y + a.alto, b.y + b.alto) - Math.max(a.y, b.y);
+      if (w > 0 && h > 0) total += w * h;
+    }
+  }
+  return total;
 }
 
 // Métricas comparables entre métodos. "Lienzo vacío" es lo que de verdad se

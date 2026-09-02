@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { calcularLayoutCompacto, condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
-import { empaquetarLibre, metricas } from '../../gerencia/empaquetadoLibre';
+import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/empaquetadoLibre';
 import './portalScada.css';
 
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };
@@ -45,18 +45,22 @@ export default function EnsayoLayout({ data }) {
     const r = empaquetarLibre(equiposDePlanta, data, { arObjetivo: AR_OBJETIVO, agruparPorArea });
     if (!r) return null;
     const areaIconos = r.colocadas.reduce((acc, c) => acc + c.anchoIcono * c.altoIcono, 0);
+    const piezas = r.colocadas.map((c) => ({
+      eq: c.eq,
+      escala: c.escala,
+      // Dentro de su celda, el ícono va centrado y pegado arriba; el TAG
+      // queda debajo, en el alto que la celda ya le reservó.
+      x: c.x + c.ancho / 2,
+      y: c.y + c.altoIcono,
+      anchoIcono: c.anchoIcono,
+      altoIcono: c.altoIcono,
+    }));
+    const m = metricas({ ancho: r.ancho, alto: r.alto, areaIconos, arObjetivo: AR_OBJETIVO });
+    const cajas = cajasPorArea(piezas);
     return {
-      piezas: r.colocadas.map((c) => ({
-        eq: c.eq,
-        escala: c.escala,
-        // Dentro de su celda, el ícono va centrado y pegado arriba; el TAG
-        // queda debajo, en el alto que la celda ya le reservó.
-        x: c.x + c.ancho / 2,
-        y: c.y + c.altoIcono,
-        anchoIcono: c.anchoIcono,
-        altoIcono: c.altoIcono,
-      })),
-      metricas: metricas({ ancho: r.ancho, alto: r.alto, areaIconos, arObjetivo: AR_OBJETIVO }),
+      piezas,
+      cajas,
+      metricas: { ...m, solape: solapamientoDeCajas(cajas) / (m.lienzoAncho * m.lienzoAlto) },
     };
   }, [plantaId, equiposDePlanta, data, agruparPorArea]);
 
@@ -89,9 +93,13 @@ export default function EnsayoLayout({ data }) {
     const maxY = Math.max(...piezas.map((p) => p.y + ALTO_TAG));
     const areaIconos = piezas.reduce((acc, p) => acc + p.anchoIcono * p.altoIcono, 0);
 
+    const trasladadas = piezas.map((p) => ({ ...p, x: p.x - minX, y: p.y - minY }));
+    const m = metricas({ ancho: maxX - minX, alto: maxY - minY, areaIconos, arObjetivo: AR_OBJETIVO });
+    const cajas = cajasPorArea(trasladadas);
     return {
-      piezas: piezas.map((p) => ({ ...p, x: p.x - minX, y: p.y - minY })),
-      metricas: metricas({ ancho: maxX - minX, alto: maxY - minY, areaIconos, arObjetivo: AR_OBJETIVO }),
+      piezas: trasladadas,
+      cajas,
+      metricas: { ...m, solape: solapamientoDeCajas(cajas) / (m.lienzoAncho * m.lienzoAlto) },
     };
   }, [plantaId, equiposDePlanta, data]);
 
@@ -157,6 +165,7 @@ export default function EnsayoLayout({ data }) {
               <th style={{ textAlign: 'left', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }}>Método</th>
               <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }}>Vacío</th>
               <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }}>Desvío</th>
+              <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }} title="Cuánto se pisan entre sí las cajas de las áreas. Cero = cada área quedó en su propia zona.">Solape</th>
             </tr>
           </thead>
           <tbody>
@@ -168,6 +177,9 @@ export default function EnsayoLayout({ data }) {
                 </td>
                 <td style={{ textAlign: 'right', padding: '5px 0', borderBottom: '1px solid var(--scada-borde)', fontVariantNumeric: 'tabular-nums' }}>
                   {f.r ? f.r.metricas.desvio.toFixed(3) : '—'}
+                </td>
+                <td style={{ textAlign: 'right', padding: '5px 0', borderBottom: '1px solid var(--scada-borde)', fontVariantNumeric: 'tabular-nums' }}>
+                  {f.r ? `${(f.r.metricas.solape * 100).toFixed(1)}%` : '—'}
                 </td>
               </tr>
             ))}
@@ -213,6 +225,24 @@ export default function EnsayoLayout({ data }) {
             {/* Borde del lienzo que realmente se vería, ya con el aire que
                 agrega el encuadre — es el área contra la que se mide "vacío". */}
             <rect x={0} y={0} width={vista.metricas.lienzoAncho} height={vista.metricas.lienzoAlto} fill="none" stroke="var(--scada-zona)" strokeWidth={1} strokeDasharray="6 4" />
+
+            {/* Cuadro de cada área, calculado igual que en el Portal: de las
+                posiciones que quedaron, no reservado de antemano. Si no se
+                pisan entre sí, este método puede conservar el cuadro. */}
+            {vista.cajas.map((c) => (
+              <rect
+                key={c.areaId}
+                x={c.x}
+                y={c.y}
+                width={c.ancho}
+                height={c.alto}
+                fill="none"
+                stroke={colorDeArea[c.areaId] || 'var(--scada-zona)'}
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                opacity={0.7}
+              />
+            ))}
 
             {vista.piezas.map((p) => {
               const icono = iconoBaseDe(p.eq.tipo, data);
