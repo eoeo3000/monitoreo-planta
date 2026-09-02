@@ -1,0 +1,147 @@
+import { escalaDeCatalogo, calcularGrillaArea, anchoDeTitulo, PAD_ZONA, ALTO_TITULO } from './grilla';
+import { empaquetarSkyline } from './skyline';
+import { contornosDeArea, solapamientoDeCajas } from './ensayo';
+
+// Geometría pura: se puede probar sin navegador y sin React, que es
+// justamente lo que motivó separarla del store.
+
+const datos = { escalasPorTipo: {}, tiposPersonalizados: [] };
+const bomba = (id) => ({ id, tag: id, tipo: 'bomba', areaId: 'a1' });
+
+describe('escalaDeCatalogo', () => {
+  test('sin escala propia usa la del tipo', () => {
+    expect(escalaDeCatalogo(bomba('b1'), datos)).toBe(1);
+    expect(escalaDeCatalogo(bomba('b1'), { ...datos, escalasPorTipo: { bomba: 2 } })).toBe(2);
+  });
+
+  test('descarta la escala que dejó el compactado anterior', () => {
+    // escalaPropia coincide con la marca escalaAuto: la escribió el
+    // algoritmo, así que compactar de nuevo parte del tipo y no se apila
+    // sobre su propio resultado.
+    const eq = { ...bomba('b1'), escalaPropia: 3.8, escalaAuto: 3.8 };
+    expect(escalaDeCatalogo(eq, datos)).toBe(1);
+  });
+
+  test('respeta la escala que el usuario cambió después de compactar', () => {
+    const eq = { ...bomba('b1'), escalaPropia: 2.5, escalaAuto: 3.8 };
+    expect(escalaDeCatalogo(eq, datos)).toBe(2.5);
+  });
+
+  test('descarta una escala sin marca (dato viejo)', () => {
+    const eq = { ...bomba('b1'), escalaPropia: 3.8 };
+    expect(escalaDeCatalogo(eq, datos)).toBe(1);
+  });
+});
+
+describe('calcularGrillaArea', () => {
+  test('un solo equipo: margen a los dos lados más lugar para el título', () => {
+    const g = calcularGrillaArea([bomba('b1')], datos, 1, 1);
+    expect(g.ancho).toBe(PAD_ZONA * 2 + 26); // anchoBase de la bomba
+    expect(g.alto).toBe(PAD_ZONA * 2 + ALTO_TITULO + 29); // altoBase
+    expect(g.posiciones).toHaveLength(1);
+  });
+
+  test('dos equipos en una fila suman un paso horizontal', () => {
+    const g = calcularGrillaArea([bomba('b1'), bomba('b2')], datos, 1, 2);
+    expect(g.ancho).toBe(PAD_ZONA * 2 + 26 + 52); // pasoH = anchoMax * 2
+    expect(g.alto).toBe(PAD_ZONA * 2 + ALTO_TITULO + 29); // sigue siendo una fila
+  });
+
+  test('el factor escala las posiciones y las dimensiones', () => {
+    const g1 = calcularGrillaArea([bomba('b1')], datos, 1, 1);
+    const g2 = calcularGrillaArea([bomba('b1')], datos, 2, 1);
+    expect(g2.posiciones[0].escalaFinal).toBe(2);
+    expect(g2.ancho).toBeGreaterThan(g1.ancho);
+  });
+});
+
+describe('anchoDeTitulo', () => {
+  test('crece con la cantidad de caracteres', () => {
+    expect(anchoDeTitulo('AB')).toBeLessThan(anchoDeTitulo('ÁREA DE BOMBEO'));
+  });
+
+  test('tolera un nombre vacío', () => {
+    expect(anchoDeTitulo(undefined)).toBeGreaterThan(0);
+  });
+});
+
+describe('empaquetarSkyline', () => {
+  const pieza = (id, ancho, alto) => ({ id, ancho, alto });
+
+  test('dos piezas que entran quedan lado a lado arriba de todo', () => {
+    const r = empaquetarSkyline([pieza('a', 50, 20), pieza('b', 50, 20)], 100);
+    expect(r.colocadas.map((c) => [c.x, c.y])).toEqual([[0, 0], [50, 0]]);
+    expect(r.ancho).toBe(100);
+    expect(r.alto).toBe(20);
+  });
+
+  test('la tercera pieza baja a la fila siguiente', () => {
+    const r = empaquetarSkyline([pieza('a', 50, 20), pieza('b', 50, 20), pieza('c', 50, 20)], 100);
+    expect(r.colocadas[2]).toMatchObject({ x: 0, y: 20 });
+    expect(r.alto).toBe(40);
+  });
+
+  test('ninguna pieza se superpone con otra', () => {
+    const piezas = [pieza('a', 60, 30), pieza('b', 50, 10), pieza('c', 40, 25), pieza('d', 30, 40)];
+    const { colocadas } = empaquetarSkyline(piezas, 100);
+    colocadas.forEach((a, i) => {
+      colocadas.slice(i + 1).forEach((b) => {
+        const seCruzan = a.x < b.x + b.ancho && a.x + a.ancho > b.x && a.y < b.y + b.alto && a.y + a.alto > b.y;
+        expect(seCruzan).toBe(false);
+      });
+    });
+  });
+
+  test('lo reservado puede ser mayor que lo que ocupa (margen entre áreas)', () => {
+    // La pieza mide 50 pero reserva 60: la siguiente no puede arrancar en 50.
+    const r = empaquetarSkyline(
+      [{ id: 'a', ancho: 50, alto: 20, anchoOcupado: 60, altoOcupado: 30 }, pieza('b', 40, 20)],
+      100
+    );
+    expect(r.colocadas[1].x).toBe(60);
+  });
+});
+
+describe('solapamientoDeCajas', () => {
+  const caja = (x, y) => ({ x, y, ancho: 100, alto: 100 });
+
+  test('cajas separadas no se pisan', () => {
+    expect(solapamientoDeCajas([caja(0, 0), caja(200, 0)])).toBe(0);
+  });
+
+  test('mide la superficie pisada', () => {
+    expect(solapamientoDeCajas([caja(0, 0), caja(50, 0)])).toBe(50 * 100);
+  });
+
+  test('cuenta la UNIÓN, no la suma de los pares', () => {
+    // Tres cajas idénticas comparten una sola superficie de 100x100. Sumar
+    // los pares daría 30000; la respuesta correcta es 10000.
+    expect(solapamientoDeCajas([caja(0, 0), caja(0, 0), caja(0, 0)])).toBe(100 * 100);
+  });
+
+  test('una sola caja no se pisa consigo misma', () => {
+    expect(solapamientoDeCajas([caja(0, 0)])).toBe(0);
+  });
+});
+
+describe('contornosDeArea', () => {
+  const span = (fila, x0, x1) => ({ fila, x0, x1, y0: fila * 50, y1: fila * 50 + 50 });
+
+  test('tramos que se tocan dan un solo contorno', () => {
+    const c = contornosDeArea([span(0, 0, 200), span(1, 0, 120)]);
+    expect(c).toHaveLength(1);
+    expect(c[0].d).toMatch(/^M .* Z$/);
+  });
+
+  test('tramos separados en X dan contornos separados', () => {
+    // Un área chica justo en el salto de fila: termina a la derecha y sigue
+    // a la izquierda, sin tocarse. Son dos figuras, y eso es la verdad.
+    const c = contornosDeArea([span(0, 700, 900), span(1, 0, 200)]);
+    expect(c).toHaveLength(2);
+  });
+
+  test('sin tramos no hay contorno', () => {
+    expect(contornosDeArea([])).toEqual([]);
+    expect(contornosDeArea(undefined)).toEqual([]);
+  });
+});

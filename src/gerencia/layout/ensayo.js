@@ -1,4 +1,6 @@
-import { iconoBaseDe } from './iconos';
+import { iconoBaseDe } from '../iconos';
+import { escalaVisible, buscarMejorAncho } from './grilla';
+import { empaquetarSkyline } from './skyline';
 
 // Empaquetado LIBRE: acomoda equipos sueltos, sin el rectángulo de área como
 // unidad. El compactado de producción (store.js) arma primero un bloque
@@ -22,7 +24,7 @@ const ANCHO_CARACTER_TAG = 7.6;
 export function celdaDeEquipo(eq, data) {
   const icono = iconoBaseDe(eq.tipo, data);
   if (!icono) return null;
-  const escala = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
+  const escala = escalaVisible(eq, data);
   const anchoIcono = icono.anchoBase * escala;
   const altoIcono = icono.altoBase * escala;
   const anchoTag = (eq.tag || '').length * ANCHO_CARACTER_TAG;
@@ -36,63 +38,10 @@ export function celdaDeEquipo(eq, data) {
   };
 }
 
-// Skyline: el perfil de altura ya ocupada en cada tramo de X. Misma familia
-// de algoritmo que usa el compactado de producción, pero a nivel de equipo.
-function empaquetarEnAncho(celdas, anchoObjetivo) {
-  let skyline = [{ x: 0, ancho: anchoObjetivo, y: 0 }];
-
-  const alturaEnTramo = (xIni, ancho) => {
-    let maxY = 0;
-    const xFin = xIni + ancho;
-    skyline.forEach((seg) => {
-      if (seg.x + seg.ancho <= xIni || seg.x >= xFin) return;
-      maxY = Math.max(maxY, seg.y);
-    });
-    return maxY;
-  };
-
-  // Lo más arriba posible y, a igual altura, lo más a la izquierda.
-  const mejorPosicion = (ancho) => {
-    let mejor = null;
-    skyline.forEach((seg) => {
-      if (seg.x + ancho > anchoObjetivo + 0.5) return;
-      const y = alturaEnTramo(seg.x, ancho);
-      if (!mejor || y < mejor.y || (y === mejor.y && seg.x < mejor.x)) mejor = { x: seg.x, y };
-    });
-    return mejor || { x: 0, y: alturaEnTramo(0, ancho) };
-  };
-
-  const colocadas = [];
-  let ancho = 0;
-  let alto = 0;
-
-  celdas.forEach((celda) => {
-    const pos = mejorPosicion(celda.ancho);
-    colocadas.push({ ...celda, x: pos.x, y: pos.y });
-    ancho = Math.max(ancho, pos.x + celda.ancho);
-    alto = Math.max(alto, pos.y + celda.alto);
-
-    const xFin = pos.x + celda.ancho;
-    const nuevo = [];
-    let agregado = false;
-    skyline.forEach((seg) => {
-      const segFin = seg.x + seg.ancho;
-      if (segFin <= pos.x || seg.x >= xFin) {
-        nuevo.push(seg);
-        return;
-      }
-      if (seg.x < pos.x) nuevo.push({ x: seg.x, ancho: pos.x - seg.x, y: seg.y });
-      if (!agregado) {
-        nuevo.push({ x: pos.x, ancho: celda.ancho, y: pos.y + celda.alto });
-        agregado = true;
-      }
-      if (segFin > xFin) nuevo.push({ x: xFin, ancho: segFin - xFin, y: seg.y });
-    });
-    skyline = nuevo.sort((a, b) => a.x - b.x);
-  });
-
-  return { colocadas, ancho: ancho || 1, alto: alto || 1 };
-}
+// Los métodos de ensayo arrancan de un ancho más chico que el compactado de
+// producción: al ubicar equipos sueltos, y no bloques, las formas
+// alcanzables son mucho más finas y conviene mirar un poco más abajo.
+const MULTIPLICADORES_ENSAYO = [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2];
 
 // Orden de colocación. Por altura descendente empaqueta mejor (las altas
 // definen el perfil y las bajas rellenan). Agrupando por área se pierde algo
@@ -118,16 +67,12 @@ export function empaquetarLibre(equipos, data, { arObjetivo = 16 / 9, agruparPor
 
   // Mismo criterio que el compactado de producción: se prueban varios anchos
   // y gana el que deja la forma del resultado más parecida a la del panel.
-  // Se compara en escala logarítmica para que quedarse corto y pasarse pesen
-  // igual.
-  let mejor = null;
-  [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2].forEach((mult) => {
-    const r = empaquetarEnAncho(ordenadas, anchoBase * mult);
-    const desvio = Math.abs(Math.log(r.ancho / r.alto / arObjetivo));
-    if (!mejor || desvio < mejor.desvio) mejor = { ...r, desvio, mult };
-  });
-
-  return mejor;
+  return buscarMejorAncho(
+    anchoBase,
+    arObjetivo,
+    (ancho) => empaquetarSkyline(ordenadas, ancho),
+    MULTIPLICADORES_ENSAYO
+  );
 }
 
 // ---------------------------------------------------------------------
@@ -215,13 +160,7 @@ export function empaquetarEscalonado(equipos, data, { arObjetivo = 16 / 9 } = {}
   const areaCeldas = celdas.reduce((acc, c) => acc + c.ancho * c.alto, 0);
   const anchoBase = Math.max(Math.sqrt(areaCeldas * arObjetivo), 200);
 
-  let mejor = null;
-  [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2].forEach((mult) => {
-    const r = fluirEnAncho(grupos, anchoBase * mult);
-    const desvio = Math.abs(Math.log(r.ancho / r.alto / arObjetivo));
-    if (!mejor || desvio < mejor.desvio) mejor = { ...r, desvio, mult };
-  });
-  return mejor;
+  return buscarMejorAncho(anchoBase, arObjetivo, (ancho) => fluirEnAncho(grupos, ancho), MULTIPLICADORES_ENSAYO);
 }
 
 // Contorno rectilíneo de un área: baja por los bordes derechos de sus
