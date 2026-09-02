@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { calcularLayoutCompacto, condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
-import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/empaquetadoLibre';
+import { empaquetarLibre, empaquetarEscalonado, contornosDeArea, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/empaquetadoLibre';
 import './portalScada.css';
 
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };
@@ -64,6 +64,32 @@ export default function EnsayoLayout({ data }) {
     };
   }, [plantaId, equiposDePlanta, data, agruparPorArea]);
 
+  // --- Método escalonado: flujo continuo, límite de área no rectangular --
+  const escalonado = useMemo(() => {
+    if (!plantaId || equiposDePlanta.length === 0) return null;
+    const r = empaquetarEscalonado(equiposDePlanta, data, { arObjetivo: AR_OBJETIVO });
+    if (!r) return null;
+    const areaIconos = r.colocadas.reduce((acc, c) => acc + c.anchoIcono * c.altoIcono, 0);
+    const piezas = r.colocadas.map((c) => ({
+      eq: c.eq,
+      escala: c.escala,
+      x: c.x + c.ancho / 2,
+      y: c.y + c.altoIcono,
+      anchoIcono: c.anchoIcono,
+      altoIcono: c.altoIcono,
+    }));
+    const m = metricas({ ancho: r.ancho, alto: r.alto, areaIconos, arObjetivo: AR_OBJETIVO });
+    // El contorno sigue las celdas realmente ocupadas, así que por
+    // construcción dos áreas nunca se pisan: el solape es cero y no hace
+    // falta medirlo con cajas.
+    return {
+      piezas,
+      cajas: [],
+      contornos: r.spans.flatMap((s) => contornosDeArea(s.spans).map((c) => ({ ...c, areaId: s.areaId }))),
+      metricas: { ...m, solape: 0 },
+    };
+  }, [plantaId, equiposDePlanta, data]);
+
   // --- Método actual: el compactado de producción, sin escribir nada ---
   const actual = useMemo(() => {
     if (!plantaId || equiposDePlanta.length === 0) return null;
@@ -103,10 +129,11 @@ export default function EnsayoLayout({ data }) {
     };
   }, [plantaId, equiposDePlanta, data]);
 
-  const vista = metodo === 'libre' ? libre : actual;
+  const vista = metodo === 'libre' ? libre : metodo === 'escalonado' ? escalonado : actual;
 
   const filas = [
     { clave: 'actual', nombre: 'Actual · bloques por área', r: actual },
+    { clave: 'escalonado', nombre: 'Escalonado · flujo continuo', r: escalonado },
     { clave: 'libre', nombre: `Libre · por equipo${agruparPorArea ? ' (agrupado)' : ''}`, r: libre },
   ];
 
@@ -134,7 +161,7 @@ export default function EnsayoLayout({ data }) {
         </select>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 'var(--space-3)' }}>
-          {[{ id: 'actual', t: 'Actual' }, { id: 'libre', t: 'Libre' }].map((m) => (
+          {[{ id: 'actual', t: 'Actual' }, { id: 'escalonado', t: 'Escalonado' }, { id: 'libre', t: 'Libre' }].map((m) => (
             <button
               key={m.id}
               onClick={() => setMetodo(m.id)}
@@ -241,6 +268,21 @@ export default function EnsayoLayout({ data }) {
                 strokeWidth={1}
                 strokeDasharray="4 3"
                 opacity={0.7}
+              />
+            ))}
+
+            {/* Límite escalonado: sigue las celdas ocupadas en vez de ser un
+                rectángulo, así un área puede cederle a la siguiente el
+                sobrante de su última fila sin que los límites se crucen. */}
+            {(vista.contornos || []).map((c, i) => (
+              <path
+                key={`${c.areaId}-${i}`}
+                d={c.d}
+                fill="none"
+                stroke={colorDeArea[c.areaId] || 'var(--scada-zona)'}
+                strokeWidth={1}
+                strokeDasharray="4 3"
+                opacity={0.75}
               />
             ))}
 
