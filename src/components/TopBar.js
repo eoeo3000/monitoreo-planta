@@ -4,6 +4,7 @@ const VISTAS = [
   { id: 'analista', label: 'Analista' },
   { id: 'administracion', label: 'Administración' },
   { id: 'portalScada', label: 'Portal SCADA' },
+  { id: 'ensayoLayout', label: 'Ensayo de layout' },
 ];
 
 export default function TopBar({ vista, setVista, onResetear }) {
