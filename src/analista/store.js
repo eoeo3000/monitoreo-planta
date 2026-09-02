@@ -386,7 +386,9 @@ function resolverLayout(equiposPorArea, d, anchoObjetivo) {
 // momento: la calcula sola PortalSCADA.js a partir de dónde terminaron sus
 // equipos, así que un área de pocos equipos queda angosta en vez de
 // estirada.
-function calcularLayoutCompacto(d, plantaId, arObjetivo) {
+// Exportada además de usarse acá: la pantalla de ensayo de layout la corre
+// para comparar este método contra otros, sin escribir nada.
+export function calcularLayoutCompacto(d, plantaId, arObjetivo) {
   const areasDePlanta = d.areas.filter((a) => a.plantaId === plantaId);
   const equiposPorArea = areasDePlanta
     .map((area) => ({
