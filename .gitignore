@@ -29,3 +29,6 @@ server/prisma/dev.db
 
 # Netlify CLI local state
 .netlify
+
+# capturas de las mediciones de layout
+scripts/medicion/salida
