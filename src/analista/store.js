@@ -132,7 +132,7 @@ const cajasSolapanArea = (a, b) => a.x < b.x + b.ancho && a.x + a.ancho > b.x &&
 // nuevo por 4 y lo mandaría a 14 — el tope se corre de una compactada a la
 // siguiente en vez de frenar en 4 de verdad.
 //
-function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase, cols) {
+function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase, cols, anchoMinimo) {
   // escalaBaseMax ya viene acotada a ESCALA_MAX_COMPACTAR: calcularGrillaArea
   // corrige cada equipo corrupto individualmente antes de este cálculo (ver
   // más arriba), así que esta cuenta nunca parte por encima del tope.
@@ -142,7 +142,7 @@ function agrandarAreaSinSolape(eqs, d, origen, otrasCajasBase, cols) {
   while (escalaBaseMax * (factor * PASO_CRECIMIENTO_AREA) <= ESCALA_MAX_COMPACTAR) {
     const siguienteFactor = factor * PASO_CRECIMIENTO_AREA;
     const candidato = calcularGrillaArea(eqs, d, siguienteFactor, cols);
-    const caja = { x: origen.x, y: origen.y, ancho: candidato.ancho, alto: candidato.alto };
+    const caja = { x: origen.x, y: origen.y, ancho: Math.max(candidato.ancho, anchoMinimo || 0), alto: candidato.alto };
     if (otrasCajasBase.some((otra) => cajasSolapanArea(caja, otra))) break;
     mejor = candidato;
     factor = siguienteFactor;
@@ -163,29 +163,195 @@ function anchoMaxDeEquipos(eqs, d) {
   return Math.max(...anchos, 1);
 }
 
+// Ancho que va a ocupar el cuadro punteado de un área SOLO por su título:
+// PortalSCADA.js agranda la caja dibujada para que el título entre entero
+// (cajaVisibleDeArea), así que un área de pocos equipos termina dibujada
+// más ancha que su grilla. Si el empaquetado no reserva ese ancho, dos
+// áreas angostas puestas una al lado de la otra se pisan los títulos.
+// Estimación del ancho del texto: 13px, negrita, mayúsculas, con
+// letter-spacing — alcanza con un promedio por carácter, más el margen
+// izquierdo (8) con el que se ancla el título y el aire de la derecha.
+const ANCHO_POR_CARACTER_TITULO = 8.4;
+function anchoDeTitulo(nombre) {
+  return 8 + (nombre || '').length * ANCHO_POR_CARACTER_TITULO + 10;
+}
+
+// Aire entre dos áreas vecinas — cada caja ya trae su propio
+// PAD_ZONA_COMPACTAR de margen, esto es solo para que dos cuadros
+// punteados no se toquen.
+const GAP_ENTRE_AREAS = 30;
+
+// Ubica todas las áreas dentro de un ancho de lienzo dado, sin agrandar
+// todavía a nadie. Devuelve dónde quedó cada una y qué tamaño ocupa el
+// conjunto, para poder probar varios anchos y quedarse con el que mejor
+// calza con la proporción del panel (ver calcularLayoutCompacto).
+function empaquetarAreas(equiposPorArea, d, anchoObjetivo) {
+  // Forma de cada área: tantas columnas como entren en el ancho compartido
+  // (nunca más — ese es el tope que evita que un área acapare todo el
+  // lienzo), y nunca más que su propia cantidad de equipos. El ancho que se
+  // RESERVA es el mayor entre el de la grilla y el que necesita el título:
+  // PortalSCADA.js agranda la caja dibujada para que el título entre
+  // entero, así que sin esto dos áreas angostas vecinas se pisan.
+  const colsDeArea = {};
+  const bloqueDeArea = {};
+  const anchoReservadoDeArea = {};
+  equiposPorArea.forEach(({ area, eqs }) => {
+    const pasoH = Math.round(anchoMaxDeEquipos(eqs, d) * 2);
+    const cols = Math.max(1, Math.min(eqs.length, Math.floor(anchoObjetivo / pasoH) || 1));
+    const bloque = calcularGrillaArea(eqs, d, 1, cols);
+    colsDeArea[area.id] = cols;
+    bloqueDeArea[area.id] = bloque;
+    anchoReservadoDeArea[area.id] = Math.max(bloque.ancho, anchoDeTitulo(area.nombre));
+  });
+
+  // Empaquetado por "skyline" (el mismo tipo de algoritmo que acomoda
+  // sprites en una textura): el perfil de altura ya ocupada en cada tramo
+  // de X, que arranca como un único tramo de altura 0.
+  let skyline = [{ x: 0, ancho: anchoObjetivo, y: 0 }];
+
+  const alturaEnTramo = (xIni, ancho) => {
+    let alturaMax = 0;
+    const xFin = xIni + ancho;
+    skyline.forEach((seg) => {
+      if (seg.x + seg.ancho <= xIni || seg.x >= xFin) return;
+      alturaMax = Math.max(alturaMax, seg.y);
+    });
+    return alturaMax;
+  };
+
+  // Dónde ubicar un bloque de este ancho: lo más arriba posible y, a igual
+  // altura, lo más a la izquierda. Solo se consideran arranques donde el
+  // bloque entra completo dentro del ancho compartido; si no entra en
+  // ninguno (un área más ancha que el lienzo), va abajo de todo contra el
+  // margen izquierdo.
+  const mejorPosicionPara = (ancho) => {
+    let mejor = null;
+    skyline.forEach((seg) => {
+      if (seg.x + ancho > anchoObjetivo + 0.5) return;
+      const y = alturaEnTramo(seg.x, ancho);
+      if (!mejor || y < mejor.y || (y === mejor.y && seg.x < mejor.x)) mejor = { x: seg.x, y };
+    });
+    return mejor || { x: 0, y: alturaEnTramo(0, ancho) };
+  };
+
+  const origenDeArea = {};
+  let ancho = 0;
+  let alto = 0;
+  // De más alta a más baja: las altas definen la forma general primero y
+  // las bajas van rellenando los huecos que quedan.
+  [...equiposPorArea]
+    .sort((a, b) => bloqueDeArea[b.area.id].alto - bloqueDeArea[a.area.id].alto)
+    .forEach(({ area }) => {
+      const anchoReservado = anchoReservadoDeArea[area.id];
+      const pos = mejorPosicionPara(anchoReservado);
+      origenDeArea[area.id] = pos;
+      ancho = Math.max(ancho, pos.x + anchoReservado);
+      alto = Math.max(alto, pos.y + bloqueDeArea[area.id].alto);
+
+      // Los tramos que este bloque cubre pasan a su nueva altura; lo que
+      // quede de esos tramos a los costados se conserva a su altura de
+      // antes, que es lo que después deja lugar para una vecina chica al
+      // lado. El tramo ocupado incluye el margen entre áreas en los dos
+      // sentidos: hacia abajo para la que se apile debajo, y hacia la
+      // derecha para que dos cajas punteadas vecinas no se toquen.
+      const anchoOcupado = anchoReservado + GAP_ENTRE_AREAS;
+      const xFin = pos.x + anchoOcupado;
+      const nuevoSkyline = [];
+      let agregado = false;
+      skyline.forEach((seg) => {
+        const segFin = seg.x + seg.ancho;
+        if (segFin <= pos.x || seg.x >= xFin) {
+          nuevoSkyline.push(seg);
+          return;
+        }
+        if (seg.x < pos.x) nuevoSkyline.push({ x: seg.x, ancho: pos.x - seg.x, y: seg.y });
+        if (!agregado) {
+          nuevoSkyline.push({ x: pos.x, ancho: anchoOcupado, y: pos.y + bloqueDeArea[area.id].alto + GAP_ENTRE_AREAS });
+          agregado = true;
+        }
+        if (segFin > xFin) nuevoSkyline.push({ x: xFin, ancho: segFin - xFin, y: seg.y });
+      });
+      skyline = nuevoSkyline.sort((s1, s2) => s1.x - s2.x);
+    });
+
+  return { colsDeArea, bloqueDeArea, anchoReservadoDeArea, origenDeArea, ancho: ancho || 1, alto: alto || 1 };
+}
+
+// Resuelve la planta entera a un ancho de lienzo dado: ubica las áreas
+// (empaquetarAreas) y después agranda cada una hasta la vecina más
+// cercana. Devuelve las posiciones finales de cada equipo y el tamaño que
+// ocupa el resultado YA agrandado — que es el que hay que comparar contra
+// la proporción del panel, no el de antes de agrandar: el crecimiento se
+// come el espacio libre que queda a los costados y cambia bastante la
+// forma final del conjunto.
+function resolverLayout(equiposPorArea, d, anchoObjetivo) {
+  const { colsDeArea, bloqueDeArea, anchoReservadoDeArea, origenDeArea } = empaquetarAreas(equiposPorArea, d, anchoObjetivo);
+
+  // Cajas BASE (sin agrandar) de cada área, para que el crecimiento compare
+  // siempre contra el tamaño con el que se empaquetó originalmente — nunca
+  // contra cuánto ya creció una vecina, que haría depender el resultado del
+  // orden en que se procesan.
+  const cajasBase = equiposPorArea.map(({ area }) => ({
+    areaId: area.id,
+    x: origenDeArea[area.id].x,
+    y: origenDeArea[area.id].y,
+    ancho: anchoReservadoDeArea[area.id],
+    alto: bloqueDeArea[area.id].alto,
+  }));
+
+  const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
+  const areaIdDeEquipo = {};
+  let ancho = 0;
+  let alto = 0;
+  equiposPorArea.forEach(({ area, eqs }) => {
+    const otrasCajasBase = cajasBase.filter((c) => c.areaId !== area.id);
+    const anchoTitulo = anchoDeTitulo(area.nombre);
+    const grillaFinal = agrandarAreaSinSolape(eqs, d, origenDeArea[area.id], otrasCajasBase, colsDeArea[area.id], anchoTitulo);
+    const origen = origenDeArea[area.id];
+    ancho = Math.max(ancho, origen.x + Math.max(grillaFinal.ancho, anchoTitulo));
+    alto = Math.max(alto, origen.y + grillaFinal.alto);
+    grillaFinal.posiciones.forEach(({ eq, escalaFinal, x, y }) => {
+      areaIdDeEquipo[eq.id] = area.id;
+      posicionRelativa[eq.id] = { x, y, escalaFinal };
+    });
+  });
+
+  return { posicionRelativa, areaIdDeEquipo, origenDeArea, ancho: ancho || 1, alto: alto || 1 };
+}
+
 // Calcula (sin escribir nada todavía) cómo quedaría una planta si se
-// compacta. Ya no se empaqueta cada área como un rectángulo aparte (el
-// "skyline" que se usó antes): eso obligaba a que la PRIMERA área ubicada
-// eligiera su forma sin nada por delante que la limitara, y como achatarse
-// (más columnas, menos filas) siempre baja su propio borde inferior sin
-// nada que lo compense, terminaba tomando para sí todo el ancho del
-// lienzo — dejando a las áreas chicas apiladas en una columna angosta
-// debajo, con un espacio enorme sin usar al costado.
+// compacta. Tres pasadas:
+// 1. FORMA: todas las áreas comparten un mismo ancho de lienzo
+//    (`anchoObjetivo`, estimado del área total de bloques de la planta y la
+//    proporción real del panel) y cada una envuelve sus equipos en filas
+//    hasta ESE ancho — nunca más. Ese tope es lo que le faltaba a la
+//    primera versión con skyline: sin él, la primera área ubicada elegía su
+//    forma minimizando SU propio borde inferior, y como achatarse (más
+//    columnas, menos filas) siempre baja ese número sin nada que lo
+//    compense, terminaba tomando para sí todo el ancho del lienzo.
+// 2. UBICACIÓN: las áreas se empaquetan por "skyline" (ver
+//    empaquetarAreas), cada una lo más arriba y a la izquierda posible
+//    dentro del ancho compartido — así un área chica se ubica AL LADO de
+//    otra en vez de gastar una franja entera de alto para sí sola.
+//    Apilarlas siempre una debajo de la otra (lo que se probó antes)
+//    desperdicia mucho alto cuando la planta tiene varias áreas de pocos
+//    equipos. Como el ancho estimado supone un aprovechamiento perfecto
+//    que en la práctica nunca se da, se empaqueta con VARIOS anchos
+//    alrededor del estimado y se elige el que deja el resultado real más
+//    parecido a la proporción del panel — si el conjunto queda más
+//    cuadrado que la pantalla, el encuadre estira el lienzo a lo ancho
+//    para no deformar los íconos, y ese estiramiento es exactamente el
+//    espacio vacío que se veía al costado.
+// 3. CRECIMIENTO: con las áreas ya ubicadas y su forma fija, se intenta
+//    agrandar cada una por separado hasta el borde de la vecina más
+//    cercana (agrandarAreaSinSolape) — así un área con lugar de sobra
+//    alrededor puede crecer aunque el resto de la planta ya esté apretado,
+//    en vez de depender de una sola escala global para toda la planta.
 //
-// En cambio, dos pasadas:
-// 1. Todas las áreas comparten un mismo ancho de lienzo (`anchoObjetivo`,
-//    estimado del área total de equipos de la planta y la proporción real
-//    del panel) y se apilan una debajo de la otra, cada una envolviendo sus
-//    propios equipos en filas hasta ese ancho — ninguna elige su propia
-//    forma "óptima" a costa de las demás. La caja de cada área queda tan
-//    angosta como sus equipos lo permitan (una con pocos equipos no se
-//    estira para llenar el ancho objetivo), y se calcula sola después, a
-//    partir de dónde terminaron sus equipos — no se reserva de antemano.
-// 2. Con las áreas ya apiladas, se intenta agrandar cada una por separado
-//    hasta el borde de la vecina más cercana (agrandarAreaSinSolape) — así
-//    un área con lugar de sobra arriba y abajo puede crecer aunque el
-//    resto de la planta ya esté apretado, en vez de depender de una sola
-//    escala global para toda la planta.
+// La caja punteada de cada área no se reserva de antemano en ningún
+// momento: la calcula sola PortalSCADA.js a partir de dónde terminaron sus
+// equipos, así que un área de pocos equipos queda angosta en vez de
+// estirada.
 function calcularLayoutCompacto(d, plantaId, arObjetivo) {
   const areasDePlanta = d.areas.filter((a) => a.plantaId === plantaId);
   const equiposPorArea = areasDePlanta
@@ -220,47 +386,30 @@ function calcularLayoutCompacto(d, plantaId, arObjetivo) {
   }, 0);
   const anchoObjetivo = Math.max(Math.sqrt((areaTotalBloques || 1) * (arObjetivo || 1)), 200);
 
-  // Aire entre el borde inferior de una área y el título de la siguiente —
-  // cada caja ya trae su propio PAD_ZONA_COMPACTAR de margen arriba y
-  // abajo, esto es solo para que las dos cajas punteadas no se toquen.
-  const GAP_ENTRE_AREAS = 30;
-
-  const origenDeArea = {};
-  const colsDeArea = {};
-  let y = 0;
-  equiposPorArea.forEach(({ area, eqs }) => {
-    const anchoMax = anchoMaxDeEquipos(eqs, d);
-    const pasoH = Math.round(anchoMax * 2);
-    const cols = Math.max(1, Math.min(eqs.length, Math.floor(anchoObjetivo / pasoH) || 1));
-    colsDeArea[area.id] = cols;
-    origenDeArea[area.id] = { x: 0, y };
-    y += calcularGrillaArea(eqs, d, 1, cols).alto + GAP_ENTRE_AREAS;
-  });
-
-  // Cajas BASE (sin agrandar) de cada área, para que el crecimiento de la
-  // siguiente pasada compare siempre contra el tamaño con el que se apiló
-  // originalmente — nunca contra cuánto ya creció una vecina.
-  const cajasBase = equiposPorArea.map(({ area, eqs }) => {
-    const bloque = calcularGrillaArea(eqs, d, 1, colsDeArea[area.id]);
-    return { areaId: area.id, x: origenDeArea[area.id].x, y: origenDeArea[area.id].y, ancho: bloque.ancho, alto: bloque.alto };
-  });
-
-  const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
-  const areaIdDeEquipo = {};
-  equiposPorArea.forEach(({ area, eqs }) => {
-    const cols = colsDeArea[area.id];
-    const otrasCajasBase = cajasBase.filter((c) => c.areaId !== area.id);
-    const grillaFinal = agrandarAreaSinSolape(eqs, d, origenDeArea[area.id], otrasCajasBase, cols);
-    grillaFinal.posiciones.forEach(({ eq, escalaFinal, x, y: yRel }) => {
-      areaIdDeEquipo[eq.id] = area.id;
-      posicionRelativa[eq.id] = { x, y: yRel, escalaFinal };
-    });
+  // El ancho estimado es solo un PUNTO DE PARTIDA: da por sentado que el
+  // empaquetado va a aprovechar el 100% del rectángulo, y en la práctica
+  // siempre quedan huecos, así que el resultado sale más alto (más
+  // "cuadrado") que la pantalla y el encuadre termina estirando el lienzo a
+  // lo ancho para no deformar los íconos — ese estiramiento es el espacio
+  // vacío que se ve al costado. Se resuelve la planta entera con varios
+  // anchos alrededor del estimado y se elige el que deja el resultado REAL
+  // (ya con las áreas agrandadas, que es lo que se termina dibujando) más
+  // parecido a la proporción del panel. Resolver es barato — son unas
+  // pocas áreas — así que probar diez opciones no se nota.
+  const arDestino = arObjetivo || 1;
+  let mejor = null;
+  [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2].forEach((multiplicador) => {
+    const candidato = resolverLayout(equiposPorArea, d, anchoObjetivo * multiplicador);
+    // Se compara en escala logarítmica para que quedarse corto y pasarse
+    // pesen igual (1.5x más ancho es tan malo como 1.5x más angosto).
+    const desvio = Math.abs(Math.log(candidato.ancho / candidato.alto / arDestino));
+    if (!mejor || desvio < mejor.desvio) mejor = { ...candidato, desvio };
   });
 
   const equipos = d.equipos.map((eq) => {
-    const rel = posicionRelativa[eq.id];
+    const rel = mejor.posicionRelativa[eq.id];
     if (!rel) return eq;
-    const origen = origenDeArea[areaIdDeEquipo[eq.id]];
+    const origen = mejor.origenDeArea[mejor.areaIdDeEquipo[eq.id]];
     return {
       ...eq,
       posicion: { x: Math.round(origen.x + rel.x), y: Math.round(origen.y + rel.y) },
