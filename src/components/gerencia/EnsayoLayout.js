@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { calcularLayoutCompacto, condicionActual } from '../../analista/store';
+import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
-import { empaquetarLibre, empaquetarEscalonado, contornosDeArea, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/empaquetadoLibre';
+import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
+import { escalaVisible } from '../../gerencia/layout/grilla';
+import { empaquetarLibre, empaquetarEscalonado, contornosDeArea, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/layout/ensayo';
 import './portalScada.css';
 
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };
@@ -100,7 +102,7 @@ export default function EnsayoLayout({ data }) {
       .map((eq) => {
         const icono = iconoBaseDe(eq.tipo, data);
         if (!icono) return null;
-        const escala = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
+        const escala = escalaVisible(eq, data);
         return {
           eq,
           escala,
