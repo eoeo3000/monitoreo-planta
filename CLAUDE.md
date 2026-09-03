@@ -113,7 +113,15 @@ planta entera):
 | Grande (43) | 87.9% · 0.254 · 0% | 79.6% · 0.071 · 0% | 70.4% · 0.013 · 14.5% |
 | Demo (500 / 200 áreas) | 93.0% · 0.077 · 0% | 78.7% · 0.021 · 0% | 75.9% · 0.052 · 84.9% |
 
-Reparto en vistas de la planta demo: 4 vistas a 28 px de mínimo, 10 a 48 px.
+Todo lo de arriba está medido contra la pantalla de **referencia**
+(1280×720). El ensayo permite elegir otra, y cambia bastante: la misma
+planta demo a 28 px de mínimo necesita 4 vistas en la de referencia, 3 en
+un notebook de 1440×900, y 2 en un ultrawide de 2560×1080 —donde entran
+468 de los 500 equipos en la primera—. Para comparar métodos entre sí hay
+que dejar la pantalla fija.
+
+Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
+28 px de mínimo, 10 a 48 px.
 
 ## Trampas ya pisadas
 
@@ -124,9 +132,18 @@ Reparto en vistas de la planta demo: 4 vistas a 28 px de mínimo, 10 a 48 px.
   eso un tamaño mínimo legible no es una preferencia: define cuántos equipos
   entran, y si no entran la única salida es repartirlos en varias vistas.
 - **Las vistas salen desparejas en cantidad de equipos, y está bien.** Se
-  equilibran por superficie ocupada, no por cuenta: un tanque (44×90) ocupa
-  unas seis veces lo de un motor (26×26), así que un tramo denso en tanques
-  se lleva menos equipos. En la planta demo el reparto da 183 / 84 / 191 / 42.
+  equilibran por pantalla ocupada, no por cuenta: un tanque tiene celda alta
+  (122 px contra 58 de un motor) y en un flujo por filas una celda alta
+  estira toda su fila, así que un tramo denso en tanques empaqueta con menos
+  densidad y llena la pantalla con menos equipos. En la planta demo el
+  reparto da 183 / 84 / 191 / 42. Forzar un reparto parejo lo empeora: se
+  probó y dio 5 vistas en vez de 4, con más desbalance (razón 5.92 contra
+  4.55).
+- **No alcanza con la proporción de la pantalla: también importa su área.**
+  Un ultrawide de 2560×1080 tiene tres veces el área de un 1280×720 y se
+  lleva casi toda la planta demo en una vista. Pero la proporción pesa
+  aparte: a igual área en píxeles, una pantalla vertical de 1080×1920 se
+  llevó 12% más equipos que un monitor de 1920×1080.
 - **Muestrear más fino la búsqueda de ancho no sirve.** La cantidad de columnas
   es un entero, así que los layouts alcanzables son un conjunto discreto y
   saltan de a escalones grandes. Medido: se salta de una proporción de 1.46 a
