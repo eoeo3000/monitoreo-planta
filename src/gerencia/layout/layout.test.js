@@ -1,6 +1,6 @@
 import { escalaDeCatalogo, calcularGrillaArea, anchoDeTitulo, PAD_ZONA, ALTO_TITULO } from './grilla';
 import { empaquetarSkyline } from './skyline';
-import { contornosDeArea, solapamientoDeCajas } from './ensayo';
+import { contornosDeArea, solapamientoDeCajas, repartirEnVistas, encuadrar } from './ensayo';
 
 // Geometría pura: se puede probar sin navegador y sin React, que es
 // justamente lo que motivó separarla del store.
@@ -121,6 +121,69 @@ describe('solapamientoDeCajas', () => {
 
   test('una sola caja no se pisa consigo misma', () => {
     expect(solapamientoDeCajas([caja(0, 0)])).toBe(0);
+  });
+});
+
+describe('encuadrar', () => {
+  const layout = (anchoIcono, altoIcono, ancho, alto) => ({
+    colocadas: [{ anchoIcono, altoIcono }],
+    ancho,
+    alto,
+  });
+
+  test('el zoom mete el lienzo en el panel', () => {
+    // Lienzo de 640x360 en un panel de 1280x720: entra justo al doble.
+    const e = encuadrar(layout(20, 40, 640, 360), { ancho: 1280, alto: 720 });
+    expect(e.zoom).toBe(2);
+    expect(e.minPx).toBe(80);
+  });
+
+  test('el máximo frena el acercamiento', () => {
+    // Sin tope el zoom sería 2 y el ícono quedaría en 80px.
+    const e = encuadrar(layout(20, 40, 640, 360), { ancho: 1280, alto: 720 }, 60);
+    expect(e.maxPx).toBeCloseTo(60);
+    expect(e.topado).toBe(true);
+  });
+
+  test('sin necesidad de topar, no topa', () => {
+    const e = encuadrar(layout(20, 40, 640, 360), { ancho: 1280, alto: 720 }, 200);
+    expect(e.topado).toBe(false);
+    expect(e.zoom).toBe(2);
+  });
+});
+
+describe('repartirEnVistas', () => {
+  const panel = { ancho: 1280, alto: 720 };
+  const equiposDeArea = (areaId, n, tipo = 'bomba') =>
+    Array.from({ length: n }, (_, i) => ({ id: `${areaId}-${i}`, tag: `${areaId}-${i}`, tipo, areaId }));
+
+  test('sin mínimo entra todo en una sola vista', () => {
+    const eqs = [...equiposDeArea('a1', 30), ...equiposDeArea('a2', 30)];
+    const vistas = repartirEnVistas(eqs, datos, { panel, tamMinPx: 0 });
+    expect(vistas).toHaveLength(1);
+    expect(vistas[0].areas).toHaveLength(2);
+  });
+
+  test('un mínimo exigente obliga a repartir', () => {
+    const eqs = Array.from({ length: 12 }, (_, i) => equiposDeArea(`a${i}`, 20)).flat();
+    const holgado = repartirEnVistas(eqs, datos, { panel, tamMinPx: 10 });
+    const exigente = repartirEnVistas(eqs, datos, { panel, tamMinPx: 60 });
+    expect(exigente.length).toBeGreaterThan(holgado.length);
+  });
+
+  test('ninguna área se parte entre vistas y no se pierde ninguna', () => {
+    const eqs = Array.from({ length: 10 }, (_, i) => equiposDeArea(`a${i}`, 15)).flat();
+    const vistas = repartirEnVistas(eqs, datos, { panel, tamMinPx: 50 });
+    const ids = vistas.flatMap((v) => v.areas.map((a) => a.areaId));
+    expect(new Set(ids).size).toBe(ids.length); // sin repetidas
+    expect(ids.sort()).toEqual(Array.from({ length: 10 }, (_, i) => `a${i}`).sort());
+  });
+
+  test('un mínimo imposible no cuelga: cada vista se lleva al menos un área', () => {
+    const eqs = [...equiposDeArea('a1', 40), ...equiposDeArea('a2', 40)];
+    const vistas = repartirEnVistas(eqs, datos, { panel, tamMinPx: 5000 });
+    expect(vistas).toHaveLength(2);
+    expect(vistas.every((v) => v.areas.length >= 1)).toBe(true);
   });
 });
 

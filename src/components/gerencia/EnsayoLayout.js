@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible } from '../../gerencia/layout/grilla';
-import { empaquetarLibre, empaquetarEscalonado, contornosDeArea, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/layout/ensayo';
+import { empaquetarLibre, contornosDeArea, metricas, cajasPorArea, solapamientoDeCajas, repartirEnVistas } from '../../gerencia/layout/ensayo';
 import './portalScada.css';
 
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };
@@ -17,12 +17,19 @@ const ALTO_TAG = 18;
 // serían comparables entre dos corridas.
 const AR_OBJETIVO = 16 / 9;
 
+// Panel de referencia, no el real: el ensayo compara métodos entre sí, y si
+// dependiera del tamaño de la ventana dos corridas no serían comparables.
+const PANEL_REF = { ancho: 1280, alto: 720 };
+
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
 export default function EnsayoLayout({ data }) {
   const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
-  const [metodo, setMetodo] = useState('libre');
+  const [metodo, setMetodo] = useState('escalonado');
   const [agruparPorArea, setAgruparPorArea] = useState(true);
+  const [tamMinPx, setTamMinPx] = useState(28);
+  const [tamMaxPx, setTamMaxPx] = useState(180);
+  const [vistaActiva, setVistaActiva] = useState(0);
 
   const areasDePlanta = useMemo(() => data.areas.filter((a) => a.plantaId === plantaId), [data.areas, plantaId]);
   const equiposDePlanta = useMemo(() => {
@@ -67,30 +74,41 @@ export default function EnsayoLayout({ data }) {
   }, [plantaId, equiposDePlanta, data, agruparPorArea]);
 
   // --- Método escalonado: flujo continuo, límite de área no rectangular --
-  const escalonado = useMemo(() => {
-    if (!plantaId || equiposDePlanta.length === 0) return null;
-    const r = empaquetarEscalonado(equiposDePlanta, data, { arObjetivo: AR_OBJETIVO });
-    if (!r) return null;
-    const areaIconos = r.colocadas.reduce((acc, c) => acc + c.anchoIcono * c.altoIcono, 0);
-    const piezas = r.colocadas.map((c) => ({
-      eq: c.eq,
-      escala: c.escala,
-      x: c.x + c.ancho / 2,
-      y: c.y + c.altoIcono,
-      anchoIcono: c.anchoIcono,
-      altoIcono: c.altoIcono,
-    }));
-    const m = metricas({ ancho: r.ancho, alto: r.alto, areaIconos, arObjetivo: AR_OBJETIVO });
-    // El contorno sigue las celdas realmente ocupadas, así que por
-    // construcción dos áreas nunca se pisan: el solape es cero y no hace
-    // falta medirlo con cajas.
-    return {
-      piezas,
-      cajas: [],
-      contornos: r.spans.flatMap((s) => contornosDeArea(s.spans).map((c) => ({ ...c, areaId: s.areaId }))),
-      metricas: { ...m, solape: 0 },
-    };
-  }, [plantaId, equiposDePlanta, data]);
+  // Repartido en vistas: se agregan áreas mientras el ícono más chico siga
+  // por encima del mínimo legible; el resto pasa a la vista siguiente.
+  const vistasEscalonado = useMemo(() => {
+    if (!plantaId || equiposDePlanta.length === 0) return [];
+    return repartirEnVistas(equiposDePlanta, data, {
+      arObjetivo: AR_OBJETIVO,
+      panel: PANEL_REF,
+      tamMinPx,
+      tamMaxPx,
+    }).map((v) => {
+      const r = v.layout;
+      const areaIconos = r.colocadas.reduce((acc, c) => acc + c.anchoIcono * c.altoIcono, 0);
+      const piezas = r.colocadas.map((c) => ({
+        eq: c.eq,
+        escala: c.escala,
+        x: c.x + c.ancho / 2,
+        y: c.y + c.altoIcono,
+        anchoIcono: c.anchoIcono,
+        altoIcono: c.altoIcono,
+      }));
+      const m = metricas({ ancho: r.ancho, alto: r.alto, areaIconos, arObjetivo: AR_OBJETIVO });
+      return {
+        piezas,
+        cajas: [],
+        // El contorno sigue las celdas realmente ocupadas, así que por
+        // construcción dos áreas nunca se pisan: el solape es cero.
+        contornos: r.spans.flatMap((s) => contornosDeArea(s.spans).map((c) => ({ ...c, areaId: s.areaId }))),
+        metricas: { ...m, solape: 0 },
+        encuadre: v.encuadre,
+        areaIds: v.areas.map((a) => a.areaId),
+      };
+    });
+  }, [plantaId, equiposDePlanta, data, tamMinPx, tamMaxPx]);
+
+  const escalonado = vistasEscalonado[Math.min(vistaActiva, vistasEscalonado.length - 1)] || null;
 
   // --- Método actual: el compactado de producción, sin escribir nada ---
   const actual = useMemo(() => {
@@ -187,6 +205,63 @@ export default function EnsayoLayout({ data }) {
           <input type="checkbox" checked={agruparPorArea} disabled={metodo !== 'libre'} onChange={(e) => setAgruparPorArea(e.target.checked)} />
           Agrupar por área
         </label>
+
+        {/* Tamaño del ícono en pantalla. El mínimo no es una preferencia:
+            define cuántos equipos entran, porque el encuadre normaliza la
+            escala interna y lo único que mueve el tamaño en pantalla es la
+            cantidad. Si no entran, hay que repartirlos en varias vistas. */}
+        <div style={{ opacity: metodo === 'escalonado' ? 1 : 0.45, marginBottom: 'var(--space-3)' }}>
+          <div style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--scada-texto-2)', marginBottom: 6 }}>
+            Tamaño de ícono (px)
+          </div>
+          {[
+            { etiqueta: 'Mínimo', valor: tamMinPx, set: setTamMinPx, min: 10, max: 80 },
+            { etiqueta: 'Máximo', valor: tamMaxPx, set: setTamMaxPx, min: 60, max: 400 },
+          ].map((c) => (
+            <label key={c.etiqueta} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 4 }}>
+              <span style={{ width: 52 }}>{c.etiqueta}</span>
+              <input
+                type="range"
+                min={c.min}
+                max={c.max}
+                value={c.valor}
+                disabled={metodo !== 'escalonado'}
+                onChange={(e) => { c.set(Number(e.target.value)); setVistaActiva(0); }}
+                style={{ flex: 1, minWidth: 0 }}
+              />
+              <span style={{ width: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{c.valor}</span>
+            </label>
+          ))}
+        </div>
+
+        {metodo === 'escalonado' && vistasEscalonado.length > 0 && (
+          <div style={{ marginBottom: 'var(--space-3)' }}>
+            <label style={{ display: 'block', fontSize: 12, color: 'var(--scada-texto-2)', marginBottom: 4 }}>
+              Vista {vistasEscalonado.length > 1 ? `(${vistasEscalonado.length} en total)` : '(entra todo en una)'}
+            </label>
+            <select
+              value={Math.min(vistaActiva, vistasEscalonado.length - 1)}
+              onChange={(e) => setVistaActiva(Number(e.target.value))}
+              style={{ width: '100%', background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', padding: 6, fontFamily: 'inherit' }}
+            >
+              {vistasEscalonado.map((v, i) => {
+                const nombres = v.areaIds.map((id) => areasDePlanta.find((a) => a.id === id)?.nombre).filter(Boolean);
+                const resumen = nombres.length <= 2 ? nombres.join(' · ') : `${nombres[0]} … ${nombres[nombres.length - 1]}`;
+                return (
+                  <option key={v.areaIds.join('-')} value={i}>
+                    {i + 1}/{vistasEscalonado.length} — {v.areaIds.length} áreas · {v.piezas.length} equipos — {resumen}
+                  </option>
+                );
+              })}
+            </select>
+            {escalonado?.encuadre && (
+              <p style={{ fontSize: 11.5, color: 'var(--scada-texto-2)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                Ícono más chico a {escalonado.encuadre.minPx.toFixed(0)} px, el más grande a {escalonado.encuadre.maxPx.toFixed(0)} px
+                {escalonado.encuadre.topado && ' · la cámara frenó en el máximo'}.
+              </p>
+            )}
+          </div>
+        )}
 
         <table style={{ width: '100%', fontSize: 11.5, borderCollapse: 'collapse', marginBottom: 'var(--space-3)' }}>
           <thead>

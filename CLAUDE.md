@@ -55,6 +55,7 @@ Términos acordados con el usuario; conviene usarlos tal cual al conversar.
 | **contorno escalonado** | límite de área que sigue las celdas ocupadas, no un rectángulo |
 | **lienzo vacío** | superficie del lienzo final que no es ícono |
 | **desvío** | `abs(ln((ancho/alto) / proporción del panel))` — 0 es calce perfecto |
+| **vista** | tanda de áreas que entra en una pantalla respetando el tamaño mínimo; el resto pasa a la siguiente |
 
 ## Invariantes
 
@@ -102,20 +103,30 @@ saber por qué.
 Compactado (planta semilla): factor global 1.0, bomba renderizada a 75×94,
 proporciones del catálogo intactas, idempotente en compactadas sucesivas.
 
-Ensayo de layout, lienzo vacío | desvío | solape:
+Ensayo de layout, lienzo vacío | desvío | solape (escalonado con el mínimo
+por defecto de 28 px; sus cifras son las de la vista activa, no las de la
+planta entera):
 
 | Planta | Actual (bloques) | Escalonado | Libre agrupado |
 |---|---|---|---|
 | Semilla (13 equipos) | 83.3% · 0.138 · 0% | 68.5% · 0.006 · 0% | 68.2% · 0.173 · 34.8% |
 | Grande (43) | 87.9% · 0.254 · 0% | 79.6% · 0.071 · 0% | 70.4% · 0.013 · 14.5% |
-| Demo (500 / 200 áreas) | 93.0% · 0.077 · 0% | 79.7% · 0.072 · 0% | 75.9% · 0.052 · 84.9% |
+| Demo (500 / 200 áreas) | 93.0% · 0.077 · 0% | 78.7% · 0.021 · 0% | 75.9% · 0.052 · 84.9% |
+
+Reparto en vistas de la planta demo: 4 vistas a 28 px de mínimo, 10 a 48 px.
 
 ## Trampas ya pisadas
 
 - **Crecer la escala no agranda nada en pantalla.** El encuadre escala el
   contenido para llenar el panel, así que si todo crece, la cámara se aleja y el
   producto queda igual. Lo único que mueve el tamaño en pantalla es la cantidad
-  de equipos y la densidad (cuánto del layout es ícono y cuánto es aire).
+  de equipos y la densidad (cuánto del layout es ícono y cuánto es aire). Por
+  eso un tamaño mínimo legible no es una preferencia: define cuántos equipos
+  entran, y si no entran la única salida es repartirlos en varias vistas.
+- **Las vistas salen desparejas en cantidad de equipos, y está bien.** Se
+  equilibran por superficie ocupada, no por cuenta: un tanque (44×90) ocupa
+  unas seis veces lo de un motor (26×26), así que un tramo denso en tanques
+  se lleva menos equipos. En la planta demo el reparto da 183 / 84 / 191 / 42.
 - **Muestrear más fino la búsqueda de ancho no sirve.** La cantidad de columnas
   es un entero, así que los layouts alcanzables son un conjunto discreto y
   saltan de a escalones grandes. Medido: se salta de una proporción de 1.46 a
