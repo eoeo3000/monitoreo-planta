@@ -163,6 +163,113 @@ export function empaquetarEscalonado(equipos, data, { arObjetivo = 16 / 9 } = {}
   return buscarMejorAncho(anchoBase, arObjetivo, (ancho) => fluirEnAncho(grupos, ancho), MULTIPLICADORES_ENSAYO);
 }
 
+// ---------------------------------------------------------------------
+// Reparto en VISTAS.
+//
+// El encuadre escala el contenido para llenar el panel, así que la escala
+// interna no cambia nada de lo que se ve: si todo crece, la cámara se aleja
+// y el producto queda igual. Lo único que mueve el tamaño en pantalla es
+// CUÁNTOS equipos hay. De ahí que un tamaño mínimo legible no sea un
+// parámetro más, sino lo que DEFINE la capacidad de una pantalla: si no
+// entran, la única salida es mostrar menos y mandar el resto a otra vista.
+//
+// Se reparte por área completa, nunca partiendo un área: una mitad de
+// sistema en cada pantalla no se lee como planta.
+
+// Alto del ícono más chico y del más grande, en coordenadas del lienzo —
+// el chico decide cuándo hace falta paginar, el grande cuánto se puede
+// acercar la cámara sin que quede ridículo.
+function altosDeIcono(colocadas) {
+  const altos = colocadas.map((c) => c.altoIcono).filter((a) => a > 0);
+  if (altos.length === 0) return { min: 1, max: 1 };
+  return { min: Math.min(...altos), max: Math.max(...altos) };
+}
+
+// Cuánto agranda o achica el encuadre a este lienzo para meterlo en el
+// panel, y qué tamaño en pantalla le queda al ícono más chico.
+export function encuadrar(layout, panel, tamMaxPx) {
+  const { min, max } = altosDeIcono(layout.colocadas);
+  const zoomEntra = Math.min(panel.ancho / layout.ancho, panel.alto / layout.alto);
+  // Tope de acercamiento: con muy pocos equipos la cámara se acerca tanto
+  // que un solo tanque ocupa la pantalla entera.
+  const zoomTope = tamMaxPx ? tamMaxPx / max : Infinity;
+  const zoom = Math.min(zoomEntra, zoomTope);
+  return { zoom, minPx: min * zoom, maxPx: max * zoom, topado: zoomEntra > zoomTope };
+}
+
+// Reparte las áreas en vistas sucesivas. Dentro de cada vista se empaqueta
+// con el método escalonado; se agregan áreas mientras el ícono más chico
+// siga por encima del mínimo.
+//
+// Agregar áreas suma superficie y por lo tanto aleja la cámara, así que la
+// condición se toma como monótona y el corte se busca por bisección: con
+// 200 áreas son ~8 empaquetados en vez de 200. (La forma del empaquetado
+// salta en escalones, así que en teoría un K puntual podría encuadrarse
+// mejor que K+1; probado con una extensión hacia adelante en la planta
+// demo, no cambió ni un corte, así que no se paga ese costo.)
+//
+// Las vistas salen DESPAREJAS en cantidad de equipos, y está bien: se
+// equilibran por superficie, no por cuenta. En la planta demo el reparto da
+// 183 / 84 / 191 / 42, y la vista corta es la que concentra los tanques —
+// un tanque (44×90) ocupa unas seis veces lo de un motor (26×26).
+export function repartirEnVistas(equipos, data, { arObjetivo = 16 / 9, panel, tamMinPx = 0, tamMaxPx } = {}) {
+  const porArea = new Map();
+  equipos.forEach((eq) => {
+    if (!porArea.has(eq.areaId)) porArea.set(eq.areaId, []);
+    porArea.get(eq.areaId).push(eq);
+  });
+  const areas = [...porArea.entries()].map(([areaId, eqs]) => ({ areaId, eqs }));
+  if (areas.length === 0) return [];
+
+  const armar = (subset) => {
+    const layout = empaquetarEscalonado(subset.flatMap((a) => a.eqs), data, { arObjetivo });
+    if (!layout) return null;
+    return { layout, encuadre: encuadrar(layout, panel, tamMaxPx), areas: subset };
+  };
+
+  // Sin mínimo no hay nada que repartir: entra todo en una vista.
+  if (!tamMinPx || !panel) {
+    const unica = armar(areas);
+    return unica ? [unica] : [];
+  }
+
+  const entra = (n) => {
+    const candidato = armar(pendientesActuales.slice(0, n));
+    return candidato && candidato.encuadre.minPx >= tamMinPx ? candidato : null;
+  };
+
+  const vistas = [];
+  let pendientesActuales = areas;
+  while (pendientesActuales.length > 0) {
+    const total = pendientesActuales.length;
+
+    // Siempre entra al menos un área, aunque sola no llegue al mínimo: es
+    // preferible una vista apretada a un reparto que no termina nunca.
+    let corte = 1;
+    let mejor = armar(pendientesActuales.slice(0, 1));
+
+    // Bisección para acercarse rápido: con 200 áreas son ~8 empaquetados en
+    // vez de 200.
+    let bajo = 1;
+    let alto = total;
+    while (bajo < alto) {
+      const medio = Math.ceil((bajo + alto) / 2);
+      const candidato = entra(medio);
+      if (candidato) {
+        bajo = medio;
+        corte = medio;
+        mejor = candidato;
+      } else {
+        alto = medio - 1;
+      }
+    }
+
+    vistas.push(mejor);
+    pendientesActuales = pendientesActuales.slice(corte);
+  }
+  return vistas;
+}
+
 // Contorno rectilíneo de un área: baja por los bordes derechos de sus
 // tramos y vuelve por los izquierdos. Los tramos que no se tocan en X (un
 // área chica justo en el salto de fila) salen como contornos separados —
