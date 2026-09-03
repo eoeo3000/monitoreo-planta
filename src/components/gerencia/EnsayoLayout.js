@@ -152,6 +152,24 @@ export default function EnsayoLayout({ data }) {
 
   const escalonado = vistasEscalonado[Math.min(vistaActiva, vistasEscalonado.length - 1)] || null;
 
+  // Lienzo COMÚN a todas las vistas: el más grande de todas. Sin esto cada
+  // vista se encuadra por su cuenta y el mismo motor se dibuja de distinto
+  // tamaño según en qué vista caiga —medido: 39 px en la vista 1 contra 105
+  // en la 4, porque la 4 está menos llena y la cámara se le acerca—. Para
+  // un operador que cambia de vista, el mismo equipo tiene que verse igual;
+  // una vista menos llena debe quedar con aire, no agrandada.
+  //
+  // Todos los lienzos ya vienen con la proporción del panel (los ajusta
+  // `metricas`), así que tomar el máximo de cada lado da el mayor de todos
+  // sin deformar nada.
+  const lienzoComun = useMemo(() => {
+    if (vistasEscalonado.length === 0) return null;
+    return {
+      ancho: Math.max(...vistasEscalonado.map((v) => v.metricas.lienzoAncho)),
+      alto: Math.max(...vistasEscalonado.map((v) => v.metricas.lienzoAlto)),
+    };
+  }, [vistasEscalonado]);
+
   // --- Método actual: el compactado de producción, sin escribir nada ---
   const actual = useMemo(() => {
     if (!plantaId || equiposDePlanta.length === 0) return null;
@@ -374,7 +392,7 @@ export default function EnsayoLayout({ data }) {
           <p style={{ color: 'var(--scada-texto-2)' }}>Esta planta no tiene equipos para acomodar.</p>
         ) : (
           <svg
-            viewBox={`-20 -20 ${vista.metricas.lienzoAncho + 40} ${vista.metricas.lienzoAlto + 40}`}
+            viewBox={`-20 -20 ${(metodo === 'escalonado' && lienzoComun ? lienzoComun.ancho : vista.metricas.lienzoAncho) + 40} ${(metodo === 'escalonado' && lienzoComun ? lienzoComun.alto : vista.metricas.lienzoAlto) + 40}`}
             preserveAspectRatio="xMinYMin meet"
             style={{ width: '100%', height: '100%', display: 'block' }}
           >

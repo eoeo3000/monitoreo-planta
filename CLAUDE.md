@@ -139,6 +139,15 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   reparto da 183 / 84 / 191 / 42. Forzar un reparto parejo lo empeora: se
   probó y dio 5 vistas en vez de 4, con más desbalance (razón 5.92 contra
   4.55).
+- **Todas las vistas de una planta se dibujan a la MISMA escala.** Cada
+  vista tiene su propio lienzo, así que si cada una se encuadrara por su
+  cuenta, una vista menos llena se dibujaría más acercada y el mismo motor
+  saldría más grande — medido: 39 px en la vista 1 contra 105 en la 4, casi
+  el triple. Para un operador que cambia de vista, el mismo equipo tiene
+  que verse igual; una vista menos llena debe quedar con aire, no
+  agrandada. Por eso se usa el lienzo más grande de todas, y el mínimo
+  legible se mide contra el ícono más chico de TODA la planta y no el de
+  cada vista.
 - **No alcanza con la proporción de la pantalla: también importa su área.**
   Un ultrawide de 2560×1080 tiene tres veces el área de un 1280×720 y se
   lleva casi toda la planta demo en una vista. Pero la proporción pesa
