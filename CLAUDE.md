@@ -64,14 +64,21 @@ Cosas que se rompen sin avisar si no se saben.
 - **`eq.posicion` es el CENTRO horizontal y el BORDE INFERIOR vertical** del
   ícono, no su centro geométrico. Los íconos altos (tanque, agitador: 90 de
   alto) se salen de cualquier caja calculada asumiendo centro.
-- **Escala: el más específico gana.** `eq.escalaPropia` pisa a
-  `data.escalasPorTipo[tipo]`, que pisa al 1 por defecto.
-- **`escalaDeCatalogo` ≠ `escalaVisible`** (ambas en `layout/grilla.js`). El
-  compactado usa `escalaDeCatalogo`, que **descarta** una `escalaPropia` que
-  coincide con la marca `escalaAuto` — o sea, la que escribió el compactado
-  anterior. Sin eso, cada compactada se apila sobre su propio resultado; de ahí
-  salieron dos rondas de bugs de escala compuesta. Si el usuario cambia el
-  tamaño a mano, las dos dejan de coincidir y se respeta su cambio.
+- **La escala son DOS capas que se multiplican, no una.** El tamaño elegido
+  (`eq.escalaPropia` pisa a `data.escalasPorTipo[tipo]`, que pisa al 1 por
+  defecto — el más específico gana) por el factor que puso la app
+  (`eq.factorAuto`, o 1). `escalaVisible` en `gerencia/iconos.js` es la única
+  que las junta.
+- **`escalaDeCatalogo` ≠ `escalaVisible`.** El compactado parte de
+  `escalaDeCatalogo` (`layout/grilla.js`), que es solo la capa elegida:
+  **ignora `factorAuto`**. Sin eso cada compactada se apila sobre su propio
+  resultado — de ahí salieron dos rondas de bugs de escala compuesta — y
+  bastaría un equipo cerca del tope de 4 para que nada pudiera volver a
+  crecer. El compactado **no escribe `escalaPropia`**: escribe su factor en
+  `factorAuto` y deja el tamaño elegido intacto, así el panel "Tamaños de
+  equipo" sigue mandando sobre una planta ya compactada. La única excepción
+  es un `escalaPropia` por encima de `ESCALA_MAX`, que lo acota al tope
+  porque el layout ya lo acotó.
 - **`PAD_ZONA` y `ALTO_TITULO` de `layout/grilla.js` espejan `PAD_ZONA` y el
   alto del título de `PortalSCADA.js`.** Si cambian allá, hay que moverlos acá
   o el cuadro punteado queda mal calculado.
@@ -161,6 +168,17 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   deja a los equipos consecutivos en el ORDEN, pero cada uno se ubica donde el
   perfil esté más bajo. Con pocas áreas grandes coincide por accidente; con
   muchas áreas chicas se dispersan del todo.
+- **Guardar el resultado de un cálculo donde va una preferencia la deja
+  muda.** El compactado escribía su resultado dentro de `escalaPropia`, el
+  mismo campo del tamaño puesto a mano. Como ese campo le gana al del tipo,
+  toda planta compactada quedaba sorda al panel "Tamaños de equipo": se
+  podía bajar "tanque" a la mitad y no pasaba nada, sin ningún error a la
+  vista. Se intentó distinguir los dos casos con una marca (`escalaAuto`) y
+  una comparación con tolerancia, pero eso solo hacía que el compactado se
+  ignorara a sí mismo: no devolvía el control del tamaño. La salida fue
+  separar los campos y multiplicarlos. Si un valor lo escriben dos autores
+  con intenciones distintas, van dos campos.
+
 - **Al medir superficies pisadas, medir la UNIÓN y no la suma de los pares.**
   Sumar pares cuenta la misma superficie una vez por cada par que la comparte:
   con 200 áreas daba 2315% de un lienzo.

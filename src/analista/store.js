@@ -42,10 +42,41 @@ function datosSemilla() {
   };
 }
 
+// Migración de una sola pasada al leer: hasta ahora el compactado escribía
+// su resultado DENTRO de eq.escalaPropia y lo marcaba con eq.escalaAuto.
+// Eso dejaba a toda planta compactada sorda al panel "Tamaños de equipo",
+// porque un valor propio en cada equipo le gana al del tipo. Ahora el factor
+// que pone la app vive aparte, en eq.factorAuto, y escalaPropia queda solo
+// para lo que eligió el usuario (ver escalaVisible en iconos.js).
+//
+// Se exporta para poder probarla: es la parte con más riesgo de este cambio
+// —toca datos ya guardados de los que no hay copia— y conviene tenerla
+// cubierta y no solo leída.
+export function migrarEscalas(d) {
+  if (!d || !Array.isArray(d.equipos)) return d;
+  const equipos = d.equipos.map((eq) => {
+    if (eq.factorAuto !== undefined) return eq; // ya migrado
+    if (eq.escalaPropia === undefined || eq.escalaPropia === null) return eq;
+    const { escalaAuto, ...resto } = eq;
+    // Con marca y un valor que ya no coincide, el usuario lo cambió a mano
+    // después de compactar: su tamaño se respeta tal cual.
+    if (escalaAuto != null && Math.abs(eq.escalaPropia - escalaAuto) > 0.005) return resto;
+    // Lo demás lo escribió la app: la compactada anterior, o el generador de
+    // la planta demo (que fijaba un tamaño propio en cada equipo por el
+    // mismo motivo). Sin marca también cuenta como suyo — es el criterio que
+    // ya usaba escalaDeCatalogo con los datos viejos. Se pasa a factorAuto
+    // el factor respecto del tamaño del tipo, así lo que se ve no cambia.
+    const delTipo = d.escalasPorTipo?.[eq.tipo] ?? 1;
+    const { escalaPropia, ...sinPropia } = resto;
+    return { ...sinPropia, factorAuto: escalaPropia / (delTipo || 1) };
+  });
+  return { ...d, equipos };
+}
+
 function loadInitial() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrarEscalas(JSON.parse(raw));
   } catch (e) {
     // localStorage no disponible o datos corruptos: usamos el set de prueba
   }
@@ -243,6 +274,27 @@ export function useAnalistaData() {
     }));
   }, []);
 
+  // Borra los tamaños guardados equipo por equipo en una planta: tanto los
+  // que puso el usuario a mano (escalaPropia) como el factor que dejó el
+  // compactado (factorAuto). La planta vuelve a las proporciones del
+  // catálogo, con el multiplicador por tipo como único ajuste.
+  //
+  // Es la salida masiva que faltaba: sin esto, deshacer un tamaño
+  // equivocado era equipo por equipo, y en la planta demo son 500. NO toca
+  // escalasPorTipo, que es global a toda la app — bajarlo desde acá le
+  // cambiaría el tamaño a las demás plantas sin avisar.
+  const restablecerTamanios = useCallback((plantaId) => {
+    setData((d) => {
+      const areaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
+      const equipos = d.equipos.map((eq) => {
+        if (!areaIds.includes(eq.areaId)) return eq;
+        const { escalaPropia, escalaAuto, factorAuto, ...resto } = eq;
+        return resto;
+      });
+      return { ...d, equipos };
+    });
+  }, []);
+
   // Posición del título de una zona (área) del Portal SCADA — desplazamiento
   // a mano sobre el punto por defecto, para cuando queda mal ubicado.
   const moverTituloArea = useCallback((areaId, tituloOffset) => {
@@ -358,9 +410,10 @@ export function useAnalistaData() {
     const plantaId = nuevoId('planta');
     const NUM_SECTORES = 10;
     const AREAS_POR_SECTOR = 20; // 10 x 20 = 200 ubicaciones
-    // Tamaño propio de cada equipo de la demo (independiente de
-    // escalasPorTipo, que es global a toda la app) — para que se vean bien
-    // sin achicar a los equipos reales de otras plantas.
+    // Factor de tamaño de la demo, en factorAuto y no en escalaPropia: es
+    // una decisión del generador, no del usuario, así que se multiplica con
+    // el multiplicador por tipo en vez de bloquearlo (ver escalaVisible en
+    // iconos.js). Los equipos reales de otras plantas no se ven afectados.
     const ESCALA_EQUIPO_DEMO = 1.3;
 
     // "Ley" de espaciado: TODAS las distancias (entre equipos, del equipo al
@@ -426,7 +479,7 @@ export function useAnalistaData() {
           tipo,
           descripcion: '',
           posicion: { x: base.x + 40 + col * PASO_H, y: base.y + 40 + fila * PASO_V },
-          escalaPropia: ESCALA_EQUIPO_DEMO,
+          factorAuto: ESCALA_EQUIPO_DEMO,
         });
       }
     });
@@ -522,6 +575,7 @@ export function useAnalistaData() {
     duplicarEquipo,
     cambiarEscalaTipo,
     cambiarEscalaEquipo,
+    restablecerTamanios,
     moverTituloArea,
     moverEtiquetaEquipo,
     reunirEquiposDispersos,
