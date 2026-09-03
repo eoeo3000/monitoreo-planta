@@ -145,6 +145,7 @@ export default function EnsayoLayout({ data }) {
         contornos: r.spans.flatMap((s) => contornosDeArea(s.spans).map((c) => ({ ...c, areaId: s.areaId }))),
         metricas: { ...m, solape: 0 },
         encuadre: v.encuadre,
+        minimoInalcanzable: v.minimoInalcanzable || false,
         areaIds: v.areas.map((a) => a.areaId),
       };
     });
@@ -337,6 +338,15 @@ export default function EnsayoLayout({ data }) {
               <p style={{ fontSize: 11.5, color: 'var(--scada-texto-2)', margin: '6px 0 0', lineHeight: 1.5 }}>
                 Ícono más chico a {escalonado.encuadre.minPx.toFixed(0)} px, el más grande a {escalonado.encuadre.maxPx.toFixed(0)} px
                 {escalonado.encuadre.topado && ' · la cámara frenó en el máximo'}.
+                {escalonado.minimoInalcanzable && (
+                  <>
+                    {' '}
+                    <span style={{ color: 'var(--scada-titulo)' }}>
+                      El mínimo de {tamMinPx} px no es alcanzable en esta pantalla ni con una sola área, así que partir no ganaría nada: entra todo lo que
+                      quedaba en esta vista.
+                    </span>
+                  </>
+                )}
               </p>
             )}
           </div>

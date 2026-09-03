@@ -175,6 +175,10 @@ export function empaquetarEscalonado(equipos, data, { arObjetivo = 16 / 9 } = {}
 //
 // Se reparte por área completa, nunca partiendo un área: una mitad de
 // sistema en cada pantalla no se lee como planta.
+//
+// El MÁXIMO no participa de esta decisión — solo el mínimo. Ver encuadrar:
+// el tope de acercamiento es una regla de dibujo y decide cómo se ve una
+// vista, no cuántas vistas hay.
 
 // Alto del ícono más chico y del más grande, en coordenadas del lienzo —
 // el chico decide cuándo hace falta paginar, el grande cuánto se puede
@@ -200,7 +204,19 @@ export function encuadrar(layout, panel, tamMaxPx, altoIconoMinRef) {
   // que un solo tanque ocupa la pantalla entera.
   const zoomTope = tamMaxPx ? tamMaxPx / max : Infinity;
   const zoom = Math.min(zoomEntra, zoomTope);
-  return { zoom, minPx: minRef * zoom, maxPx: max * zoom, topado: zoomEntra > zoomTope };
+  return {
+    zoom,
+    minPx: minRef * zoom,
+    maxPx: max * zoom,
+    // Lo que mediría el ícono más chico SIN el tope. Es el número que decide
+    // la paginación, y tiene que ser este y no minPx: el tope es una regla
+    // de DIBUJO, y si entrara en la decisión un parámetro de dibujo
+    // terminaría diciendo cuántas vistas hay. Medido en la planta demo con
+    // el tipo tanque en 3x y un mínimo de 35 px: mirando minPx salían 54
+    // vistas, mirando este 19.
+    minPxParaCaber: minRef * zoomEntra,
+    topado: zoomEntra > zoomTope,
+  };
 }
 
 // Reparte las áreas en vistas sucesivas. Dentro de cada vista se empaqueta
@@ -247,18 +263,29 @@ export function repartirEnVistas(equipos, data, { arObjetivo = 16 / 9, panel, ta
 
   const entra = (n) => {
     const candidato = armar(pendientesActuales.slice(0, n));
-    return candidato && candidato.encuadre.minPx >= tamMinPx ? candidato : null;
+    return candidato && candidato.encuadre.minPxParaCaber >= tamMinPx ? candidato : null;
   };
 
   const vistas = [];
   let pendientesActuales = areas;
   while (pendientesActuales.length > 0) {
     const total = pendientesActuales.length;
+    const conUna = entra(1);
 
-    // Siempre entra al menos un área, aunque sola no llegue al mínimo: es
-    // preferible una vista apretada a un reparto que no termina nunca.
+    // Si UNA área sola ya no llega al mínimo, ninguna cantidad va a llegar:
+    // agregar áreas solo aleja la cámara. Partir no gana nada, y antes esto
+    // caía en el peor resultado posible —la bisección devolvía 1 y salían
+    // decenas de vistas de tres equipos—. Se deja todo lo que queda en una
+    // sola vista y se marca que ese mínimo no es alcanzable en esta
+    // pantalla, que es la verdad y hay que poder decirla.
+    if (!conUna) {
+      const resto = armar(pendientesActuales);
+      if (resto) vistas.push({ ...resto, minimoInalcanzable: true });
+      break;
+    }
+
     let corte = 1;
-    let mejor = armar(pendientesActuales.slice(0, 1));
+    let mejor = conUna;
 
     // Bisección para acercarse rápido: con 200 áreas son ~8 empaquetados en
     // vez de 200.
