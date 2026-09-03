@@ -187,14 +187,20 @@ function altosDeIcono(colocadas) {
 
 // Cuánto agranda o achica el encuadre a este lienzo para meterlo en el
 // panel, y qué tamaño en pantalla le queda al ícono más chico.
-export function encuadrar(layout, panel, tamMaxPx) {
+// `altoIconoMinRef` es el ícono más chico de TODA la planta, no el de esta
+// vista. Importa porque todas las vistas terminan dibujándose a la misma
+// escala (ver repartirEnVistas): si cada una se midiera contra su propio
+// ícono más chico, una vista de puros tanques daría por buena una escala
+// con la que los motores de otra vista quedarían ilegibles.
+export function encuadrar(layout, panel, tamMaxPx, altoIconoMinRef) {
   const { min, max } = altosDeIcono(layout.colocadas);
+  const minRef = altoIconoMinRef || min;
   const zoomEntra = Math.min(panel.ancho / layout.ancho, panel.alto / layout.alto);
   // Tope de acercamiento: con muy pocos equipos la cámara se acerca tanto
   // que un solo tanque ocupa la pantalla entera.
   const zoomTope = tamMaxPx ? tamMaxPx / max : Infinity;
   const zoom = Math.min(zoomEntra, zoomTope);
-  return { zoom, minPx: min * zoom, maxPx: max * zoom, topado: zoomEntra > zoomTope };
+  return { zoom, minPx: minRef * zoom, maxPx: max * zoom, topado: zoomEntra > zoomTope };
 }
 
 // Reparte las áreas en vistas sucesivas. Dentro de cada vista se empaqueta
@@ -221,10 +227,16 @@ export function repartirEnVistas(equipos, data, { arObjetivo = 16 / 9, panel, ta
   const areas = [...porArea.entries()].map(([areaId, eqs]) => ({ areaId, eqs }));
   if (areas.length === 0) return [];
 
+  // El ícono más chico de la planta entera. Todas las vistas se miden
+  // contra este y no contra el suyo propio, porque todas se van a dibujar a
+  // la misma escala.
+  const altosPlanta = equipos.map((eq) => celdaDeEquipo(eq, data)).filter(Boolean).map((c) => c.altoIcono);
+  const altoIconoMinPlanta = altosPlanta.length ? Math.min(...altosPlanta) : 1;
+
   const armar = (subset) => {
     const layout = empaquetarEscalonado(subset.flatMap((a) => a.eqs), data, { arObjetivo });
     if (!layout) return null;
-    return { layout, encuadre: encuadrar(layout, panel, tamMaxPx), areas: subset };
+    return { layout, encuadre: encuadrar(layout, panel, tamMaxPx, altoIconoMinPlanta), areas: subset };
   };
 
   // Sin mínimo no hay nada que repartir: entra todo en una vista.
