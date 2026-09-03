@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
@@ -12,14 +12,23 @@ const TIPOS_VASIJA = ['tanque', 'agitador'];
 const FONT_SIZE_TAG = 13;
 const ALTO_TAG = 18;
 
-// Proporción de referencia del panel. Fija a propósito: el ensayo compara
-// métodos entre sí, y si dependiera del tamaño de la ventana los números no
-// serían comparables entre dos corridas.
-const AR_OBJETIVO = 16 / 9;
-
-// Panel de referencia, no el real: el ensayo compara métodos entre sí, y si
-// dependiera del tamaño de la ventana dos corridas no serían comparables.
-const PANEL_REF = { ancho: 1280, alto: 720 };
+// La pantalla donde se va a ver la planta es una VARIABLE del problema, no
+// una constante. Y no alcanza con su proporción: la capacidad depende del
+// área en píxeles, así que un ultrawide de 2560×1080 se lleva unas tres
+// veces los equipos de un 1280×720 al mismo tamaño legible.
+//
+// El primero es el de referencia: las cifras anotadas en CLAUDE.md están
+// medidas con ese. Para comparar métodos entre sí hay que dejar la pantalla
+// fija; para saber cuántas vistas hacen falta en un monitor concreto, se
+// elige ese monitor.
+const PANTALLAS = [
+  { id: 'ref', nombre: 'Referencia · 1280×720 (16:9)', ancho: 1280, alto: 720 },
+  { id: 'fhd', nombre: 'Monitor · 1920×1080 (16:9)', ancho: 1920, alto: 1080 },
+  { id: 'wxga', nombre: 'Notebook · 1440×900 (16:10)', ancho: 1440, alto: 900 },
+  { id: 'ultra', nombre: 'Ultrawide · 2560×1080 (21:9)', ancho: 2560, alto: 1080 },
+  { id: 'vertical', nombre: 'Vertical · 1080×1920 (9:16)', ancho: 1080, alto: 1920 },
+  { id: 'real', nombre: 'Panel real de esta ventana', ancho: 0, alto: 0 },
+];
 
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
@@ -30,6 +39,39 @@ export default function EnsayoLayout({ data }) {
   const [tamMinPx, setTamMinPx] = useState(28);
   const [tamMaxPx, setTamMaxPx] = useState(180);
   const [vistaActiva, setVistaActiva] = useState(0);
+  const [pantallaId, setPantallaId] = useState('ref');
+  const [panelReal, setPanelReal] = useState(null);
+  const svgRef = useRef(null);
+
+  // Mide el panel de verdad, para la opción "Panel real". Mismo patrón que
+  // PortalSCADA.js: sin lista de dependencias, con guarda de "sin cambios"
+  // para no entrar en bucle, más un listener de resize que por sí solo no
+  // dispara un re-render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const medir = () => {
+      const el = svgRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      setPanelReal((prev) =>
+        prev && Math.abs(prev.ancho - r.width) < 1 && Math.abs(prev.alto - r.height) < 1
+          ? prev
+          : { ancho: Math.round(r.width), alto: Math.round(r.height) }
+      );
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  });
+
+  const pantalla = useMemo(() => {
+    const elegida = PANTALLAS.find((p) => p.id === pantallaId) || PANTALLAS[0];
+    if (elegida.id !== 'real') return elegida;
+    return panelReal ? { ...elegida, ...panelReal } : PANTALLAS[0];
+  }, [pantallaId, panelReal]);
+
+  const AR_OBJETIVO = pantalla.ancho / pantalla.alto;
 
   const areasDePlanta = useMemo(() => data.areas.filter((a) => a.plantaId === plantaId), [data.areas, plantaId]);
   const equiposDePlanta = useMemo(() => {
@@ -71,7 +113,7 @@ export default function EnsayoLayout({ data }) {
       cajas,
       metricas: { ...m, solape: solapamientoDeCajas(cajas) / (m.lienzoAncho * m.lienzoAlto) },
     };
-  }, [plantaId, equiposDePlanta, data, agruparPorArea]);
+  }, [plantaId, equiposDePlanta, data, agruparPorArea, AR_OBJETIVO]);
 
   // --- Método escalonado: flujo continuo, límite de área no rectangular --
   // Repartido en vistas: se agregan áreas mientras el ícono más chico siga
@@ -80,7 +122,7 @@ export default function EnsayoLayout({ data }) {
     if (!plantaId || equiposDePlanta.length === 0) return [];
     return repartirEnVistas(equiposDePlanta, data, {
       arObjetivo: AR_OBJETIVO,
-      panel: PANEL_REF,
+      panel: pantalla,
       tamMinPx,
       tamMaxPx,
     }).map((v) => {
@@ -106,7 +148,7 @@ export default function EnsayoLayout({ data }) {
         areaIds: v.areas.map((a) => a.areaId),
       };
     });
-  }, [plantaId, equiposDePlanta, data, tamMinPx, tamMaxPx]);
+  }, [plantaId, equiposDePlanta, data, tamMinPx, tamMaxPx, pantalla, AR_OBJETIVO]);
 
   const escalonado = vistasEscalonado[Math.min(vistaActiva, vistasEscalonado.length - 1)] || null;
 
@@ -147,7 +189,7 @@ export default function EnsayoLayout({ data }) {
       cajas,
       metricas: { ...m, solape: solapamientoDeCajas(cajas) / (m.lienzoAncho * m.lienzoAlto) },
     };
-  }, [plantaId, equiposDePlanta, data]);
+  }, [plantaId, equiposDePlanta, data, AR_OBJETIVO]);
 
   const vista = metodo === 'libre' ? libre : metodo === 'escalonado' ? escalonado : actual;
 
@@ -179,6 +221,25 @@ export default function EnsayoLayout({ data }) {
             <option key={p.id} value={p.id}>{p.nombre}</option>
           ))}
         </select>
+
+        {/* La pantalla de destino cambia todo: la proporción decide la forma
+            que busca el empaquetado, y el área en píxeles decide cuántos
+            equipos entran al mismo tamaño legible. Para comparar métodos
+            entre sí hay que dejarla fija. */}
+        <label style={{ display: 'block', fontSize: 12, color: 'var(--scada-texto-2)', marginBottom: 4 }}>Pantalla de destino</label>
+        <select
+          value={pantallaId}
+          onChange={(e) => { setPantallaId(e.target.value); setVistaActiva(0); }}
+          style={{ width: '100%', marginBottom: 4, background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', padding: 6, fontFamily: 'inherit' }}
+        >
+          {PANTALLAS.map((p) => (
+            <option key={p.id} value={p.id}>{p.nombre}</option>
+          ))}
+        </select>
+        <p style={{ fontSize: 11.5, color: 'var(--scada-texto-2)', margin: '0 0 var(--space-3)', lineHeight: 1.5 }}>
+          {pantalla.ancho} × {pantalla.alto} · proporción {AR_OBJETIVO.toFixed(2)} ·{' '}
+          {((pantalla.ancho * pantalla.alto) / (1280 * 720)).toFixed(2)}× el área de la de referencia
+        </p>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 'var(--space-3)' }}>
           {[{ id: 'actual', t: 'Actual' }, { id: 'escalonado', t: 'Escalonado' }, { id: 'libre', t: 'Libre' }].map((m) => (
