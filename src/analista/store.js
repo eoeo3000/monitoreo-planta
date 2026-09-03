@@ -484,6 +484,32 @@ export function useAnalistaData() {
       }
     });
 
+    // Conexiones: los equipos de una ubicación se encadenan entre sí, y la
+    // última de cada ubicación sigue a la primera de la siguiente ubicación
+    // del mismo sector. No pretende ser un proceso real — sí tener el ORDEN
+    // de magnitud de una planta de 500 equipos (unas 490 cañerías), que es
+    // lo que hace falta para ver cómo se comporta el ruteo y el dibujo a
+    // esta escala.
+    const equiposPorArea = new Map();
+    equipos.forEach((eq) => {
+      if (!equiposPorArea.has(eq.areaId)) equiposPorArea.set(eq.areaId, []);
+      equiposPorArea.get(eq.areaId).push(eq);
+    });
+    const conexiones = [];
+    const conectar = (de, a) => {
+      if (de && a) conexiones.push({ id: nuevoId('cx'), plantaId, deId: de.id, aId: a.id });
+    };
+    areas.forEach((area, i) => {
+      const eqs = equiposPorArea.get(area.id) || [];
+      for (let k = 0; k < eqs.length - 1; k++) conectar(eqs[k], eqs[k + 1]);
+      const siguiente = areas[i + 1];
+      // Solo dentro del mismo sector: una cañería entre sectores distintos
+      // no tendría sentido ni siquiera como dato de prueba.
+      if (siguiente && siguiente.sectorId === area.sectorId) {
+        conectar(eqs[eqs.length - 1], (equiposPorArea.get(siguiente.id) || [])[0]);
+      }
+    });
+
     const severidadesPonderadas = ['normal', 'normal', 'normal', 'normal', 'observacion', 'observacion', 'alerta', 'alarma'];
     const diagnosticos = [];
     equipos.forEach((eq) => {
@@ -507,6 +533,7 @@ export function useAnalistaData() {
       sectores: [...(d.sectores || []), ...sectores],
       areas: [...d.areas, ...areas],
       equipos: [...d.equipos, ...equipos],
+      conexiones: [...d.conexiones, ...conexiones],
       diagnosticos: [...d.diagnosticos, ...diagnosticos],
     }));
     return plantaId;

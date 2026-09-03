@@ -30,11 +30,13 @@ src/analista/severidad.js    modelo de severidad — fijo, no configurable
 src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   grilla.js                    escalas, geometría de grilla, búsqueda de ancho
   skyline.js                   UNA implementación del empaquetado
-  compactado.js                el compactado de producción
+  compactado.js                el compactado de producción (bloques por área)
+  escalonado.js                el layout escalonado y su reparto en vistas
   ensayo.js                    métodos alternativos que se comparan en pantalla
 src/gerencia/iconos.js       resuelve íconos de fábrica y personalizados
 src/gerencia/puertos.js      puertos de conexión y ruteo de cañerías
-src/components/gerencia/PortalSCADA.js   el lienzo (grande: ~1170 líneas)
+src/components/gerencia/PortalSCADA.js     el lienzo editable (~1170 líneas)
+src/components/gerencia/VistaOperacion.js  la pantalla de solo lectura
 scripts/medicion/            mediciones de layout con Playwright (ver su README)
 ```
 
@@ -88,6 +90,21 @@ Cosas que se rompen sin avisar si no se saben.
   grilla: si no, dos áreas angostas vecinas se pisan los títulos.
 - **Los colores de severidad son datos, no decoración** (`severidad.js`). El
   modelo es fijo y no configurable.
+
+## Dos pantallas de planta, a propósito
+
+- **Portal SCADA** — el diagrama de PROCESO. Dibuja las posiciones guardadas
+  (`eq.posicion`, puestas a mano o por el compactado de bloques), con las
+  cañerías ruteadas y esquivando equipos. Es donde se edita.
+- **Vista de operación** — VIGILANCIA de condición, solo lectura. Recalcula
+  el layout escalonado en cada render y lo pagina en vistas, así que no
+  depende de que alguien haya compactado. **No dibuja cañerías**, y no es un
+  olvido: el escalonado reacomoda los equipos ignorando el proceso para
+  meter la mayor cantidad legible por pantalla, y encima de ese orden las
+  conexiones saldrían como un ovillo.
+
+Son complementarias, no una el reemplazo de la otra. Compactar en el Portal
+nunca va a dar el resultado de la Vista de operación: son dos algoritmos.
 
 ## Dos gramáticas visuales
 
