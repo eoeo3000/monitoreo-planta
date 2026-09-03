@@ -26,6 +26,8 @@ algo por terminado.
 
 ```
 src/analista/store.js        estado (useAnalistaData) y persistencia. SOLO estado.
+src/analista/preferencias.js "en qué estaba" quien mira (la planta elegida),
+                             en su propia clave de localStorage
 src/analista/severidad.js    modelo de severidad — fijo, no configurable
 src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   grilla.js                    escalas, geometría de grilla, búsqueda de ancho
@@ -106,6 +108,12 @@ Cosas que se rompen sin avisar si no se saben.
 Son complementarias, no una el reemplazo de la otra. Compactar en el Portal
 nunca va a dar el resultado de la Vista de operación: son dos algoritmos.
 
+El ensayo y la Vista de operación **solo coinciden con "Panel real de esta
+ventana" elegido en el ensayo** — con una pantalla simulada dan repartos
+distintos, y eso es lo correcto: el reparto depende del panel. Por eso los
+dos paneles laterales miden lo mismo (300 px): con anchos distintos el
+lienzo cambia y el reparto deja de coincidir aunque el método sea el mismo.
+
 ## Dos gramáticas visuales
 
 La app tiene dos, a propósito. No mezclarlas.
@@ -185,6 +193,22 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   deja a los equipos consecutivos en el ORDEN, pero cada uno se ubica donde el
   perfil esté más bajo. Con pocas áreas grandes coincide por accidente; con
   muchas áreas chicas se dispersan del todo.
+- **Dos datos con dueños distintos van en claves distintas.** La planta que
+  se está mirando no es dato de planta: es "en qué estaba" quien mira. Vive
+  en `preferencias.js`, con su propia clave, así restablecer los datos de
+  prueba no se la lleva puesta. Y se comparte desde `App.js`, no por
+  pantalla: el render condicional desmonta la pantalla al cambiar de
+  pestaña, así que una variable local se perdía y se volvía siempre a
+  `plantas[0]` —la semilla—, nunca a la planta que se estaba mirando.
+
+- **Un `ref` que nunca se conecta no da error: se degrada en silencio.** En
+  el ensayo, `svgRef` estaba declarado y leído en el efecto de medición pero
+  nunca puesto en el `<svg>`. `panelReal` quedaba siempre en null y la
+  opción "Panel real de esta ventana" caía al 1280×720 de referencia sin
+  decir nada: se elegía y el resultado no cambiaba. Se notó recién al
+  comparar su reparto contra el de la Vista de operación —4 vistas contra
+  3— y pedir que coincidieran.
+
 - **Un parámetro de DIBUJO no puede decidir la paginación.** El máximo de
   tamaño de ícono topa el zoom, y ese zoom alimentaba la prueba del mínimo
   que decide cuántas áreas entran por vista. Con el tipo tanque agrandado a

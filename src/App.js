@@ -6,10 +6,16 @@ import PortalSCADA from './components/gerencia/PortalSCADA';
 import VistaOperacion from './components/gerencia/VistaOperacion';
 import EnsayoLayout from './components/gerencia/EnsayoLayout';
 import { useAnalistaData } from './analista/store';
+import { usePlantaSeleccionada } from './analista/preferencias';
 
 export default function App() {
   const [vista, setVista] = useState('analista');
   const analista = useAnalistaData();
+  // Compartida por las tres pantallas de planta y persistida: al cambiar de
+  // pestaña React desmonta la pantalla, así que una variable local por
+  // pantalla se perdía y se volvía siempre a la primera planta.
+  const [plantaId, setPlantaId] = usePlantaSeleccionada(analista.data.plantas);
+  const dePlanta = { plantaId, setPlantaId };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
@@ -17,9 +23,9 @@ export default function App() {
       <div style={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
         {vista === 'analista' && <AnalistaApp {...analista} />}
         {vista === 'administracion' && <Administracion {...analista} />}
-        {vista === 'portalScada' && <PortalSCADA {...analista} />}
-        {vista === 'operacion' && <VistaOperacion {...analista} />}
-        {vista === 'ensayoLayout' && <EnsayoLayout {...analista} />}
+        {vista === 'portalScada' && <PortalSCADA {...analista} {...dePlanta} />}
+        {vista === 'operacion' && <VistaOperacion {...analista} {...dePlanta} />}
+        {vista === 'ensayoLayout' && <EnsayoLayout {...analista} {...dePlanta} />}
       </div>
     </div>
   );

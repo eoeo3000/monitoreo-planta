@@ -115,6 +115,8 @@ export default function PortalSCADA({
   reunirEquiposDispersos,
   compactarPlanta,
   restablecerTamanios,
+  plantaId,
+  setPlantaId,
 }) {
   const svgRef = useRef(null);
   // Tamaño real en píxeles del panel del lienzo — lo usa el encuadre de más
@@ -130,7 +132,6 @@ export default function PortalSCADA({
   // asomando por el borde del lienzo.
   const [cajaMedida, setCajaMedida] = useState(null);
   const tagInputRef = useRef(null);
-  const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
   // Sector elegido en la Vista de Sectores (null = todavía no se eligió
   // ninguno, o la planta no tiene sectores y se muestra el lienzo completo
   // como siempre). Guarda también los areaIds ya resueltos del grupo para no

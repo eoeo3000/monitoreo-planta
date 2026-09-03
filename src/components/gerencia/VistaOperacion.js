@@ -37,8 +37,7 @@ const TAM_MAX_PX = 180;
 
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
-export default function VistaOperacion({ data }) {
-  const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
+export default function VistaOperacion({ data, plantaId, setPlantaId }) {
   const [vistaActiva, setVistaActiva] = useState(0);
   const [panel, setPanel] = useState(null);
   const svgRef = useRef(null);
@@ -129,7 +128,10 @@ export default function VistaOperacion({ data }) {
 
   return (
     <div className="scada" style={{ display: 'flex', height: '100%', minHeight: 0 }}>
-      <div style={{ width: 280, flexShrink: 0, padding: 'var(--space-4)', borderRight: '1px solid var(--scada-borde)', background: 'var(--scada-subpanel)', overflowY: 'auto' }}>
+      {/* Mismo ancho que el panel lateral del ensayo (300): con distinto
+          ancho el lienzo queda distinto y el reparto en vistas no coincide
+          entre las dos pantallas aunque el método sea el mismo. */}
+      <div style={{ width: 300, flexShrink: 0, padding: 'var(--space-4)', borderRight: '1px solid var(--scada-borde)', background: 'var(--scada-subpanel)', overflowY: 'auto' }}>
         <h2 style={{ margin: '0 0 var(--space-3)', fontSize: 15, color: 'var(--scada-titulo)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
           Vista de operación
         </h2>

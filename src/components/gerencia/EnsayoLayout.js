@@ -33,8 +33,7 @@ const PANTALLAS = [
 
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
-export default function EnsayoLayout({ data }) {
-  const [plantaId, setPlantaId] = useState(data.plantas[0]?.id || null);
+export default function EnsayoLayout({ data, plantaId, setPlantaId }) {
   const [metodo, setMetodo] = useState('escalonado');
   const [agruparPorArea, setAgruparPorArea] = useState(true);
   const [tamMinPx, setTamMinPx] = useState(28);
@@ -403,6 +402,7 @@ export default function EnsayoLayout({ data }) {
           <p style={{ color: 'var(--scada-texto-2)' }}>Esta planta no tiene equipos para acomodar.</p>
         ) : (
           <svg
+            ref={svgRef}
             viewBox={`-20 -20 ${(metodo === 'escalonado' && lienzoComun ? lienzoComun.ancho : vista.metricas.lienzoAncho) + 40} ${(metodo === 'escalonado' && lienzoComun ? lienzoComun.alto : vista.metricas.lienzoAlto) + 40}`}
             preserveAspectRatio="xMinYMin meet"
             style={{ width: '100%', height: '100%', display: 'block' }}
