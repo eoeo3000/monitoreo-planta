@@ -114,6 +114,7 @@ export default function PortalSCADA({
   moverEtiquetaEquipo,
   reunirEquiposDispersos,
   compactarPlanta,
+  restablecerTamanios,
 }) {
   const svgRef = useRef(null);
   // Tamaño real en píxeles del panel del lienzo — lo usa el encuadre de más
@@ -555,7 +556,11 @@ export default function PortalSCADA({
     const tienePropio = eq.escalaPropia != null;
     const actual = eq.escalaPropia ?? data.escalasPorTipo?.[eq.tipo] ?? 1;
     const origen = tienePropio ? 'personalizado de este equipo' : `heredado del tipo "${eq.tipo}"`;
-    const respuesta = window.prompt(`Tamaño de ${eq.tag}: ${actual.toFixed(2)} (${origen}). Vacío = usar el tamaño del tipo:`, actual.toFixed(2));
+    // El factor que dejó el compactado se multiplica encima de este número,
+    // así que sin nombrarlo el valor que se muestra no explica lo que se ve.
+    const factor = eq.factorAuto ?? 1;
+    const nota = factor !== 1 ? ` Además la planta está compactada con un factor de ×${factor.toFixed(2)}.` : '';
+    const respuesta = window.prompt(`Tamaño de ${eq.tag}: ${actual.toFixed(2)} (${origen}).${nota} Vacío = usar el tamaño del tipo:`, actual.toFixed(2));
     if (respuesta === null) return;
     if (respuesta.trim() === '') {
       cambiarEscalaEquipo(eq.id, null);
@@ -753,7 +758,7 @@ export default function PortalSCADA({
                 onClick={() => {
                   if (
                     window.confirm(
-                      'Esto reacomoda TODOS los equipos de la planta en una grilla apretada, área por área, agranda los equipos mientras eso siga aprovechando mejor el espacio del panel, y reubica las áreas mismas una al lado de la otra sin huecos (según la proporción real del panel). También fija el tamaño de cada equipo (ya no va a cambiar solo si después ajustás el tamaño del tipo) y resetea los quiebres/puertos de conexión, los títulos de área y los TAG movidos a mano (vuelven a su posición por defecto). No se puede deshacer. ¿Continuar?'
+                      'Esto reacomoda TODOS los equipos de la planta en una grilla apretada, área por área, agranda los equipos mientras eso siga aprovechando mejor el espacio del panel, y reubica las áreas mismas una al lado de la otra sin huecos (según la proporción real del panel). El tamaño que elegiste por tipo o por equipo se respeta: el compactado solo agrega su propio factor encima, y se puede deshacer con “Restablecer tamaños”. También resetea los quiebres/puertos de conexión, los títulos de área y los TAG movidos a mano (vuelven a su posición por defecto). No se puede deshacer. ¿Continuar?'
                     )
                   ) {
                     compactarPlanta(plantaId, tamanioSvg ? tamanioSvg.ancho / tamanioSvg.alto : undefined);
@@ -763,6 +768,21 @@ export default function PortalSCADA({
                 style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
               >
                 Compactar planta
+              </button>
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      'Esto borra los tamaños guardados equipo por equipo en esta planta: los que pusiste a mano con doble clic y el factor que dejó el compactado. Los equipos vuelven a las proporciones del catálogo, con el panel “Tamaños de equipo” como único ajuste. Las posiciones no se tocan. No se puede deshacer. ¿Continuar?'
+                    )
+                  ) {
+                    restablecerTamanios(plantaId);
+                  }
+                }}
+                title="Devuelve los equipos de esta planta a las proporciones del catálogo, sin tamaños propios ni factor de compactado"
+                style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
+              >
+                Restablecer tamaños
               </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
                 <span style={{ color: 'var(--scada-texto-2)' }}>Zoom</span>
@@ -848,6 +868,7 @@ export default function PortalSCADA({
                       <div style={tituloSeccion}>Equipo seleccionado · {eqSel.tipo}</div>
                       <div style={{ fontSize: 11, color: 'var(--scada-texto-2)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         Tamaño: {escalaActual.toFixed(2)} ({tienePropio ? 'personalizado de este equipo' : 'del tipo'})
+                        {(eqSel.factorAuto ?? 1) !== 1 && ` · ×${eqSel.factorAuto.toFixed(2)} de compactado`}
                         {tienePropio && (
                           <button
                             onClick={() => cambiarEscalaEquipo(eqSel.id, null)}

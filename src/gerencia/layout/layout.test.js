@@ -1,4 +1,5 @@
-import { escalaDeCatalogo, calcularGrillaArea, anchoDeTitulo, PAD_ZONA, ALTO_TITULO } from './grilla';
+import { escalaDeCatalogo, escalaVisible, calcularGrillaArea, anchoDeTitulo, PAD_ZONA, ALTO_TITULO } from './grilla';
+import { migrarEscalas } from '../../analista/store';
 import { empaquetarSkyline } from './skyline';
 import { contornosDeArea, solapamientoDeCajas, repartirEnVistas, encuadrar } from './ensayo';
 
@@ -8,28 +9,79 @@ import { contornosDeArea, solapamientoDeCajas, repartirEnVistas, encuadrar } fro
 const datos = { escalasPorTipo: {}, tiposPersonalizados: [] };
 const bomba = (id) => ({ id, tag: id, tipo: 'bomba', areaId: 'a1' });
 
-describe('escalaDeCatalogo', () => {
+describe('escalaDeCatalogo — de dónde PARTE el compactado', () => {
   test('sin escala propia usa la del tipo', () => {
     expect(escalaDeCatalogo(bomba('b1'), datos)).toBe(1);
     expect(escalaDeCatalogo(bomba('b1'), { ...datos, escalasPorTipo: { bomba: 2 } })).toBe(2);
   });
 
-  test('descarta la escala que dejó el compactado anterior', () => {
-    // escalaPropia coincide con la marca escalaAuto: la escribió el
-    // algoritmo, así que compactar de nuevo parte del tipo y no se apila
-    // sobre su propio resultado.
-    const eq = { ...bomba('b1'), escalaPropia: 3.8, escalaAuto: 3.8 };
-    expect(escalaDeCatalogo(eq, datos)).toBe(1);
+  test('la escala puesta a mano gana sobre la del tipo', () => {
+    const eq = { ...bomba('b1'), escalaPropia: 2.5 };
+    expect(escalaDeCatalogo(eq, { ...datos, escalasPorTipo: { bomba: 2 } })).toBe(2.5);
   });
 
-  test('respeta la escala que el usuario cambió después de compactar', () => {
-    const eq = { ...bomba('b1'), escalaPropia: 2.5, escalaAuto: 3.8 };
-    expect(escalaDeCatalogo(eq, datos)).toBe(2.5);
+  test('ignora el factor de la compactada anterior', () => {
+    // Si lo mirara, cada compactada se apilaría sobre su propio resultado.
+    const eq = { ...bomba('b1'), factorAuto: 3.8 };
+    expect(escalaDeCatalogo(eq, datos)).toBe(1);
+  });
+});
+
+describe('escalaVisible — lo que se DIBUJA', () => {
+  test('multiplica el tamaño elegido por el factor de la app', () => {
+    const eq = { ...bomba('b1'), factorAuto: 2 };
+    expect(escalaVisible(eq, { ...datos, escalasPorTipo: { bomba: 1.5 } })).toBe(3);
   });
 
-  test('descarta una escala sin marca (dato viejo)', () => {
-    const eq = { ...bomba('b1'), escalaPropia: 3.8 };
-    expect(escalaDeCatalogo(eq, datos)).toBe(1);
+  test('el panel por tipo sigue mandando sobre una planta compactada', () => {
+    // El defecto que motivó separar las dos capas: antes el compactado
+    // escribía su resultado en escalaPropia y bloqueaba el panel.
+    const eq = { ...bomba('b1'), factorAuto: 2 };
+    expect(escalaVisible(eq, { ...datos, escalasPorTipo: { bomba: 1 } })).toBe(2);
+    expect(escalaVisible(eq, { ...datos, escalasPorTipo: { bomba: 0.5 } })).toBe(1);
+  });
+
+  test('sin factor es solo el tamaño elegido', () => {
+    expect(escalaVisible(bomba('b1'), datos)).toBe(1);
+    expect(escalaVisible({ ...bomba('b1'), escalaPropia: 2.5 }, datos)).toBe(2.5);
+  });
+});
+
+describe('migrarEscalas — datos guardados por la versión anterior', () => {
+  const conEquipos = (equipos, escalasPorTipo = {}) => ({ equipos, escalasPorTipo });
+
+  test('lo que escribió el compactado pasa a factorAuto y se ve igual', () => {
+    const d = conEquipos([{ ...bomba('b1'), escalaPropia: 2, escalaAuto: 2 }]);
+    const eq = migrarEscalas(d).equipos[0];
+    expect(eq.escalaPropia).toBeUndefined();
+    expect(eq.escalaAuto).toBeUndefined();
+    expect(eq.factorAuto).toBe(2);
+    expect(escalaVisible(eq, { ...datos, ...d })).toBe(2);
+  });
+
+  test('descuenta el multiplicador por tipo al pasar el factor', () => {
+    // El compactado guardaba escalaBase × factor; acá escalaBase era el 2
+    // del tipo, así que el factor de la compactada fue 1.5.
+    const d = conEquipos([{ ...bomba('b1'), escalaPropia: 3, escalaAuto: 3 }], { bomba: 2 });
+    expect(migrarEscalas(d).equipos[0].factorAuto).toBe(1.5);
+  });
+
+  test('un tamaño cambiado a mano después de compactar se respeta', () => {
+    const d = conEquipos([{ ...bomba('b1'), escalaPropia: 2.5, escalaAuto: 3.8 }]);
+    const eq = migrarEscalas(d).equipos[0];
+    expect(eq.escalaPropia).toBe(2.5);
+    expect(eq.factorAuto).toBeUndefined();
+    expect(eq.escalaAuto).toBeUndefined();
+  });
+
+  test('no toca un equipo sin tamaño guardado, ni uno ya migrado', () => {
+    const d = conEquipos([bomba('b1'), { ...bomba('b2'), factorAuto: 1.3 }]);
+    expect(migrarEscalas(d).equipos).toEqual(d.equipos);
+  });
+
+  test('es idempotente: migrar dos veces da lo mismo', () => {
+    const d = conEquipos([{ ...bomba('b1'), escalaPropia: 2, escalaAuto: 2 }, { ...bomba('b2'), escalaPropia: 1.3 }]);
+    expect(migrarEscalas(migrarEscalas(d))).toEqual(migrarEscalas(d));
   });
 });
 

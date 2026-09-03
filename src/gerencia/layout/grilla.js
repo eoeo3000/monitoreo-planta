@@ -1,4 +1,4 @@
-import { iconoBaseDe } from '../iconos';
+import { iconoBaseDe, escalaVisible } from '../iconos';
 
 // Primitivas de geometría compartidas por todo lo que acomoda equipos: el
 // compactado de producción (compactado.js) y los métodos que se prueban en
@@ -19,32 +19,25 @@ export const PASO_CRECIMIENTO = 1.1;
 // margen, esto es solo para que dos cuadros punteados no se toquen.
 export const GAP_ENTRE_AREAS = 30;
 
-// La escala de la que PARTE el compactado: la del tipo (panel "Tamaños de
-// equipo"), salvo que el usuario le haya puesto una a mano a ESE equipo.
+// La escala de la que PARTE el compactado: la que eligió quien mira —la del
+// tipo (panel "Tamaños de equipo"), o la que se le puso a mano a ESE equipo
+// con doble clic—. Deliberadamente NO incluye eq.factorAuto, que es lo que
+// escribió la compactada anterior: si lo incluyera, cada compactada se
+// apilaría sobre el resultado de la anterior (de ahí salieron los bugs de
+// escala compuesta) y bastaría UN equipo cerca del tope de 4 para que
+// ninguna área pudiera volver a crecer nunca. Ignorarlo hace que compactar
+// dos veces seguidas dé exactamente el mismo resultado.
 //
-// Una escalaPropia que coincide con lo que anotó la compactación anterior
-// (escalaAuto) es obra del algoritmo, no del usuario, y se descarta. Sin
-// esto cada compactada se apila sobre el resultado de la anterior —de ahí
-// salieron los bugs de escala compuesta— y, peor con un factor único para
-// toda la planta, bastaría UN equipo cerca del tope de 4 para que ninguna
-// área pudiera volver a crecer nunca. Descartarla hace que compactar dos
-// veces seguidas dé exactamente el mismo resultado.
+// La otra mitad del par está en iconos.js: escalaVisible SÍ multiplica por
+// factorAuto, porque es lo que se dibuja.
 export function escalaDeCatalogo(eq, d) {
-  const delTipo = d.escalasPorTipo?.[eq.tipo] ?? 1;
-  if (eq.escalaPropia === undefined || eq.escalaPropia === null) return delTipo;
-  // Sin marca es dato anterior a este cambio: casi siempre lo escribió una
-  // compactada vieja, así que se descarta igual. Un tamaño puesto a mano
-  // después de compactar sí queda marcado y se respeta.
-  if (eq.escalaAuto === undefined || eq.escalaAuto === null) return delTipo;
-  const loCambioElUsuario = Math.abs(eq.escalaPropia - eq.escalaAuto) > 0.005;
-  return loCambioElUsuario ? eq.escalaPropia : delTipo;
-}
-
-// La escala tal como la ve el renderizado: acá SÍ manda escalaPropia sin
-// mirar la marca, porque es lo que el usuario está viendo en pantalla.
-export function escalaVisible(eq, d) {
   return eq.escalaPropia ?? d.escalasPorTipo?.[eq.tipo] ?? 1;
 }
+
+// Re-exportada acá porque vive del lado del dibujo (iconos.js) pero la usan
+// también los métodos de layout — así ninguno de los dos lados tiene que
+// saber en qué archivo quedó.
+export { escalaVisible };
 
 // Arma la grilla de equipos de UN área a un factor de escala y una
 // cantidad de columnas dados — separado en su propia función porque se

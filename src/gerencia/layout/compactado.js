@@ -131,7 +131,7 @@ function resolverLayout(equiposPorArea, d, anchoObjetivo) {
     )
   );
 
-  const posicionRelativa = {}; // equipoId -> {x, y, escalaFinal} relativo al origen de SU área
+  const posicionRelativa = {}; // equipoId -> {x, y} relativo al origen de SU área
   const areaIdDeEquipo = {};
   let ancho = 0;
   let alto = 0;
@@ -141,13 +141,13 @@ function resolverLayout(equiposPorArea, d, anchoObjetivo) {
     const origen = origenDeArea[area.id];
     ancho = Math.max(ancho, origen.x + Math.max(grillaFinal.ancho, anchoTitulo));
     alto = Math.max(alto, origen.y + grillaFinal.alto);
-    grillaFinal.posiciones.forEach(({ eq, escalaFinal, x, y }) => {
+    grillaFinal.posiciones.forEach(({ eq, x, y }) => {
       areaIdDeEquipo[eq.id] = area.id;
-      posicionRelativa[eq.id] = { x, y, escalaFinal };
+      posicionRelativa[eq.id] = { x, y };
     });
   });
 
-  return { posicionRelativa, areaIdDeEquipo, origenDeArea, ancho: ancho || 1, alto: alto || 1 };
+  return { posicionRelativa, areaIdDeEquipo, origenDeArea, factorGlobal, ancho: ancho || 1, alto: alto || 1 };
 }
 
 // Agrupa los equipos de una planta por área, ordenados por la posición que
@@ -220,22 +220,32 @@ export function calcularLayoutCompacto(d, plantaId, arObjetivo) {
   // la proporción del panel.
   const mejor = buscarMejorAncho(anchoBase, arObjetivo || 1, (ancho) => resolverLayout(equiposPorArea, d, ancho));
 
+  // Lo único que escribe el compactado sobre el tamaño es factorAuto: el
+  // factor con el que agrandó la planta entera. NO toca escalaPropia, que
+  // es del usuario. Así el panel "Tamaños de equipo" sigue mandando sobre
+  // una planta ya compactada (escalaVisible multiplica las dos capas) en
+  // vez de quedar bloqueado por un valor propio en cada equipo.
+  const factorAuto = Math.round(mejor.factorGlobal * 100) / 100;
   const equipos = d.equipos.map((eq) => {
     const rel = mejor.posicionRelativa[eq.id];
     if (!rel) return eq;
     const origen = mejor.origenDeArea[mejor.areaIdDeEquipo[eq.id]];
-    const escala = Math.round(rel.escalaFinal * 100) / 100;
-    return {
-      ...eq,
+    // escalaAuto es el campo que usaba la versión anterior para marcar su
+    // propio resultado dentro de escalaPropia; ya no se escribe, y se saca
+    // acá para no dejar restos que confundan al leer los datos.
+    const { escalaAuto, ...resto } = eq;
+    const equipo = {
+      ...resto,
       posicion: { x: Math.round(origen.x + rel.x), y: Math.round(origen.y + rel.y) },
-      // escalaPropia es lo que lee el renderizado; escalaAuto es la misma
-      // cifra guardada como marca de "esto lo escribió el compactado".
-      // Si después el usuario cambia el tamaño a mano, las dos dejan de
-      // coincidir y la próxima compactada respeta su cambio en vez de
-      // pisarlo (ver escalaDeCatalogo).
-      escalaPropia: escala,
-      escalaAuto: escala,
+      factorAuto,
     };
+    // El layout acotó a ESCALA_MAX la escala a mano de este equipo (ver
+    // calcularGrillaArea), así que si no se acota también el dato, el
+    // dibujo saldría más grande que la celda que se le reservó. Es la única
+    // circunstancia en la que el compactado pisa un tamaño puesto a mano, y
+    // es para corregir uno que ya estaba fuera de rango.
+    if (equipo.escalaPropia != null && equipo.escalaPropia > ESCALA_MAX) equipo.escalaPropia = ESCALA_MAX;
+    return equipo;
   });
 
   return { equipos };
