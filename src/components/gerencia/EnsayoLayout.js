@@ -3,7 +3,8 @@ import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible } from '../../gerencia/layout/grilla';
-import { empaquetarLibre, contornosDeArea, metricas, cajasPorArea, solapamientoDeCajas, repartirEnVistas } from '../../gerencia/layout/ensayo';
+import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/layout/ensayo';
+import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
 import './portalScada.css';
 
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };

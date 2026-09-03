@@ -1,7 +1,8 @@
 import { escalaDeCatalogo, escalaVisible, calcularGrillaArea, anchoDeTitulo, PAD_ZONA, ALTO_TITULO } from './grilla';
 import { migrarEscalas } from '../../analista/store';
 import { empaquetarSkyline } from './skyline';
-import { contornosDeArea, solapamientoDeCajas, repartirEnVistas, encuadrar } from './ensayo';
+import { solapamientoDeCajas } from './ensayo';
+import { contornosDeArea, repartirEnVistas, encuadrar } from './escalonado';
 
 // Geometría pura: se puede probar sin navegador y sin React, que es
 // justamente lo que motivó separarla del store.

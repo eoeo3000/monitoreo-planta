@@ -121,6 +121,11 @@ export const cajasSolapan = (a, b) =>
 // se salta de una proporción de 1.46 a una de 2.03, sin nada en el medio).
 export const MULTIPLICADORES = [0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2];
 
+// Los métodos que ubican EQUIPOS sueltos (escalonado, libre) arrancan de un
+// ancho más chico que el compactado de bloques: las formas alcanzables son
+// mucho más finas y conviene mirar un poco más abajo.
+export const MULTIPLICADORES_FINOS = [0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5, 1.75, 2];
+
 export function buscarMejorAncho(anchoBase, arObjetivo, resolver, multiplicadores = MULTIPLICADORES) {
   let mejor = null;
   multiplicadores.forEach((mult) => {

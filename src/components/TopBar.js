@@ -4,6 +4,7 @@ const VISTAS = [
   { id: 'analista', label: 'Analista' },
   { id: 'administracion', label: 'Administración' },
   { id: 'portalScada', label: 'Portal SCADA' },
+  { id: 'operacion', label: 'Vista de operación' },
   { id: 'ensayoLayout', label: 'Ensayo de layout' },
 ];
 
