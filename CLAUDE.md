@@ -168,6 +168,23 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   deja a los equipos consecutivos en el ORDEN, pero cada uno se ubica donde el
   perfil esté más bajo. Con pocas áreas grandes coincide por accidente; con
   muchas áreas chicas se dispersan del todo.
+- **Un parámetro de DIBUJO no puede decidir la paginación.** El máximo de
+  tamaño de ícono topa el zoom, y ese zoom alimentaba la prueba del mínimo
+  que decide cuántas áreas entran por vista. Con el tipo tanque agrandado a
+  3× y un mínimo de 35 px, el tope de 180 px llevaba la planta demo de 19
+  vistas a 54, casi todas de una sola área con tres equipos. La prueba usa
+  ahora `minPxParaCaber` (el tamaño SIN topar) y el tope se aplica solo al
+  dibujar. Con eso el reparto da igual con el máximo en 180 que en 400,
+  que es la propiedad que hay que sostener.
+
+- **Una bisección sobre un criterio inalcanzable devuelve el PEOR
+  resultado, no ninguno.** Si el mínimo no se cumple ni con un área sola, no
+  se cumple con ninguna cantidad —agregar áreas solo aleja la cámara— pero
+  la búsqueda terminaba igual en `corte = 1` y escupía una vista por área.
+  Hay que detectar el caso antes de buscar: si `entra(1)` falla, partir no
+  gana nada; entra todo en una vista y se dice que ese mínimo no es
+  alcanzable en esa pantalla.
+
 - **Guardar el resultado de un cálculo donde va una preferencia la deja
   muda.** El compactado escribía su resultado dentro de `escalaPropia`, el
   mismo campo del tamaño puesto a mano. Como ese campo le gana al del tipo,

@@ -202,6 +202,13 @@ describe('encuadrar', () => {
     expect(e.topado).toBe(false);
     expect(e.zoom).toBe(2);
   });
+
+  test('minPxParaCaber ignora el tope — es el que decide la paginación', () => {
+    const e = encuadrar(layout(20, 40, 640, 360), { ancho: 1280, alto: 720 }, 60);
+    expect(e.topado).toBe(true);
+    expect(e.minPx).toBeCloseTo(60); // lo que se DIBUJA, ya topado
+    expect(e.minPxParaCaber).toBe(80); // lo que DECIDE, sin topar
+  });
 });
 
 describe('repartirEnVistas', () => {
@@ -231,11 +238,24 @@ describe('repartirEnVistas', () => {
     expect(ids.sort()).toEqual(Array.from({ length: 10 }, (_, i) => `a${i}`).sort());
   });
 
-  test('un mínimo imposible no cuelga: cada vista se lleva al menos un área', () => {
+  test('un mínimo inalcanzable deja de fragmentar y lo marca', () => {
+    // Si una área sola ya no llega, ninguna cantidad va a llegar: partir no
+    // gana nada. Antes esto daba una vista por área.
     const eqs = [...equiposDeArea('a1', 40), ...equiposDeArea('a2', 40)];
     const vistas = repartirEnVistas(eqs, datos, { panel, tamMinPx: 5000 });
-    expect(vistas).toHaveLength(2);
-    expect(vistas.every((v) => v.areas.length >= 1)).toBe(true);
+    expect(vistas).toHaveLength(1);
+    expect(vistas[0].areas).toHaveLength(2);
+    expect(vistas[0].minimoInalcanzable).toBe(true);
+  });
+
+  test('el máximo no cambia el reparto: es regla de dibujo, no de paginación', () => {
+    const eqs = Array.from({ length: 12 }, (_, i) => equiposDeArea(`a${i}`, 8, i % 3 === 0 ? 'tanque' : 'bomba')).flat();
+    const sinTope = repartirEnVistas(eqs, datos, { panel, tamMinPx: 60, tamMaxPx: 4000 });
+    const conTope = repartirEnVistas(eqs, datos, { panel, tamMinPx: 60, tamMaxPx: 50 });
+    expect(conTope.map((v) => v.areas.length)).toEqual(sinTope.map((v) => v.areas.length));
+    // …pero al dibujar el tope sí actúa.
+    expect(conTope.some((v) => v.encuadre.topado)).toBe(true);
+    expect(sinTope.some((v) => v.encuadre.topado)).toBe(false);
   });
 });
 
