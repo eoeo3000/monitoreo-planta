@@ -131,6 +131,12 @@ Edición de cañerías, toda sobre el tirador del codo:
 
 Las manijas de extremo se dibujan **solo para la conexión elegida**: con 173
 cañerías en la vista de la demo, dos manijas por conexión taparían el dibujo.
+
+Una conexión con un extremo en OTRA vista se dibuja como **conector de salida**
+de P&ID: un cabo corto que apunta afuera del dibujo, con el TAG del otro
+extremo y a qué vista ir (un clic lleva). El cabo apunta al borde, no hacia
+donde está el otro equipo: ese equipo vive en otro lienzo y su posición acá no
+querría decir nada.
 El panel lateral de la conexión elegida es además el único lugar donde se
 borra **una** conexión — antes el único camino era "borrar todas" las de un
 equipo. Y al elegir el destino de una conexión nueva hay línea de
@@ -183,6 +189,13 @@ que dejar la pantalla fija.
 
 Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
 28 px de mínimo, 10 a 48 px.
+
+Conexiones que CRUZAN de vista: 0 de 3 en la semilla, **3 de 470 (0.6%)** en
+la demo a 28 px, 6 (1.3%) a 48 px. Son pocas porque el reparto nunca parte un
+área entre vistas y la demo conecta con colectores DENTRO de cada área: solo
+cruza lo que une áreas distintas. Una planta con un flujo de proceso que
+atraviesa áreas daría muchas más, así que el número dice más de los datos que
+del algoritmo.
 
 Ruteo de cañerías de la planta demo (470 conexiones, los tres métodos), de
 clic en "Cañerías" a tabla completa: **0,6 s**. Si eso se va a varios
@@ -406,3 +419,13 @@ trampas de más abajo.
   demo. No es nuevo de la previsualización —arrastrar un equipo cuesta lo
   mismo— pero es el techo actual. La salida, cuando moleste, es memoizar la
   capa de equipos para que no dependa del estado que cambia por movimiento.
+
+- **Un cartel que se sale del viewBox no se dibuja, y el aire del encuadre no
+  alcanza.** Los conectores de salida nacen en el borde del dibujo por
+  definición —son equipos pegados al límite—, así que el texto se iba afuera:
+  medido, 4 de 6 invisibles en la planta demo, justo el mal que el conector
+  viene a curar. Ahora el cartel se acota al lienzo visible (el lienzo más los
+  20 de aire que agrega el viewBox) y, si no entra del lado de afuera, se pasa
+  al otro lado del cabo en vez de salirse. Es el mismo error que la búsqueda
+  de quiebre sin límites, en otra parte del dibujo: **todo lo que se coloca
+  cerca de un borde necesita saber dónde está el borde.**
