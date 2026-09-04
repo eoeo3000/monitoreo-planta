@@ -2,7 +2,7 @@ import { MULTIPLICADORES_FINOS, buscarMejorAncho } from './grilla';
 import { empaquetarSkyline } from './skyline';
 import { celdaDeEquipo, ALTO_TAG } from './escalonado';
 import { iconoBaseDe } from '../iconos';
-import { cajaEquipo, rutaEntreEquipos, crucesEntreRutas, largoDeRutas } from '../puertos';
+import { cajaEquipo, rutaEntreEquipos, crucesEntreRutas, largoDeRutas, indiceDeObstaculos } from '../puertos';
 
 // Métodos de layout que solo existen para COMPARARSE contra el de
 // producción en la pantalla de ensayo, más las métricas con las que se los
@@ -172,6 +172,10 @@ export function metricasDeCanerias(piezas, conexiones, data) {
       }
     : null;
 
+  // El índice se arma UNA vez para todas las conexiones del método: es lo
+  // que evita comparar cada tramo contra las 500 cajas de la planta.
+  const indice = indiceDeObstaculos(cajas);
+
   const rutas = [];
   let fuera = 0;
   conexiones.forEach((c) => {
@@ -182,7 +186,7 @@ export function metricasDeCanerias(piezas, conexiones, data) {
       if (porId.has(c.deId) || porId.has(c.aId)) fuera += 1;
       return;
     }
-    const r = rutaEntreEquipos(c, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe(de), iconoDe(a), cajas, limites);
+    const r = rutaEntreEquipos(c, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe(de), iconoDe(a), indice, limites);
     if (r) rutas.push({ ...r, conexion: c });
   });
 

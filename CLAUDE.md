@@ -168,6 +168,11 @@ que dejar la pantalla fija.
 Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
 28 px de mínimo, 10 a 48 px.
 
+Ruteo de cañerías de la planta demo (470 conexiones, los tres métodos), de
+clic en "Cañerías" a tabla completa: **0,6 s**. Si eso se va a varios
+segundos, algo volvió a comparar de más — el perfil por etapas está en las
+trampas de más abajo.
+
 ## Trampas ya pisadas
 
 - **Crecer la escala no agranda nada en pantalla.** El encuadre escala el
@@ -266,9 +271,9 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   largo de cañería y cruces por método, pero el escalonado rutea solo las
   conexiones de la VISTA activa (173 en la planta demo, pantalla de
   referencia) y el compactado las de toda la planta (470). En totales el
-  escalonado parece usar casi la mitad de cañería (≈38.600 contra ≈72.900),
-  y es un espejismo: por conexión son 223 contra 155, o sea 44% MÁS. Los
-  cruces van en la misma dirección: 1.86 por conexión contra 0.21. Las dos
+  escalonado parece usar casi la mitad de cañería (≈38.600 contra ≈72.400),
+  y es un espejismo: por conexión son 223 contra 154, o sea 45% MÁS. Los
+  cruces van en la misma dirección: 1.86 por conexión contra 0.19. Las dos
   columnas van normalizadas por conexión, y las cifras dependen de la
   pantalla elegida —cambia el reparto en vistas y con él qué conexiones se
   rutean—, así que para comparar hay que dejarla fija.
@@ -305,3 +310,44 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   anillo (√2 veces el radio) y, encima, un sesgo sistemático de todos los
   desvíos hacia arriba y a la izquierda. Los candidatos de cada anillo se
   ordenan ahora por distancia real al punto de partida.
+
+- **La espiral de ruteo casi nunca encuentra salida, y ese es el caso a
+  optimizar.** Medido en la planta demo: de las conexiones cuyo trazo por
+  defecto choca, esquivan **7 de 169** (compactado), **0 de 60**
+  (escalonado) y **3 de 420** (libre). El resto se rinde y se queda con el
+  trazo por defecto. No es un bug: mover UN quiebre no puede despejar una
+  ruta larga que cruza varias áreas llenas; la búsqueda está pensada para
+  "un equipo de por medio", como dice su propio comentario. Lo que importa
+  es que el fracaso salga barato, porque es el caso normal: antes cada
+  fracaso probaba los 1.680 candidatos del radio 400 para terminar sin
+  nada. Los desvíos que sí salen están todos dentro de 160, así que el
+  radio se bajó a 200 — verificado ruta por ruta: las 1.113 rutas de la
+  demo salen **idénticas** con 200 y con 400, mismo largo y mismos cruces.
+
+- **Preguntar "¿choca?" contra las 500 cajas es el 86% del ruteo.** Con la
+  espiral probando cientos de candidatos, cada uno con 6 tramos, la
+  comparación una-por-una llegaba a millones de pruebas por conexión. La
+  respuesta es un índice espacial (`indiceDeObstaculos` en `puertos.js`):
+  celdas del tamaño típico de un equipo, cada caja guardada ya ensanchada
+  por el margen, y como los tramos son ortogonales las celdas que cruza un
+  tramo son un rectángulo de la grilla. Se arma UNA vez por método, no por
+  conexión. Y los equipos de los extremos se saltean por id en la consulta:
+  antes se armaba un array filtrado por conexión, o sea 470 copias de 500
+  cajas por método.
+
+- **Los cruces no necesitan mirar todos los pares.** Eran 3,2 millones de
+  pares y 1,5 s por método. Dos hechos lo vuelven casi lineal sin cambiar un
+  resultado: todos los tramos son ortogonales y, con el test de orientación
+  que se usaba, dos tramos PARALELOS nunca cuentan como cruce (los signos
+  empatan; colineales dan 0 y 0), así que solo hay que mirar los pares
+  horizontal × vertical; y para ese par el test se reduce a que se toquen
+  los rangos. Con las verticales ordenadas por x, cada horizontal mira solo
+  su franja. 1,5 s → 5 ms, con los conteos intactos (90 / 321 / 911 en la
+  demo). Los dos atajos están atados a su versión ingenua por tests: si
+  alguien los cambia y dejan de coincidir, saltan.
+
+- **Un `waitForTimeout` fijo no es una medición.** El primer número que se
+  anotó del ruteo —161 s— era el tiempo que el script de Playwright esperaba
+  a propósito, no lo que tardaba la app (eran 10,2 s). Para medir hay que
+  esperar a que aparezca el RESULTADO (`waitForFunction` sobre la tabla), no
+  dejar pasar un rato largo y leer el reloj.
