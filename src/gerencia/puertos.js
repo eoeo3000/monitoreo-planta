@@ -119,7 +119,12 @@ function aAbsoluto(posicion, icono, local) {
 // coordenadas "crudas" del ícono — así es como se guarda en la conexión.
 export function puntoPerimetroCercano(posicion, icono, punto) {
   const local = aLocal(posicion, icono, punto);
-  return puntoPerimetroDeFormas(icono?.formas, local);
+  const p = puntoPerimetroDeFormas(icono?.formas, local);
+  // Solo {x, y, dir}: `dist` es de la búsqueda en formas.js —así elige el
+  // candidato más cercano— y no tiene por qué terminar guardada dentro de la
+  // conexión. Un resultado intermedio persistido se lee después como si
+  // fuera dato.
+  return p ? { x: p.x, y: p.y, dir: p.dir } : null;
 }
 
 // Convierte un punto libre guardado (coordenadas crudas + dir, de
