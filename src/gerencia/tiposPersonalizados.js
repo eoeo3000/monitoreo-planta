@@ -13,7 +13,7 @@ export const TIPOS_FORMA = ['circulo', 'rectangulo', 'linea'];
 export { formaAJsx };
 
 // Convierte una definición guardada al mismo contrato que scadaIconos.js
-// (viewBox/anchoBase/altoBase/bordeInferior/puertos/formas/silueta) para que
+// (viewBox/anchoBase/altoBase/puertos/formas/silueta) para que
 // PortalSCADA.js no tenga que distinguir entre tipos de fábrica y tipos
 // creados por el usuario en ningún punto del renderizado ni del ruteo de
 // conexiones (puertos.js) — `formas` es lo que usa este último para calcular
@@ -23,7 +23,6 @@ export function iconoDeTipoPersonalizado(tipoDef) {
     viewBox: `0 0 ${tipoDef.anchoBase} ${tipoDef.altoBase}`,
     anchoBase: tipoDef.anchoBase,
     altoBase: tipoDef.altoBase,
-    bordeInferior: tipoDef.altoBase,
     puertos: tipoDef.puertos || {},
     formas: tipoDef.formas,
     silueta: <>{tipoDef.formas.map((f, i) => formaAJsx(f, i))}</>,

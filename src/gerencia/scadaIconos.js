@@ -26,7 +26,6 @@ export const SCADA_ICONOS = {
     viewBox: '0 0 44 90',
     anchoBase: 44,
     altoBase: 90,
-    bordeInferior: 90,
     puertos: {
       entradaSup: { x: 22, y: 14, dir: 'N' },
       salidaInf: { x: 22, y: 82, dir: 'S' },
@@ -44,7 +43,6 @@ export const SCADA_ICONOS = {
       viewBox: '0 0 44 90',
       anchoBase: 44,
       altoBase: 90,
-      bordeInferior: 90,
       puertos: {
         accionador: { x: 22, y: 2, dir: 'N' },
         salidaInf: { x: 22, y: 82, dir: 'S' },
@@ -64,7 +62,6 @@ export const SCADA_ICONOS = {
     viewBox: '0 0 80 56',
     anchoBase: 80,
     altoBase: 56,
-    bordeInferior: 56,
     puertos: {
       entrada: { x: 40, y: 8, dir: 'N' },
       underflow: { x: 40, y: 48, dir: 'S' },
@@ -81,7 +78,6 @@ export const SCADA_ICONOS = {
     viewBox: '0 0 90 50',
     anchoBase: 90,
     altoBase: 50,
-    bordeInferior: 50,
     puertos: {
       entrada: { x: 8, y: 25, dir: 'W' },
       salida: { x: 82, y: 25, dir: 'E' },
@@ -97,7 +93,6 @@ export const SCADA_ICONOS = {
     viewBox: '0 0 50 36',
     anchoBase: 50,
     altoBase: 36,
-    bordeInferior: 36,
     puertos: {
       entrada: { x: 6, y: 24, dir: 'W' },
       salida: { x: 44, y: 24, dir: 'E' },
@@ -120,14 +115,11 @@ export const SCADA_ICONOS = {
   // cuadro de 26 porque la tobera ocupa espacio arriba sin nada abajo que lo
   // compense. Con 29, la distancia del borde inferior al centro del círculo
   // (29-16=13) queda igual a la del motor (26-13=13) — mismo Y en los dos
-  // equipos alinea los centros de verdad, no solo los bordes inferiores. Los
-  // puertos y formas no cambian: la razón puerto.y/altoBase se mantiene
-  // porque bordeInferior sigue igual a altoBase.
+  // equipos alinea los centros de verdad, no solo los bordes inferiores.
   bomba: icono({
     viewBox: '0 0 26 29',
     anchoBase: 26,
     altoBase: 29,
-    bordeInferior: 29,
     puertos: {
       succion: { x: 2, y: 16, dir: 'W' },
       descarga: { x: 24, y: 16, dir: 'E' },
@@ -143,7 +135,6 @@ export const SCADA_ICONOS = {
       viewBox: '0 0 26 26',
       anchoBase: 26,
       altoBase: 26,
-      bordeInferior: 26,
       puertos: {
         norte: { x: 13, y: 2, dir: 'N' },
         sur: { x: 13, y: 24, dir: 'S' },

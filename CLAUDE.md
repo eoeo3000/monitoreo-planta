@@ -207,6 +207,18 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   pestaña, así que una variable local se perdía y se volvía siempre a
   `plantas[0]` —la semilla—, nunca a la planta que se estaba mirando.
 
+- **Dos conversiones para el mismo tipo de punto se separan y una queda
+  mal.** En `puertos.js` convivían `puntoAbsoluto` (puertos declarados) y
+  `aAbsoluto` (extremos arrastrados a mano). Los dos proyectan coordenadas
+  crudas del ícono al lienzo, pero solo `aAbsoluto` anclaba donde ancla el
+  dibujo; el otro sumaba además `bordeInferior` sin escalar y bajaba cada
+  cañería ese tanto. En la planta semilla solo 2 de 6 extremos tocaban su
+  equipo —la de B-101 arrancaba 16 px por debajo de la bomba, a la altura
+  del TAG— y en la demo de 500 las cañerías atravesaban los 60 TAGs de un
+  sector. Ahora `puntoAbsoluto` delega en `aAbsoluto`: una sola conversión.
+  De paso se borró `bordeInferior`, que ya no lo leía nadie y sugería un
+  anclaje configurable que nunca existió.
+
 - **Un `ref` que nunca se conecta no da error: se degrada en silencio.** En
   el ensayo, `svgRef` estaba declarado y leído en el efecto de medición pero
   nunca puesto en el `<svg>`. `panelReal` quedaba siempre en null y la
