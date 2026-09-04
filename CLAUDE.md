@@ -279,12 +279,18 @@ trampas de más abajo.
   rutean—, así que para comparar hay que dejarla fija.
 
 - **El escalonado solo es legible con contorno escalonado.** Sus áreas se
-  entrelazan por construcción, así que dibujarlas como rectángulo —lo que
-  hace el Portal, desde el bounding box de sus equipos— las superpone. Al
-  traer el escalonado al Portal, los 4 títulos de la planta semilla se
-  dibujaban uno encima de otro. Los títulos ahora se esquivan (bajan hasta
-  encontrar lugar, salvo los movidos a mano), pero los cuadros siguen
-  superponiéndose: es inherente, no un bug a cazar.
+  entrelazan por construcción, así que dibujarlas como rectángulo —desde el
+  bounding box de sus equipos— las superpone. Por eso el escalonado se dibuja
+  con `contornosDeArea` en las dos pantallas y su solape medido es 0. Los
+  otros dos métodos sí usan rectángulo, y ahí el solape es real y se mide
+  (34.8% en el libre sobre la semilla, 84.9% sobre la demo): es inherente al
+  método, no un bug a cazar.
+
+  Los TÍTULOS son otra cosa y sí se arreglan: dos áreas vecinas comparten
+  borde de arriba y sus títulos se dibujaban uno encima del otro —medido, 2
+  de 4 pares en la semilla y 1 en la vista activa de la demo—. Se recorren de
+  arriba hacia abajo y cada uno baja hasta encontrar lugar; uno movido a mano
+  no se toca. Después del esquive: 0 pares en las dos plantas.
 
 - **Al medir superficies pisadas, medir la UNIÓN y no la suma de los pares.**
   Sumar pares cuenta la misma superficie una vez por cada par que la comparte:
@@ -351,3 +357,20 @@ trampas de más abajo.
   a propósito, no lo que tardaba la app (eran 10,2 s). Para medir hay que
   esperar a que aparezca el RESULTADO (`waitForFunction` sobre la tabla), no
   dejar pasar un rato largo y leer el reloj.
+
+- **En SVG el orden de dibujo ES el orden de los clics, y eso ya mordió dos
+  veces.** No hay `z-index`: lo que se dibuja después queda encima y se lleva
+  el `mousedown`. Cada equipo tiene un rectángulo de clic TRANSPARENTE más
+  grande que su ícono, así que cualquier cosa dibujada antes que los equipos
+  y que caiga sobre uno deja de poder agarrarse, sin ningún error a la vista
+  —solo un arrastre que no hace nada—. Pasó con los tiradores de quiebre y
+  otra vez con los títulos de área, que al bajar para esquivarse caen sobre
+  un ícono. Los dos van ahora DESPUÉS de los equipos. Regla: lo que se
+  arrastra se dibuja al final.
+
+- **Un elemento que se acomoda solo tiene que poder agarrarse donde SE VE.**
+  El arrastre del título partía del ancla calculada (la esquina del área),
+  no de donde el título había quedado después de esquivar: al primer clic
+  saltaba hacia arriba el tamaño del esquive. El arrastre parte ahora de la
+  posición dibujada (`base` en `titulosDeArea`), así que agarrarlo no lo
+  mueve.

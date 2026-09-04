@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
-import { escalaVisible } from '../../gerencia/layout/grilla';
+import { escalaVisible, anchoDeTitulo } from '../../gerencia/layout/grilla';
 import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas, metricasDeCanerias } from '../../gerencia/layout/ensayo';
 import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
 import './portalScada.css';
@@ -31,6 +31,8 @@ const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observac
 const SIN_DIAGNOSTICO = 'var(--e-sindiagnostico)';
 const TIPOS_VASIJA = ['tanque', 'agitador'];
 const FONT_SIZE_TAG = 13;
+// Alto de una línea de título de área: lo que baja un título al esquivar a otro.
+const ALTO_TITULO_TXT = 16;
 const ALTO_TAG = 18;
 
 // La pantalla donde se va a ver la planta es una VARIABLE del problema, no
@@ -321,12 +323,38 @@ export default function EditorPlanta({
       if (!prev) porArea.set(p.eq.areaId, { x, y });
       else porArea.set(p.eq.areaId, { x: Math.min(prev.x, x), y: Math.min(prev.y, y) });
     });
-    return [...porArea.entries()].map(([areaId, esquina]) => {
-      const area = areasDePlanta.find((a) => a.id === areaId);
-      const enVuelo = tituloArrastre?.areaId === areaId ? tituloArrastre.live : null;
-      const off = enVuelo || area?.tituloOffset || { dx: 0, dy: 0 };
-      return { areaId, nombre: area?.nombre || '', x: esquina.x + off.dx, y: esquina.y - 6 + off.dy };
-    });
+
+    // Dos áreas vecinas comparten borde de arriba y sus títulos se dibujan
+    // uno encima del otro: medido en la planta semilla, 2 de 4 pares. No es
+    // evitable acomodando mejor —el escalonado entrelaza las áreas por
+    // construcción, de ahí el contorno escalonado—, así que se recorren de
+    // arriba hacia abajo y cada uno BAJA hasta encontrar lugar. Un título
+    // movido a mano no se toca: ahí mandó quien lo movió.
+    const puestos = [];
+    return [...porArea.entries()]
+      .map(([areaId, esquina]) => ({ areaId, esquina, area: areasDePlanta.find((a) => a.id === areaId) }))
+      .sort((a, b) => a.esquina.y - b.esquina.y || a.esquina.x - b.esquina.x)
+      .map(({ areaId, esquina, area }) => {
+        const enVuelo = tituloArrastre?.areaId === areaId ? tituloArrastre.live : null;
+        const off = enVuelo || area?.tituloOffset || { dx: 0, dy: 0 };
+        const aMano = off.dx !== 0 || off.dy !== 0;
+        const nombre = area?.nombre || '';
+        const ancho = anchoDeTitulo(nombre);
+        const x = esquina.x + off.dx;
+        let y = esquina.y - 6 + off.dy;
+        const choca = (yy) =>
+          puestos.some((q) => x < q.x + q.ancho && x + ancho > q.x && yy - ALTO_TITULO_TXT < q.y && yy > q.y - ALTO_TITULO_TXT);
+        let intentos = 0;
+        while (!aMano && choca(y) && intentos < 20) {
+          y += ALTO_TITULO_TXT;
+          intentos += 1;
+        }
+        puestos.push({ x, y, ancho });
+        // `base` es el ancla SIN esquivar. El arrastre parte de la posición
+        // dibujada y no del ancla: si no, agarrar un título que bajó para
+        // esquivar a otro lo haría saltar hacia arriba en el primer clic.
+        return { areaId, nombre, x, y, base: { x: esquina.x, y: esquina.y - 6 } };
+      });
   }, [vista, areasDePlanta, tituloArrastre]);
 
   // Lupa: divide el lienzo alrededor de su centro, sin mover el contenido.
@@ -788,28 +816,6 @@ export default function EditorPlanta({
                 <path key={`cx-${r.conexion?.id || i}`} d={r.d} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeLinecap="butt" shapeRendering="crispEdges" />
               ))}
 
-            {titulosDeArea.map((t) => (
-              <text
-                key={`ti-${t.areaId}`}
-                x={t.x}
-                y={t.y}
-                fontSize={13}
-                fontWeight={700}
-                letterSpacing="0.04em"
-                fill={colorDeArea[t.areaId] || 'var(--scada-titulo)'}
-                style={{ cursor: 'grab', userSelect: 'none' }}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  const q = puntoSvg(e);
-                  const area = areasDePlanta.find((a) => a.id === t.areaId);
-                  const off = area?.tituloOffset || { dx: 0, dy: 0 };
-                  if (q) setTituloArrastre({ areaId: t.areaId, dx: q.x - off.dx, dy: q.y - off.dy, live: null });
-                }}
-              >
-                {t.nombre.toUpperCase()}
-              </text>
-            ))}
-
             {vista.piezas.map((p) => {
               const icono = iconoBaseDe(p.eq.tipo, data);
               if (!icono) return null;
@@ -886,6 +892,33 @@ export default function EditorPlanta({
                 </g>
               );
             })}
+
+            {/* Los títulos van DESPUÉS de los equipos: un título que bajó
+                para esquivar a otro cae sobre un ícono, y el rectángulo de
+                clic transparente del equipo —dibujado antes— se comía su
+                mousedown, así que dejaba de poder arrastrarse. Además, como
+                etiqueta, corresponde que se dibuje encima. */}
+            {titulosDeArea.map((t) => (
+              <text
+                key={`ti-${t.areaId}`}
+                x={t.x}
+                y={t.y}
+                fontSize={13}
+                fontWeight={700}
+                letterSpacing="0.04em"
+                fill={colorDeArea[t.areaId] || 'var(--scada-titulo)'}
+                style={{ cursor: 'grab', userSelect: 'none' }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const q = puntoSvg(e);
+                  const off = { dx: t.x - t.base.x, dy: t.y - t.base.y };
+                  if (q) setTituloArrastre({ areaId: t.areaId, dx: q.x - off.dx, dy: q.y - off.dy, live: null });
+                }}
+              >
+                {t.nombre.toUpperCase()}
+              </text>
+            ))}
+
 
             {/* Tiradores de quiebre, al final a propósito: el rectángulo de
                 clic transparente de cada equipo se dibuja antes y, si el
