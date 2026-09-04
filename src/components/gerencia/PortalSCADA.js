@@ -3,6 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { iconoConEscala } from '../../gerencia/iconos';
+import { anchoDeTitulo } from '../../gerencia/layout/grilla';
 import { puertoHacia, puntoPerimetroCercano, puntoDeManual, rutaHaciaPunto, rutaEntreEquipos, cajaEquipo } from '../../gerencia/puertos';
 import VistaSectores from './VistaSectores';
 import './portalScada.css';
@@ -109,6 +110,7 @@ export default function PortalSCADA({
   moverEtiquetaEquipo,
   reunirEquiposDispersos,
   compactarPlanta,
+  acomodarEnFlujo,
   restablecerTamanios,
   plantaId,
   setPlantaId,
@@ -247,6 +249,42 @@ export default function PortalSCADA({
   // puede estirar el lienzo sin límite gracias a MAX_LADO_LIENZO (se centra
   // en la mediana en ese caso). El zoom manual (panel, solo en modo
   // edición) divide este tamaño ya ajustado, no un tamaño fijo.
+  // Cada título va en la esquina del cuadro de su área, pero dos cuadros
+  // pueden superponerse: siempre pudieron —el cuadro se calcula del bounding
+  // box de los equipos, no se reserva—, y con "Acomodar en flujo continuo"
+  // pasa en todas, porque las áreas del escalonado no son rectangulares y se
+  // entrelazan. Sin esquive los títulos se dibujan uno encima de otro: medido
+  // en la planta semilla, 4 de 4 después de acomodar en flujo.
+  //
+  // Se recorren de arriba hacia abajo y cada uno baja hasta encontrar lugar.
+  // Un título movido a mano no se toca: ahí mandó el usuario.
+  const ALTO_TITULO_TXT = 16;
+  const posicionDeTitulo = (() => {
+    const puestos = [];
+    const mapa = {};
+    areasDePlanta
+      .map((area) => ({ area, caja: cajaEquiposDeArea(area) }))
+      .filter((x) => x.caja)
+      .sort((a, b) => a.caja.y - b.caja.y || a.caja.x - b.caja.x)
+      .forEach(({ area, caja }) => {
+        const off = tituloArrastre?.areaId === area.id && tituloArrastre.activo ? tituloArrastre.live : area.tituloOffset || { dx: 0, dy: 0 };
+        const x = caja.x + 8 + off.dx;
+        let y = caja.y + 14 + off.dy;
+        const ancho = anchoDeTitulo(area.nombre);
+        const aMano = off.dx !== 0 || off.dy !== 0;
+        const choca = (yy) =>
+          puestos.some((q) => x < q.x + q.ancho && x + ancho > q.x && yy - ALTO_TITULO_TXT < q.y && yy > q.y - ALTO_TITULO_TXT);
+        let intentos = 0;
+        while (!aMano && choca(y) && intentos < 20) {
+          y += ALTO_TITULO_TXT;
+          intentos += 1;
+        }
+        puestos.push({ x, y, ancho });
+        mapa[area.id] = { x, y };
+      });
+    return mapa;
+  })();
+
   const posicionesEquipos = equiposDePlanta.map(posicionDe);
   const xsEquipos = posicionesEquipos.map((p) => p.x);
   const ysEquipos = posicionesEquipos.map((p) => p.y);
@@ -769,6 +807,21 @@ export default function PortalSCADA({
                 onClick={() => {
                   if (
                     window.confirm(
+                      'Esto reacomoda TODOS los equipos de la planta con el método escalonado: fluyen como un texto y las áreas se suceden en ese flujo, sin que cada una reserve un rectángulo. Aprovecha bastante mejor el lienzo que “Compactar planta”, pero cruza más las cañerías, así que el proceso se lee peor. NO cambia el tamaño de ningún equipo. También resetea los quiebres/puertos de conexión, los títulos de área y los TAG movidos a mano. No se puede deshacer. ¿Continuar?'
+                    )
+                  ) {
+                    acomodarEnFlujo(plantaId, tamanioSvg ? tamanioSvg.ancho / tamanioSvg.alto : undefined);
+                  }
+                }}
+                title="Acomoda con el método escalonado, el mismo de la Vista de operación: más denso que el compactado por bloques, pero con más cruces de cañería"
+                style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '8px 10px', cursor: 'pointer', textAlign: 'left' }}
+              >
+                Acomodar en flujo continuo
+              </button>
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
                       'Esto borra los tamaños guardados equipo por equipo en esta planta: los que pusiste a mano con doble clic y el factor que dejó el compactado. Los equipos vuelven a las proporciones del catálogo, con el panel “Tamaños de equipo” como único ajuste. Las posiciones no se tocan. No se puede deshacer. ¿Continuar?'
                     )
                   ) {
@@ -990,9 +1043,7 @@ export default function PortalSCADA({
               {areasDePlanta.map((area) => {
                 const cajaEquipos = cajaEquiposDeArea(area);
                 if (!cajaEquipos) return null;
-                const offset = tituloArrastre?.areaId === area.id && tituloArrastre.activo ? tituloArrastre.live : area.tituloOffset || { dx: 0, dy: 0 };
-                const tituloX = cajaEquipos.x + 8 + offset.dx;
-                const tituloY = cajaEquipos.y + 14 + offset.dy;
+                const { x: tituloX, y: tituloY } = posicionDeTitulo[area.id] || { x: cajaEquipos.x + 8, y: cajaEquipos.y + 14 };
                 const caja = cajaVisibleDeArea(cajaEquipos, tituloX, tituloY);
                 return (
                   <g key={area.id}>
