@@ -416,39 +416,24 @@ export function useAnalistaData() {
     // iconos.js). Los equipos reales de otras plantas no se ven afectados.
     const ESCALA_EQUIPO_DEMO = 1.3;
 
-    // "Ley" de espaciado: TODAS las distancias (entre equipos, del equipo al
-    // borde del cuadro de su ubicación, y entre ubicaciones vecinas) salen
-    // del tamaño REAL del ícono dominante (motor/bomba son el 90% de esta
-    // composición) multiplicado por un factor — así se usan los espacios de
-    // forma consistente, en vez de mezclar números sueltos elegidos a ojo.
-    const iconoTipico = SCADA_ICONOS.motor;
-    const anchoTipico = iconoTipico.anchoBase * ESCALA_EQUIPO_DEMO;
-    const altoTipico = iconoTipico.altoBase * ESCALA_EQUIPO_DEMO;
-    const MAX_POR_FILA = 3;
-    const PASO_H = Math.round(anchoTipico * 2); // separación centro-a-centro entre equipos de una fila
-    const PASO_V = Math.round(altoTipico + 30); // + lugar para el TAG debajo del ícono, por si hace falta una 2ª fila
-    const PAD_ZONA_APROX = 40; // espeja PAD_ZONA de PortalSCADA.js — margen del cuadro punteado de la ubicación
-    const GAP_ENTRE_UBICACIONES = Math.round(anchoTipico); // separación entre los cuadros de dos ubicaciones vecinas: un ancho de ícono
+    // "Ley" de espaciado: TODAS las distancias salen del tamaño REAL de los
+    // íconos, no de números sueltos elegidos a ojo.
+    const ESCALA = ESCALA_EQUIPO_DEMO;
+    const altoDe = (tipo) => SCADA_ICONOS[tipo].altoBase * ESCALA;
+    const anchoDe = (tipo) => SCADA_ICONOS[tipo].anchoBase * ESCALA;
+    const GAP_TAG = 30; // lugar para el TAG debajo de cada ícono
+    const PAD_ZONA_APROX = 40; // espeja PAD_ZONA de PortalSCADA.js
+    const ALTO_TITULO_APROX = 18; // espeja el alto del título de la ubicación
+    const GAP_ENTRE_UBICACIONES = Math.round(anchoDe('motor'));
 
-    const AREA_COLS = 4;
-    const AREA_CELL_ANCHO = PASO_H * (MAX_POR_FILA - 1) + PAD_ZONA_APROX * 2 + GAP_ENTRE_UBICACIONES;
-    // Con 500 equipos sobre 200 ubicaciones ninguna pasa de MAX_POR_FILA (ver
-    // el reparto más abajo), así que en la práctica siempre quedan en una
-    // sola fila — se deja el término de PASO_V igual por si el día de mañana
-    // cambia la mezcla y alguna ubicación necesita una 2ª fila.
-    const AREA_CELL_ALTO = PAD_ZONA_APROX * 2 + 18 + GAP_ENTRE_UBICACIONES;
     const sectores = [];
     const areas = [];
-    const baseDeArea = {}; // areaId -> {x, y}, esquina de su celda dentro del sector
-    for (let s = 1; s <= NUM_SECTORES; s++) {
-      const sectorId = `${plantaId}_sector${s}`;
-      sectores.push({ id: sectorId, plantaId, nombre: `Sector ${s}` });
+    for (let sec = 1; sec <= NUM_SECTORES; sec++) {
+      const sectorId = `${plantaId}_sector${sec}`;
+      sectores.push({ id: sectorId, plantaId, nombre: `Sector ${sec}` });
       for (let a = 1; a <= AREAS_POR_SECTOR; a++) {
-        const nUbicacion = (s - 1) * AREAS_POR_SECTOR + a;
-        const areaId = `${plantaId}_area${nUbicacion}`;
-        areas.push({ id: areaId, plantaId, sectorId, nombre: `Ubicación ${nUbicacion}` });
-        const posEnSector = a - 1;
-        baseDeArea[areaId] = { x: (posEnSector % AREA_COLS) * AREA_CELL_ANCHO, y: Math.floor(posEnSector / AREA_COLS) * AREA_CELL_ALTO };
+        const nUbicacion = (sec - 1) * AREAS_POR_SECTOR + a;
+        areas.push({ id: `${plantaId}_area${nUbicacion}`, plantaId, sectorId, nombre: `Ubicación ${nUbicacion}` });
       }
     }
 
@@ -460,36 +445,78 @@ export function useAnalistaData() {
       { tipo: 'bomba', cantidad: 150, prefijo: 'Bomba' },
       { tipo: 'tanque', cantidad: 50, prefijo: 'Tanque' },
     ];
-    const equipos = [];
-    const contadorPorArea = {};
+
+    // Primero se decide QUÉ equipo va en cada ubicación y recién después
+    // DÓNDE. La columna de una ubicación mezcla tipos de alturas muy
+    // distintas (un tanque mide más del triple que un motor), así que el alto
+    // de celda no se puede fijar antes de saber la mezcla sin reservar de más
+    // o dejar que un tanque se salga de su cuadro.
+    const asignados = [];
     let indiceArea = 0;
     composicion.forEach(({ tipo, cantidad, prefijo }) => {
       for (let i = 1; i <= cantidad; i++) {
-        const area = areas[indiceArea % areas.length];
+        asignados.push({ area: areas[indiceArea % areas.length], tipo, tag: `${prefijo} ${i}` });
         indiceArea += 1;
-        const n = contadorPorArea[area.id] || 0;
-        contadorPorArea[area.id] = n + 1;
-        const col = n % MAX_POR_FILA;
-        const fila = Math.floor(n / MAX_POR_FILA);
-        const base = baseDeArea[area.id];
+      }
+    });
+    const columnaDeArea = new Map();
+    asignados.forEach((x) => {
+      if (!columnaDeArea.has(x.area.id)) columnaDeArea.set(x.area.id, []);
+      columnaDeArea.get(x.area.id).push(x);
+    });
+    const altoDeColumna = (col) => col.reduce((h, x) => h + altoDe(x.tipo) + GAP_TAG, 0) - GAP_TAG;
+    const ALTO_MAX_COLUMNA = Math.max(...[...columnaDeArea.values()].map(altoDeColumna));
+    const ANCHO_MAX_ICONO = Math.max(...composicion.map((c) => anchoDe(c.tipo)));
+
+    // 7 columnas por sector (3 filas: 7 + 7 + 6). Al apilar los equipos en
+    // columna la celda pasó a ser angosta y alta, así que la cantidad de
+    // columnas decide la forma del sector: con 4 sale mucho más alto que
+    // ancho y el encuadre deja dos tercios del panel vacíos; con 10, muy
+    // apaisado. Medido contra un panel de proporción ~1.5, el desvío
+    // |ln(proporción / panel)| da 0.54 con 5 columnas, 0.84 con 10 y 0.08
+    // con 7. La última fila queda con una ubicación menos, que es más
+    // parecido a una planta real que una grilla perfecta.
+    const AREA_COLS = 7;
+    const AREA_CELL_ANCHO = Math.round(ANCHO_MAX_ICONO + PAD_ZONA_APROX * 2 + GAP_ENTRE_UBICACIONES);
+    const AREA_CELL_ALTO = Math.round(ALTO_MAX_COLUMNA + PAD_ZONA_APROX * 2 + ALTO_TITULO_APROX + GAP_ENTRE_UBICACIONES);
+
+    const baseDeArea = {}; // areaId -> {x, y}, esquina de su celda dentro del sector
+    areas.forEach((area, i) => {
+      const posEnSector = i % AREAS_POR_SECTOR;
+      baseDeArea[area.id] = {
+        x: (posEnSector % AREA_COLS) * AREA_CELL_ANCHO,
+        y: Math.floor(posEnSector / AREA_COLS) * AREA_CELL_ALTO,
+      };
+    });
+
+    // Cada ubicación es una COLUMNA vertical, y el enlace entre ubicaciones
+    // vecinas de una misma fila corre por arriba, a la altura del primer
+    // equipo de cada una: eso dibuja un colector horizontal del que cuelgan
+    // los tramos verticales de cada ubicación. Antes los equipos iban en
+    // fila y todas las cañerías salían horizontales a la misma altura — el
+    // conjunto se leía como una escalera, no como un proceso.
+    //
+    // posicion.y es el BORDE INFERIOR del ícono, así que la columna se
+    // acumula sumando el alto de cada equipo antes de fijarlo, no después.
+    const equipos = [];
+    areas.forEach((area) => {
+      const base = baseDeArea[area.id];
+      let cursor = base.y + PAD_ZONA_APROX + ALTO_TITULO_APROX;
+      (columnaDeArea.get(area.id) || []).forEach((x) => {
+        const alto = altoDe(x.tipo);
         equipos.push({
           id: nuevoId('eq'),
           areaId: area.id,
-          tag: `${prefijo} ${i}`,
-          tipo,
+          tag: x.tag,
+          tipo: x.tipo,
           descripcion: '',
-          posicion: { x: base.x + 40 + col * PASO_H, y: base.y + 40 + fila * PASO_V },
-          factorAuto: ESCALA_EQUIPO_DEMO,
+          posicion: { x: Math.round(base.x + PAD_ZONA_APROX + ANCHO_MAX_ICONO / 2), y: Math.round(cursor + alto) },
+          factorAuto: ESCALA,
         });
-      }
+        cursor += alto + GAP_TAG;
+      });
     });
 
-    // Conexiones: los equipos de una ubicación se encadenan entre sí, y la
-    // última de cada ubicación sigue a la primera de la siguiente ubicación
-    // del mismo sector. No pretende ser un proceso real — sí tener el ORDEN
-    // de magnitud de una planta de 500 equipos (unas 490 cañerías), que es
-    // lo que hace falta para ver cómo se comporta el ruteo y el dibujo a
-    // esta escala.
     const equiposPorArea = new Map();
     equipos.forEach((eq) => {
       if (!equiposPorArea.has(eq.areaId)) equiposPorArea.set(eq.areaId, []);
@@ -501,12 +528,16 @@ export function useAnalistaData() {
     };
     areas.forEach((area, i) => {
       const eqs = equiposPorArea.get(area.id) || [];
+      // Tramo vertical: la columna encadenada de arriba hacia abajo.
       for (let k = 0; k < eqs.length - 1; k++) conectar(eqs[k], eqs[k + 1]);
+      // Colector: el primer equipo de esta ubicación con el primero de la
+      // siguiente, solo si comparten sector Y fila de la grilla. Sin la
+      // condición de fila el colector saltaría de la última columna de una
+      // fila a la primera de la siguiente y cruzaría todo el sector.
       const siguiente = areas[i + 1];
-      // Solo dentro del mismo sector: una cañería entre sectores distintos
-      // no tendría sentido ni siquiera como dato de prueba.
-      if (siguiente && siguiente.sectorId === area.sectorId) {
-        conectar(eqs[eqs.length - 1], (equiposPorArea.get(siguiente.id) || [])[0]);
+      const mismaFila = Math.floor((i % AREAS_POR_SECTOR) / AREA_COLS) === Math.floor((((i + 1) % AREAS_POR_SECTOR)) / AREA_COLS);
+      if (siguiente && siguiente.sectorId === area.sectorId && mismaFila) {
+        conectar(eqs[0], (equiposPorArea.get(siguiente.id) || [])[0]);
       }
     });
 
