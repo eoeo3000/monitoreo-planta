@@ -1058,6 +1058,7 @@ export default function EditorPlanta({
             {titulosDeArea.map((t) => (
               <text
                 key={`ti-${t.areaId}`}
+                data-titulo-area={t.areaId}
                 x={t.x}
                 y={t.y}
                 fontSize={13}
@@ -1121,6 +1122,39 @@ export default function EditorPlanta({
                 </title>
               </g>
             ))}
+
+            {/* La × que tenían las líneas en el Portal, pero solo en la
+                conexión elegida: ahí no es un clic al voleo sobre una línea
+                cualquiera —hubo que elegirla antes—, así que borra directo,
+                igual que el botón del panel. Con 173 cañerías en la vista de
+                la demo, una × por conexión sería puro ruido. */}
+            {caneriasVista &&
+              caneriasVista.rutas
+                .filter((r) => r.conexion && r.conexion.id === conexionSel)
+                .map((r) => {
+                  const enVuelo = quiebreArrastre?.conexionId === r.conexion.id ? quiebreArrastre.live : null;
+                  const medio = enVuelo || r.medio;
+                  return (
+                    <g
+                      key={`x-${r.conexion.id}`}
+                      data-borrar={r.conexion.id}
+                      transform={`translate(${medio.x + 14}, ${medio.y - 14})`}
+                      style={{ cursor: 'pointer' }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        eliminarConexion(r.conexion.id);
+                        setConexionSel(null);
+                      }}
+                    >
+                      <circle r={7} fill="var(--scada-subpanel)" stroke="var(--e-alarma)" strokeWidth={1} />
+                      <text textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight={700} fill="var(--e-alarma)" style={{ userSelect: 'none' }}>
+                        ×
+                      </text>
+                      <title>Borrar esta conexión</title>
+                    </g>
+                  );
+                })}
 
             {/* Manijas de los EXTREMOS, solo de la conexión elegida: fijan
                 por qué punto del perímetro sale la cañería (conexion.puertoDe

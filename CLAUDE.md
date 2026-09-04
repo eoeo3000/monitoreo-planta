@@ -128,6 +128,7 @@ Edición de cañerías, toda sobre el tirador del codo:
 | **un clic** en el codo | **elige** la conexión |
 | arrastrar un extremo (solo en la elegida) | fija por qué punto del perímetro sale (`puertoDe`/`puertoA`), pegado a la silueta real |
 | doble clic en un extremo | lo suelta |
+| clic en la × (solo en la elegida) | borra la conexión |
 
 Las manijas de extremo se dibujan **solo para la conexión elegida**: con 173
 cañerías en la vista de la demo, dos manijas por conexión taparían el dibujo.
@@ -137,11 +138,15 @@ de P&ID: un cabo corto que apunta afuera del dibujo, con el TAG del otro
 extremo y a qué vista ir (un clic lleva). El cabo apunta al borde, no hacia
 donde está el otro equipo: ese equipo vive en otro lienzo y su posición acá no
 querría decir nada.
-El panel lateral de la conexión elegida es además el único lugar donde se
-borra **una** conexión — antes el único camino era "borrar todas" las de un
-equipo. Y al elegir el destino de una conexión nueva hay línea de
-previsualización (`rutaHaciaPunto`), que sale del mismo puerto por el que
-saldrá la cañería definitiva.
+Elegida una conexión aparece además su **×** (la que tenían las líneas en el
+Portal) y el panel lateral con lo mismo: borrar **una** conexión, que antes
+solo se podía haciendo "borrar todas" las de un equipo. La × va solo en la
+elegida y borra directo, sin confirmar: no es un clic al voleo sobre una
+línea cualquiera, hubo que elegirla antes.
+
+Al elegir el destino de una conexión nueva hay línea de previsualización
+(`rutaHaciaPunto`), que sale del mismo puerto por el que saldrá la cañería
+definitiva.
 
 El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
 `preferencias.js`). El **selector de pantalla NO**, y no debe: operación
@@ -167,8 +172,9 @@ El acomodado se verifica con números, no a ojo. Estas son las cifras al
 cambiás algo de `layout/`, corrélas y comparalas**: si se movieron, hay que
 saber por qué.
 
-Compactado (planta semilla): factor global 1.0, bomba renderizada a 75×94,
-proporciones del catálogo intactas, idempotente en compactadas sucesivas.
+El compactado ya no se aplica con un botón —se retiró con el Portal, ver más
+arriba—, así que no hay nada que medir de "compactar dos veces". Sigue vivo
+como el método **Actual** de la tabla, y ahí es donde se lo compara.
 
 Ensayo de layout, lienzo vacío | desvío | solape (escalonado con el mínimo
 por defecto de 28 px; sus cifras son las de la vista activa, no las de la
@@ -198,9 +204,11 @@ atraviesa áreas daría muchas más, así que el número dice más de los datos 
 del algoritmo.
 
 Ruteo de cañerías de la planta demo (470 conexiones, los tres métodos), de
-clic en "Cañerías" a tabla completa: **0,6 s**. Si eso se va a varios
-segundos, algo volvió a comparar de más — el perfil por etapas está en las
-trampas de más abajo.
+clic en "Cañerías" a tabla completa: **0,6–0,7 s** según la corrida
+(`canerias.js demo`). Si eso se va a varios segundos, algo volvió a comparar
+de más — el perfil por etapas está en las trampas de más abajo. Por método,
+cañería y cruces POR CONEXIÓN: 154 · 0.19 el compactado, 223 · 1.86 el
+escalonado, 797 · 1.94 el libre.
 
 ## Trampas ya pisadas
 
@@ -429,3 +437,12 @@ trampas de más abajo.
   al otro lado del cabo en vez de salirse. Es el mismo error que la búsqueda
   de quiebre sin límites, en otra parte del dibujo: **todo lo que se coloca
   cerca de un borde necesita saber dónde está el borde.**
+
+- **Medir el lienzo por el ESTILO cuenta cualquier cosa.** El script que
+  cuenta títulos de área pisados los filtraba por `font-size: 13` y
+  `font-weight: 700`, que son también los del TAG de cada equipo: informaba
+  17 títulos en una planta de 4 áreas y 33.805 pares pisados en la demo, casi
+  todos TAGs. Los elementos que se miden llevan marcador propio
+  (`data-quiebre`, `data-salida`, `data-titulo-area`) y los scripts los
+  buscan por ahí. Una medición que se apoya en el estilo se rompe sola la
+  próxima vez que alguien cambie una tipografía.
