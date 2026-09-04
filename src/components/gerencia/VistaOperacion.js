@@ -27,17 +27,17 @@ const ESTADOS = [
 const TIPOS_VASIJA = ['tanque', 'agitador'];
 const FONT_SIZE_TAG = 13;
 
-// Tamaño legible del ícono, en píxeles de pantalla. El mínimo es lo que
-// DEFINE cuántos equipos entran (ver escalonado.js): el encuadre normaliza
-// la escala interna, así que lo único que mueve el tamaño en pantalla es la
-// cantidad. Si no entran, se reparten en varias vistas. Son las cifras con
-// las que están medidos los repartos anotados en CLAUDE.md.
-const TAM_MIN_PX = 28;
-const TAM_MAX_PX = 180;
+// El tamaño legible del ícono llega como preferencia compartida
+// (preferencias.js): se ajusta con los sliders del ensayo y esta pantalla lo
+// aplica. El mínimo es lo que DEFINE cuántos equipos entran —el encuadre
+// normaliza la escala interna, así que lo único que mueve el tamaño en
+// pantalla es la cantidad—, de modo que moverlo allá cambia cuántas vistas
+// arma esta. Lo que NO se comparte es el selector de pantalla del ensayo:
+// acá el panel es el de verdad, medido más abajo.
 
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
-export default function VistaOperacion({ data, plantaId, setPlantaId }) {
+export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcono }) {
   const [vistaActiva, setVistaActiva] = useState(0);
   const [panel, setPanel] = useState(null);
   const svgRef = useRef(null);
@@ -91,7 +91,7 @@ export default function VistaOperacion({ data, plantaId, setPlantaId }) {
   const vistas = useMemo(() => {
     if (!panel || equiposDePlanta.length === 0) return [];
     const arObjetivo = panel.ancho / panel.alto;
-    const repartidas = repartirEnVistas(equiposDePlanta, data, { arObjetivo, panel, tamMinPx: TAM_MIN_PX, tamMaxPx: TAM_MAX_PX });
+    const repartidas = repartirEnVistas(equiposDePlanta, data, { arObjetivo, panel, tamMinPx: tamanoIcono.min, tamMaxPx: tamanoIcono.max });
     return repartidas.map((v) => ({
       piezas: v.layout.colocadas.map((c) => ({ eq: c.eq, escala: c.escala, anchoIcono: c.anchoIcono, altoIcono: c.altoIcono, x: c.x + c.ancho / 2, y: c.y + c.altoIcono })),
       contornos: v.layout.spans.flatMap((s) => contornosDeArea(s.spans).map((c) => ({ ...c, areaId: s.areaId }))),
@@ -100,7 +100,7 @@ export default function VistaOperacion({ data, plantaId, setPlantaId }) {
       equipos: v.areas.reduce((n, a) => n + a.eqs.length, 0),
       minimoInalcanzable: v.minimoInalcanzable || false,
     }));
-  }, [equiposDePlanta, data, panel]);
+  }, [equiposDePlanta, data, panel, tamanoIcono]);
 
   // Todas las vistas se dibujan a la MISMA escala: se toma el lienzo más
   // grande de todas. Si cada una se encuadrara por su cuenta, una vista
@@ -196,9 +196,13 @@ export default function VistaOperacion({ data, plantaId, setPlantaId }) {
           </tbody>
         </table>
 
+        <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', lineHeight: 1.5, margin: '0 0 var(--space-3)' }}>
+          Tamaño mínimo de ícono: {tamanoIcono.min} px. Es lo que decide cuántas vistas hacen falta, y se ajusta desde Ensayo de layout.
+        </p>
+
         {vista?.minimoInalcanzable && (
           <p style={{ fontSize: 11.5, color: 'var(--scada-titulo)', lineHeight: 1.5, margin: 0 }}>
-            Con {equiposDePlanta.length} equipos no se llega al tamaño mínimo legible de {TAM_MIN_PX} px en esta pantalla ni con un área sola, así que
+            Con {equiposDePlanta.length} equipos no se llega al tamaño mínimo legible de {tamanoIcono.min} px en esta pantalla ni con un área sola, así que
             partir no ganaría nada: entra todo en una vista.
           </p>
         )}

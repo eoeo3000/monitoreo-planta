@@ -33,11 +33,16 @@ const PANTALLAS = [
 
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
-export default function EnsayoLayout({ data, plantaId, setPlantaId }) {
+export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono, setTamanoIcono }) {
   const [metodo, setMetodo] = useState('escalonado');
   const [agruparPorArea, setAgruparPorArea] = useState(true);
-  const [tamMinPx, setTamMinPx] = useState(28);
-  const [tamMaxPx, setTamMaxPx] = useState(180);
+  // Compartidos con la Vista de operación y persistidos: mover el mínimo acá
+  // cambia también cuántas vistas arma esa pantalla. La PANTALLA de abajo, en
+  // cambio, es solo de este ensayo.
+  const tamMinPx = tamanoIcono.min;
+  const tamMaxPx = tamanoIcono.max;
+  const setTamMinPx = (min) => setTamanoIcono({ min });
+  const setTamMaxPx = (max) => setTamanoIcono({ max });
   const [vistaActiva, setVistaActiva] = useState(0);
   const [pantallaId, setPantallaId] = useState('ref');
   const [panelReal, setPanelReal] = useState(null);
@@ -294,6 +299,10 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId }) {
           <div style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--scada-texto-2)', marginBottom: 6 }}>
             Tamaño de ícono (px)
           </div>
+          <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', margin: '0 0 6px', lineHeight: 1.45 }}>
+            Compartido con la Vista de operación: moverlo acá cambia también cuántas vistas arma esa pantalla. La pantalla de destino, en cambio, es
+            solo de este ensayo.
+          </p>
           {[
             { etiqueta: 'Mínimo', valor: tamMinPx, set: setTamMinPx, min: 10, max: 80 },
             { etiqueta: 'Máximo', valor: tamMaxPx, set: setTamMaxPx, min: 60, max: 400 },

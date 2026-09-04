@@ -41,3 +41,36 @@ export function usePlantaSeleccionada(plantas) {
   const existe = plantas.some((p) => p.id === guardado);
   return [existe ? guardado : plantas[0]?.id || null, elegir];
 }
+
+// Tamaño legible del ícono, en píxeles de pantalla. Es una DECISIÓN sobre
+// qué se considera legible, no un parámetro de laboratorio: por eso se
+// comparte entre el ensayo (donde se ajusta con los sliders) y la Vista de
+// operación (que lo aplica), y se persiste.
+//
+// El selector de PANTALLA del ensayo, en cambio, no se comparte y no debe:
+// la Vista de operación tiene que usar el panel donde realmente dibuja.
+// Simular otra pantalla ahí no querría decir nada.
+export const TAMANO_ICONO_DEFAULT = { min: 28, max: 180 };
+
+// Mismos topes que los sliders del ensayo. Se acota al leer para que un dato
+// viejo o corrupto no deje a las dos pantallas calculando con un mínimo
+// absurdo (un mínimo enorme fragmenta la planta en decenas de vistas).
+const acotar = ({ min, max }) => ({
+  min: Math.min(80, Math.max(10, Number(min) || TAMANO_ICONO_DEFAULT.min)),
+  max: Math.min(400, Math.max(60, Number(max) || TAMANO_ICONO_DEFAULT.max)),
+});
+
+export function useTamanoIcono() {
+  const [tamano, setTamano] = useState(() => acotar({ ...TAMANO_ICONO_DEFAULT, ...(leer().tamanoIcono || {}) }));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLAVE, JSON.stringify({ ...leer(), tamanoIcono: tamano }));
+    } catch (e) {
+      // sin persistencia, pero la sesión sigue funcionando
+    }
+  }, [tamano]);
+
+  const cambiar = useCallback((cambios) => setTamano((prev) => acotar({ ...prev, ...cambios })), []);
+  return [tamano, cambiar];
+}

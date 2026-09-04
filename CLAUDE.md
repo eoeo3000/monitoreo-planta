@@ -26,8 +26,8 @@ algo por terminado.
 
 ```
 src/analista/store.js        estado (useAnalistaData) y persistencia. SOLO estado.
-src/analista/preferencias.js "en qué estaba" quien mira (la planta elegida),
-                             en su propia clave de localStorage
+src/analista/preferencias.js preferencias de quien mira (planta elegida,
+                             tamaño de ícono), en su propia clave
 src/analista/severidad.js    modelo de severidad — fijo, no configurable
 src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   grilla.js                    escalas, geometría de grilla, búsqueda de ancho
@@ -108,8 +108,14 @@ Cosas que se rompen sin avisar si no se saben.
 Son complementarias, no una el reemplazo de la otra. Compactar en el Portal
 nunca va a dar el resultado de la Vista de operación: son dos algoritmos.
 
-El ensayo y la Vista de operación **solo coinciden con "Panel real de esta
-ventana" elegido en el ensayo** — con una pantalla simulada dan repartos
+El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
+`preferencias.js`): se ajusta con los sliders del ensayo y la Vista de
+operación lo aplica. Es una decisión sobre qué es legible, no un parámetro
+de laboratorio. El **selector de pantalla NO se comparte**, y no debe: la
+Vista de operación tiene que usar el panel donde realmente dibuja.
+
+Por eso el ensayo y la Vista de operación **solo coinciden con "Panel real de
+esta ventana" elegido en el ensayo** — con una pantalla simulada dan repartos
 distintos, y eso es lo correcto: el reparto depende del panel. Por eso los
 dos paneles laterales miden lo mismo (300 px): con anchos distintos el
 lienzo cambia y el reparto deja de coincidir aunque el método sea el mismo.
