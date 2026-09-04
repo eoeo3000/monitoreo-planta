@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS, SEED_CONEXIONES } from './mockData';
 import { SCADA_ICONOS } from '../gerencia/scadaIconos';
 import { calcularLayoutCompacto } from '../gerencia/layout/compactado';
+import { empaquetarEscalonado } from '../gerencia/layout/escalonado';
 
 const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
@@ -399,6 +400,51 @@ export function useAnalistaData() {
     });
   }, []);
 
+  // Acomoda la planta con el método ESCALONADO, el mismo de la Vista de
+  // operación: los equipos fluyen como un texto y las áreas se suceden en ese
+  // flujo, sin reservar un rectángulo cada una. Es la segunda opción de
+  // acomodado del Portal; "Compactar planta" sigue siendo la de bloques.
+  //
+  // Medido en el ensayo sobre la planta demo (500 equipos), por conexión:
+  // deja 78.5% de lienzo vacío contra 93.2% del compactado y empata en largo
+  // de cañería (149 contra 155), pero cruza cinco veces más (1.04 contra
+  // 0.21). Gana lienzo y paga en legibilidad del proceso — por eso convive
+  // con el otro método en vez de reemplazarlo.
+  //
+  // A diferencia del compactado, NO toca el tamaño de ningún equipo: solo
+  // reubica.
+  const acomodarEnFlujo = useCallback((plantaId, arObjetivo) => {
+    const ar = arObjetivo && arObjetivo > 0 ? arObjetivo : 16 / 9;
+
+    setData((d) => {
+      const areaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
+      const deLaPlanta = d.equipos.filter((eq) => areaIds.includes(eq.areaId));
+      const layout = empaquetarEscalonado(deLaPlanta, d, { arObjetivo: ar });
+      if (!layout) return d;
+
+      // El layout entrega la esquina de la celda; eq.posicion es el centro
+      // horizontal y el borde INFERIOR del ícono (ver puertos.js).
+      const nuevaPos = new Map(
+        layout.colocadas.map((c) => [c.eq.id, { x: Math.round(c.x + c.ancho / 2), y: Math.round(c.y + c.altoIcono) }])
+      );
+
+      // Mismos reseteos que el compactado, y por el mismo motivo: un quiebre
+      // o un TAG fijados a mano apuntan a coordenadas del layout viejo.
+      const conexiones = d.conexiones.map((c) => {
+        if (c.plantaId !== plantaId) return c;
+        const { quiebreManual, puertoDe, puertoA, ...resto } = c;
+        return resto;
+      });
+      const areas = d.areas.map((a) => (areaIds.includes(a.id) ? { ...a, tituloOffset: undefined } : a));
+      const equipos = d.equipos.map((eq) => {
+        const pos = nuevaPos.get(eq.id);
+        return pos ? { ...eq, posicion: pos, etiquetaOffset: undefined } : eq;
+      });
+
+      return { ...d, equipos, areas, conexiones };
+    });
+  }, []);
+
   // Genera una planta nueva (no toca las existentes) con muchos sectores,
   // ubicaciones y equipos de nombres genéricos — para probar cómo se
   // comporta la app (Vista de Sectores + Portal SCADA) con una cantidad de
@@ -638,6 +684,7 @@ export function useAnalistaData() {
     moverEtiquetaEquipo,
     reunirEquiposDispersos,
     compactarPlanta,
+    acomodarEnFlujo,
     crearTipoPersonalizado,
     actualizarTipoPersonalizado,
     crearConexion,

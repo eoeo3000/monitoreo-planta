@@ -108,6 +108,13 @@ Cosas que se rompen sin avisar si no se saben.
 Son complementarias, no una el reemplazo de la otra. Compactar en el Portal
 nunca va a dar el resultado de la Vista de operación: son dos algoritmos.
 
+El Portal tiene los DOS: "Compactar planta" (bloques) y "Acomodar en flujo
+continuo" (escalonado). El segundo aprovecha bastante mejor el lienzo pero
+cruza más las cañerías, y sus áreas no son rectangulares: el Portal las
+dibuja como rectángulo, así que **los cuadros de área se superponen** (3 de 4
+pares en la planta semilla). Eso no tiene arreglo sin llevar el contorno
+escalonado al Portal; los títulos, que sí se pisaban, ahora se esquivan.
+
 El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
 `preferencias.js`): se ajusta con los sliders del ensayo y la Vista de
 operación lo aplica. Es una decisión sobre qué es legible, no un parámetro
@@ -254,6 +261,22 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   ignorara a sí mismo: no devolvía el control del tamaño. La salida fue
   separar los campos y multiplicarlos. Si un valor lo escriben dos autores
   con intenciones distintas, van dos campos.
+
+- **Un total no compara métodos que no procesan lo mismo.** El ensayo mide
+  ahora largo de cañería y cruces por método, pero el escalonado rutea solo
+  las conexiones de la VISTA activa (188) y el compactado las de toda la
+  planta (470). En totales el escalonado parecía usar 61% menos cañería
+  (28.010 contra 72.695) — un espejismo: por conexión son 149 contra 155,
+  prácticamente iguales. Lo que sí cambia de verdad son los cruces: 1.04 por
+  conexión contra 0.21. Las dos columnas van normalizadas por conexión.
+
+- **El escalonado solo es legible con contorno escalonado.** Sus áreas se
+  entrelazan por construcción, así que dibujarlas como rectángulo —lo que
+  hace el Portal, desde el bounding box de sus equipos— las superpone. Al
+  traer el escalonado al Portal, los 4 títulos de la planta semilla se
+  dibujaban uno encima de otro. Los títulos ahora se esquivan (bajan hasta
+  encontrar lugar, salvo los movidos a mano), pero los cuadros siguen
+  superponiéndose: es inherente, no un bug a cazar.
 
 - **Al medir superficies pisadas, medir la UNIÓN y no la suma de los pares.**
   Sumar pares cuenta la misma superficie una vez por cada par que la comparte:
