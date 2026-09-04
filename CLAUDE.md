@@ -37,8 +37,8 @@ src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   ensayo.js                    métodos alternativos que se comparan en pantalla
 src/gerencia/iconos.js       resuelve íconos de fábrica y personalizados
 src/gerencia/puertos.js      puertos de conexión y ruteo de cañerías
-src/components/gerencia/PortalSCADA.js     el lienzo editable (~1170 líneas)
-src/components/gerencia/VistaOperacion.js  la pantalla de solo lectura
+src/components/gerencia/EditorPlanta.js    donde se arma la planta
+src/components/gerencia/VistaOperacion.js  la misma vista, solo lectura
 scripts/medicion/            mediciones de layout con Playwright (ver su README)
 ```
 
@@ -95,37 +95,34 @@ Cosas que se rompen sin avisar si no se saben.
 
 ## Dos pantallas de planta, a propósito
 
-- **Portal SCADA** — el diagrama de PROCESO. Dibuja las posiciones guardadas
-  (`eq.posicion`, puestas a mano o por el compactado de bloques), con las
-  cañerías ruteadas y esquivando equipos. Es donde se edita.
-- **Vista de operación** — VIGILANCIA de condición, solo lectura. Recalcula
-  el layout escalonado en cada render y lo pagina en vistas, así que no
-  depende de que alguien haya compactado. **No dibuja cañerías**, y no es un
-  olvido: el escalonado reacomoda los equipos ignorando el proceso para
-  meter la mayor cantidad legible por pantalla, y encima de ese orden las
-  conexiones saldrían como un ovillo.
+- **Editor de planta** — donde se arma. Dibuja con el escalonado y el mismo
+  reparto en vistas que operación, así se edita viendo el resultado. Tiene el
+  panel de comparación de métodos, los sliders de tamaño legible, el selector
+  de pantalla, las cañerías y las métricas.
+- **Vista de operación** — VIGILANCIA de condición, solo lectura. Lo mismo,
+  sin controles.
 
-Son complementarias, no una el reemplazo de la otra. Compactar en el Portal
-nunca va a dar el resultado de la Vista de operación: son dos algoritmos.
+**Las posiciones NO son dato.** El escalonado las calcula en cada render
+desde los tipos y las áreas. Lo que se autora son las ENTRADAS del layout:
+conexiones, tamaños, el mínimo legible que decide cuántas vistas hacen falta,
+y el orden de las áreas. Arrastrar un equipo deja un **override**
+(`eq.posicionPropia`) sobre el cálculo, igual que `escalaPropia` pisa a la
+escala del tipo; "Restablecer posiciones" los borra.
 
-El Portal tiene los DOS: "Compactar planta" (bloques) y "Acomodar en flujo
-continuo" (escalonado). El segundo aprovecha bastante mejor el lienzo pero
-cruza más las cañerías, y sus áreas no son rectangulares: el Portal las
-dibuja como rectángulo, así que **los cuadros de área se superponen** (3 de 4
-pares en la planta semilla). Eso no tiene arreglo sin llevar el contorno
-escalonado al Portal; los títulos, que sí se pisaban, ahora se esquivan.
+Por eso se retiró el Portal SCADA, que editaba `eq.posicion`, y con él
+`compactarPlanta` y `acomodarEnFlujo`, que existían para escribirla. Mantener
+dos modelos de posición en paralelo fue el origen de casi todas las
+confusiones de esta parte.
+
+Todavía sin migrar del Portal: quiebres manuales de cañería, títulos de área
+movibles, renombrar y duplicar equipos. Sus acciones siguen en el store, sin
+pantalla que las llame.
 
 El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
-`preferencias.js`): se ajusta con los sliders del ensayo y la Vista de
-operación lo aplica. Es una decisión sobre qué es legible, no un parámetro
-de laboratorio. El **selector de pantalla NO se comparte**, y no debe: la
-Vista de operación tiene que usar el panel donde realmente dibuja.
-
-Por eso el ensayo y la Vista de operación **solo coinciden con "Panel real de
-esta ventana" elegido en el ensayo** — con una pantalla simulada dan repartos
-distintos, y eso es lo correcto: el reparto depende del panel. Por eso los
-dos paneles laterales miden lo mismo (300 px): con anchos distintos el
-lienzo cambia y el reparto deja de coincidir aunque el método sea el mismo.
+`preferencias.js`). El **selector de pantalla NO**, y no debe: operación
+tiene que usar el panel donde realmente dibuja. Por eso las dos solo
+coinciden con "Panel real de esta ventana" elegido en el editor, y por eso
+los dos paneles laterales miden lo mismo (300 px).
 
 ## Dos gramáticas visuales
 
