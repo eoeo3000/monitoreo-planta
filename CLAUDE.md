@@ -262,13 +262,16 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   separar los campos y multiplicarlos. Si un valor lo escriben dos autores
   con intenciones distintas, van dos campos.
 
-- **Un total no compara métodos que no procesan lo mismo.** El ensayo mide
-  ahora largo de cañería y cruces por método, pero el escalonado rutea solo
-  las conexiones de la VISTA activa (188) y el compactado las de toda la
-  planta (470). En totales el escalonado parecía usar 61% menos cañería
-  (28.010 contra 72.695) — un espejismo: por conexión son 149 contra 155,
-  prácticamente iguales. Lo que sí cambia de verdad son los cruces: 1.04 por
-  conexión contra 0.21. Las dos columnas van normalizadas por conexión.
+- **Un total no compara métodos que no procesan lo mismo.** El editor mide
+  largo de cañería y cruces por método, pero el escalonado rutea solo las
+  conexiones de la VISTA activa (173 en la planta demo, pantalla de
+  referencia) y el compactado las de toda la planta (470). En totales el
+  escalonado parece usar casi la mitad de cañería (≈38.600 contra ≈72.900),
+  y es un espejismo: por conexión son 223 contra 155, o sea 44% MÁS. Los
+  cruces van en la misma dirección: 1.86 por conexión contra 0.21. Las dos
+  columnas van normalizadas por conexión, y las cifras dependen de la
+  pantalla elegida —cambia el reparto en vistas y con él qué conexiones se
+  rutean—, así que para comparar hay que dejarla fija.
 
 - **El escalonado solo es legible con contorno escalonado.** Sus áreas se
   entrelazan por construcción, así que dibujarlas como rectángulo —lo que
@@ -290,7 +293,11 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   quedaba donde nadie lo podía agarrar. Ahora los candidatos se descartan
   fuera del lienzo (que es el bounding box de lo dibujado, así que sale de
   las mismas cajas de equipo). Un trazo que roza un ícono adentro es mejor
-  que uno impecable que se va afuera.
+  que uno impecable que se va afuera. Medido en la semilla, revirtiendo solo
+  `puertos.js` y `ensayo.js`: 259 → 177 de cañería por conexión en el
+  escalonado (−32%), con los mismos cruces. En la demo casi no se nota (223
+  antes y después): ahí el lienzo es tan grande que la espiral rara vez se
+  le escapa; el problema aparece en lienzos chicos.
 
 - **Una espiral que barre dx y después dy siempre devuelve la esquina.** La
   misma búsqueda probaba los candidatos en el orden del barrido, así que de
