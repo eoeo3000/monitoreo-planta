@@ -212,7 +212,7 @@ export default function PortalSCADA({
     const eqs = equiposDePlanta.filter((eq) => eq.areaId === area.id);
     if (eqs.length === 0) return null;
     // eq.posicion es el CENTRO horizontal y el borde INFERIOR vertical del
-    // ícono (bordeInferior === altoBase) — un margen plano sobre ese punto
+    // ícono — un margen plano sobre ese punto
     // no encierra la silueta real cuando los íconos son altos (tanque y
     // agitador miden 90 de alto): con PAD_ZONA chico, el título terminaba
     // tapado por el propio ícono. Se calcula el borde real de cada equipo

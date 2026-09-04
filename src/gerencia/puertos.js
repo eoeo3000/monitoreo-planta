@@ -6,12 +6,14 @@
 
 import { puntoPerimetroDeFormas } from './formas';
 
-// Tamaño base y anclaje (borde inferior fijo) por defecto. Un ícono puede
-// pisar estos valores con sus propios `anchoBase`/`altoBase`/`bordeInferior`
-// cuando su gramática visual usa otra proporción.
+// Tamaño base por defecto, para un ícono que no declare el suyo. El ANCLAJE
+// no es configurable y no debe serlo: `posicion` es siempre el centro
+// horizontal y el borde INFERIOR del ícono, que es lo que hace el dibujo
+// (translate(pos.x - anchoIcono/2, pos.y - altoIcono)). Existía un campo
+// `bordeInferior` por ícono que sugería lo contrario; todos lo declaraban
+// igual a `altoBase` y la única cuenta que lo leía estaba mal por eso.
 const ANCHO_BASE = 52;
 const ALTO_BASE = 35;
-const BORDE_INFERIOR = 5;
 const TRAMO_MINIMO = 8;
 
 const DIR_VECTOR = { N: { x: 0, y: -1 }, S: { x: 0, y: 1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } };
@@ -20,16 +22,18 @@ const redondear = (p) => ({ x: Math.round(p.x), y: Math.round(p.y) });
 
 // Proyecta un puerto (coordenadas del viewBox) a coordenadas absolutas del
 // lienzo, dada la posición del equipo y su ícono (con su propia `escala`).
+//
+// Delega en aAbsoluto (más abajo) a propósito: un puerto declarado y un
+// extremo arrastrado a mano son el MISMO tipo de punto —coordenadas crudas
+// del ícono— y tienen que proyectarse igual. Antes había dos conversiones
+// distintas en este archivo y no coincidían: esta sumaba `bordeInferior` sin
+// escalar, así que cada cañería nacía ese tanto por debajo de su equipo. En
+// la planta semilla solo 2 de 6 extremos tocaban su ícono; la de B-101
+// arrancaba 16 px por debajo de la bomba, a la altura del TAG.
 export function puntoAbsoluto(posicion, icono, nombrePuerto) {
   const puerto = icono?.puertos?.[nombrePuerto];
   if (!puerto) return null;
-  const escala = icono.escala || 1;
-  const anchoIcono = (icono.anchoBase || ANCHO_BASE) * escala;
-  const altoIcono = (icono.altoBase || ALTO_BASE) * escala;
-  const bordeInferior = icono.bordeInferior ?? BORDE_INFERIOR;
-  const [, , vbAncho, vbAlto] = icono.viewBox.split(' ').map(Number);
-  const x = posicion.x + (-anchoIcono / 2 + (puerto.x / vbAncho) * anchoIcono);
-  const y = posicion.y + (bordeInferior - altoIcono) + (puerto.y / vbAlto) * altoIcono;
+  const { x, y } = aAbsoluto(posicion, icono, puerto);
   return { x, y, dir: puerto.dir, nombre: nombrePuerto };
 }
 
