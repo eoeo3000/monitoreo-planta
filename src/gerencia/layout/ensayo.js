@@ -2,7 +2,7 @@ import { MULTIPLICADORES_FINOS, buscarMejorAncho } from './grilla';
 import { empaquetarSkyline } from './skyline';
 import { celdaDeEquipo, ALTO_TAG } from './escalonado';
 import { iconoBaseDe } from '../iconos';
-import { cajaEquipo, rutaEntreEquipos, crucesEntreRutas, largoDeRutas } from '../puertos';
+import { cajaEquipo, rutaEntreEquipos, crucesEntreRutas, largoDeRutas, indiceDeObstaculos } from '../puertos';
 
 // Métodos de layout que solo existen para COMPARARSE contra el de
 // producción en la pantalla de ensayo, más las métricas con las que se los
@@ -147,6 +147,9 @@ export function metricas({ ancho, alto, areaIconos, arObjetivo }) {
 //
 // Cuesta caro (el ruteo esquiva las cajas de todos los demás equipos), así
 // que la pantalla lo calcula solo cuando se piden las cañerías.
+// Cuánto puede desviarse una cañería más allá del borde de lo dibujado.
+const MARGEN_LIENZO = 20;
+
 export function metricasDeCanerias(piezas, conexiones, data) {
   const porId = new Map(piezas.map((p) => [p.eq.id, p]));
   const iconoDe = (p) => {
@@ -156,6 +159,22 @@ export function metricasDeCanerias(piezas, conexiones, data) {
   const cajas = piezas
     .map((p) => ({ id: p.eq.id, caja: cajaEquipo({ x: p.x, y: p.y }, iconoDe(p)) }))
     .filter((c) => c.caja);
+
+  // Los desvíos para esquivar equipos se acotan al lienzo: el lienzo es el
+  // bounding box de lo dibujado, así que sale de las mismas cajas. Sin este
+  // límite la espiral de buscarQuiebreLibre se iba afuera de la pantalla.
+  const limites = cajas.length
+    ? {
+        izq: Math.min(...cajas.map((c) => c.caja.izq)) - MARGEN_LIENZO,
+        der: Math.max(...cajas.map((c) => c.caja.der)) + MARGEN_LIENZO,
+        arriba: Math.min(...cajas.map((c) => c.caja.arriba)) - MARGEN_LIENZO,
+        abajo: Math.max(...cajas.map((c) => c.caja.abajo)) + MARGEN_LIENZO,
+      }
+    : null;
+
+  // El índice se arma UNA vez para todas las conexiones del método: es lo
+  // que evita comparar cada tramo contra las 500 cajas de la planta.
+  const indice = indiceDeObstaculos(cajas);
 
   const rutas = [];
   let fuera = 0;
@@ -167,8 +186,8 @@ export function metricasDeCanerias(piezas, conexiones, data) {
       if (porId.has(c.deId) || porId.has(c.aId)) fuera += 1;
       return;
     }
-    const r = rutaEntreEquipos(c, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe(de), iconoDe(a), cajas);
-    if (r) rutas.push(r);
+    const r = rutaEntreEquipos(c, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe(de), iconoDe(a), indice, limites);
+    if (r) rutas.push({ ...r, conexion: c });
   });
 
   return { rutas, largo: Math.round(largoDeRutas(rutas)), cruces: crucesEntreRutas(rutas), fuera };

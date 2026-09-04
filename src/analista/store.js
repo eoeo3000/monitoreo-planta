@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SEED_PLANTAS, SEED_AREAS, SEED_EQUIPOS, SEED_DIAGNOSTICOS, SEED_AVISOS, SEED_CONEXIONES } from './mockData';
 import { SCADA_ICONOS } from '../gerencia/scadaIconos';
-import { calcularLayoutCompacto } from '../gerencia/layout/compactado';
-import { empaquetarEscalonado } from '../gerencia/layout/escalonado';
 
 const STORAGE_KEY = 'condicion-activos-analista-v6';
 const USUARIO_ACTUAL = 'analista.demo'; // sin autenticación real todavía
@@ -256,7 +254,10 @@ export function useAnalistaData() {
       const original = d.equipos.find((eq) => eq.id === equipoId);
       if (!original) return d;
       const posBase = original.posicion || POSICION_DEFAULT;
-      const copia = { ...original, id, posicion: { x: posBase.x + 40, y: posBase.y + 40 } };
+      // Sin posicionPropia: la copia entra al layout calculado en vez de
+      // nacer pegada encima del original con su mismo override.
+      const { posicionPropia, ...sinOverride } = original;
+      const copia = { ...sinOverride, id, posicion: { x: posBase.x + 40, y: posBase.y + 40 } };
       return { ...d, equipos: [...d.equipos, copia] };
     });
     return id;
@@ -264,6 +265,38 @@ export function useAnalistaData() {
 
   const cambiarEscalaTipo = useCallback((tipo, escala) => {
     setData((d) => ({ ...d, escalasPorTipo: { ...d.escalasPorTipo, [tipo]: escala } }));
+  }, []);
+
+  // Posición puesta a mano en el Editor de planta, POR ENCIMA de la que
+  // calcula el escalonado. Mismo idioma que las escalas: el layout propone y
+  // el usuario puede pisar un caso puntual sin dejar de recalcular el resto.
+  // Guardar la posición calculada de todos los equipos sería lo contrario —
+  // congelaría el layout y volvería a atarnos a posiciones almacenadas.
+  const moverEquipoPropio = useCallback((equipoId, posicion) => {
+    setData((d) => ({
+      ...d,
+      equipos: d.equipos.map((eq) => {
+        if (eq.id !== equipoId) return eq;
+        if (posicion) return { ...eq, posicionPropia: posicion };
+        const { posicionPropia, ...resto } = eq;
+        return resto;
+      }),
+    }));
+  }, []);
+
+  // Devuelve la planta al layout calculado: borra las posiciones puestas a
+  // mano y los desplazamientos de título y TAG, que son relativos a ellas.
+  const restablecerPosiciones = useCallback((plantaId) => {
+    setData((d) => {
+      const areaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
+      const equipos = d.equipos.map((eq) => {
+        if (!areaIds.includes(eq.areaId)) return eq;
+        const { posicionPropia, etiquetaOffset, ...resto } = eq;
+        return resto;
+      });
+      const areas = d.areas.map((a) => (areaIds.includes(a.id) ? { ...a, tituloOffset: undefined } : a));
+      return { ...d, equipos, areas };
+    });
   }, []);
 
   // Tamaño de UN equipo en particular (doble clic), por encima del tamaño
@@ -345,105 +378,12 @@ export function useAnalistaData() {
     });
   }, []);
 
-  // Reacomoda TODOS los equipos de una planta en una grilla apretada, área
-  // por área, y además reubica las áreas mismas (los cuadros punteados) una
-  // al lado de la otra sin huecos entre sí — a diferencia de
-  // reunirEquiposDispersos (que solo corrige equipos perdidos), esto
-  // reorganiza toda la planta de una para minimizar el espacio vacío.
-  //
-  // Misma "ley de espaciado" que usa generarPlantaDePrueba más abajo
-  // (distancias derivadas del tamaño REAL del ícono, no números sueltos),
-  // pero calculada por área a partir de sus propios equipos — una planta
-  // real mezcla tipos de tamaños distintos dentro de una misma área, así que
-  // no hay un "ícono típico" único como en la demo.
-  //
-  // Además de acomodar, agranda los equipos de cada área por separado,
-  // hasta el borde de la vecina más cercana (ver agrandarAreaSinSolape) —
-  // así un área con lugar de sobra puede crecer aunque el resto de la
-  // planta ya esté apretado al límite: agrandar TODA la planta con una sola
-  // escala global (como se hacía antes) casi no mejoraba nada cuando un
-  // área enorme dominaba el cálculo, aunque hubiera espacio suelto en otra
-  // parte. `arObjetivo` (ancho/alto real del panel donde se dibuja) decide
-  // cómo se reparten las áreas — si no se pasa, se asume panel ancho (16:9).
-  const compactarPlanta = useCallback((plantaId, arObjetivo) => {
-    const ar = arObjetivo && arObjetivo > 0 ? arObjetivo : 16 / 9;
-
-    setData((d) => {
-      const resultado = calcularLayoutCompacto(d, plantaId, ar);
-
-      // El compactado reubica equipos a gran escala: un quiebre o puerto
-      // fijado a mano en una conexión de esta planta quedaría apuntando a
-      // coordenadas del layout viejo, ya sin relación con el nuevo — se
-      // resetean para que esas conexiones vuelvan al ruteo automático (que
-      // ya esquiva equipos por su cuenta).
-      const conexiones = d.conexiones.map((c) => {
-        if (c.plantaId !== plantaId) return c;
-        const { quiebreManual, puertoDe, puertoA, ...resto } = c;
-        return resto;
-      });
-
-      // Mismo motivo: un título de área o un TAG de equipo arrastrados a
-      // mano ANTES de compactar quedan con un desplazamiento fijo en
-      // píxeles (tituloOffset/etiquetaOffset) — relativo a dónde estaba el
-      // área o el equipo en el layout viejo. Con el bloque ya reubicado en
-      // otra parte del lienzo, ese desplazamiento puede dejar el título
-      // lejos de sus equipos: PortalSCADA.js agranda el cuadro punteado
-      // para seguir encerrándolo, y aparece como un hueco enorme entre el
-      // título y los equipos reales (el bug que reportó el usuario). Se
-      // resetean para que título y TAG vuelvan a su posición por defecto,
-      // pegada al bloque recién compactado.
-      const areasDePlantaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
-      const areas = d.areas.map((a) => (areasDePlantaIds.includes(a.id) ? { ...a, tituloOffset: undefined } : a));
-      const equipos = resultado.equipos.map((eq) => (areasDePlantaIds.includes(eq.areaId) ? { ...eq, etiquetaOffset: undefined } : eq));
-
-      return { ...d, equipos, areas, conexiones };
-    });
-  }, []);
-
-  // Acomoda la planta con el método ESCALONADO, el mismo de la Vista de
-  // operación: los equipos fluyen como un texto y las áreas se suceden en ese
-  // flujo, sin reservar un rectángulo cada una. Es la segunda opción de
-  // acomodado del Portal; "Compactar planta" sigue siendo la de bloques.
-  //
-  // Medido en el ensayo sobre la planta demo (500 equipos), por conexión:
-  // deja 78.5% de lienzo vacío contra 93.2% del compactado y empata en largo
-  // de cañería (149 contra 155), pero cruza cinco veces más (1.04 contra
-  // 0.21). Gana lienzo y paga en legibilidad del proceso — por eso convive
-  // con el otro método en vez de reemplazarlo.
-  //
-  // A diferencia del compactado, NO toca el tamaño de ningún equipo: solo
-  // reubica.
-  const acomodarEnFlujo = useCallback((plantaId, arObjetivo) => {
-    const ar = arObjetivo && arObjetivo > 0 ? arObjetivo : 16 / 9;
-
-    setData((d) => {
-      const areaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
-      const deLaPlanta = d.equipos.filter((eq) => areaIds.includes(eq.areaId));
-      const layout = empaquetarEscalonado(deLaPlanta, d, { arObjetivo: ar });
-      if (!layout) return d;
-
-      // El layout entrega la esquina de la celda; eq.posicion es el centro
-      // horizontal y el borde INFERIOR del ícono (ver puertos.js).
-      const nuevaPos = new Map(
-        layout.colocadas.map((c) => [c.eq.id, { x: Math.round(c.x + c.ancho / 2), y: Math.round(c.y + c.altoIcono) }])
-      );
-
-      // Mismos reseteos que el compactado, y por el mismo motivo: un quiebre
-      // o un TAG fijados a mano apuntan a coordenadas del layout viejo.
-      const conexiones = d.conexiones.map((c) => {
-        if (c.plantaId !== plantaId) return c;
-        const { quiebreManual, puertoDe, puertoA, ...resto } = c;
-        return resto;
-      });
-      const areas = d.areas.map((a) => (areaIds.includes(a.id) ? { ...a, tituloOffset: undefined } : a));
-      const equipos = d.equipos.map((eq) => {
-        const pos = nuevaPos.get(eq.id);
-        return pos ? { ...eq, posicion: pos, etiquetaOffset: undefined } : eq;
-      });
-
-      return { ...d, equipos, areas, conexiones };
-    });
-  }, []);
+  // NOTA: acá vivían compactarPlanta y acomodarEnFlujo, que escribían
+  // eq.posicion. Se fueron con el Portal: en el Editor de planta la posición
+  // la CALCULA el escalonado en cada render, y lo único que se guarda es el
+  // override de un equipo movido a mano (moverEquipoPropio). Un layout
+  // guardado volvería a atarnos a posiciones viejas, que es de donde venían
+  // casi todos los problemas de esta parte.
 
   // Genera una planta nueva (no toca las existentes) con muchos sectores,
   // ubicaciones y equipos de nombres genéricos — para probar cómo se
@@ -675,6 +615,8 @@ export function useAnalistaData() {
     generarPlantaDePrueba,
     crearEquipo,
     moverEquipo,
+    moverEquipoPropio,
+    restablecerPosiciones,
     renombrarEquipo,
     duplicarEquipo,
     cambiarEscalaTipo,
@@ -683,8 +625,6 @@ export function useAnalistaData() {
     moverTituloArea,
     moverEtiquetaEquipo,
     reunirEquiposDispersos,
-    compactarPlanta,
-    acomodarEnFlujo,
     crearTipoPersonalizado,
     actualizarTipoPersonalizado,
     crearConexion,

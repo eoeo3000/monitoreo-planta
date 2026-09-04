@@ -37,8 +37,8 @@ src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   ensayo.js                    métodos alternativos que se comparan en pantalla
 src/gerencia/iconos.js       resuelve íconos de fábrica y personalizados
 src/gerencia/puertos.js      puertos de conexión y ruteo de cañerías
-src/components/gerencia/PortalSCADA.js     el lienzo editable (~1170 líneas)
-src/components/gerencia/VistaOperacion.js  la pantalla de solo lectura
+src/components/gerencia/EditorPlanta.js    donde se arma la planta
+src/components/gerencia/VistaOperacion.js  la misma vista, solo lectura
 scripts/medicion/            mediciones de layout con Playwright (ver su README)
 ```
 
@@ -95,37 +95,37 @@ Cosas que se rompen sin avisar si no se saben.
 
 ## Dos pantallas de planta, a propósito
 
-- **Portal SCADA** — el diagrama de PROCESO. Dibuja las posiciones guardadas
-  (`eq.posicion`, puestas a mano o por el compactado de bloques), con las
-  cañerías ruteadas y esquivando equipos. Es donde se edita.
-- **Vista de operación** — VIGILANCIA de condición, solo lectura. Recalcula
-  el layout escalonado en cada render y lo pagina en vistas, así que no
-  depende de que alguien haya compactado. **No dibuja cañerías**, y no es un
-  olvido: el escalonado reacomoda los equipos ignorando el proceso para
-  meter la mayor cantidad legible por pantalla, y encima de ese orden las
-  conexiones saldrían como un ovillo.
+- **Editor de planta** — donde se arma. Dibuja con el escalonado y el mismo
+  reparto en vistas que operación, así se edita viendo el resultado. Tiene el
+  panel de comparación de métodos, los sliders de tamaño legible, el selector
+  de pantalla, las cañerías y las métricas.
+- **Vista de operación** — VIGILANCIA de condición, solo lectura. Lo mismo,
+  sin controles.
 
-Son complementarias, no una el reemplazo de la otra. Compactar en el Portal
-nunca va a dar el resultado de la Vista de operación: son dos algoritmos.
+**Las posiciones NO son dato.** El escalonado las calcula en cada render
+desde los tipos y las áreas. Lo que se autora son las ENTRADAS del layout:
+conexiones, tamaños, el mínimo legible que decide cuántas vistas hacen falta,
+y el orden de las áreas. Arrastrar un equipo deja un **override**
+(`eq.posicionPropia`) sobre el cálculo, igual que `escalaPropia` pisa a la
+escala del tipo; "Restablecer posiciones" los borra.
 
-El Portal tiene los DOS: "Compactar planta" (bloques) y "Acomodar en flujo
-continuo" (escalonado). El segundo aprovecha bastante mejor el lienzo pero
-cruza más las cañerías, y sus áreas no son rectangulares: el Portal las
-dibuja como rectángulo, así que **los cuadros de área se superponen** (3 de 4
-pares en la planta semilla). Eso no tiene arreglo sin llevar el contorno
-escalonado al Portal; los títulos, que sí se pisaban, ahora se esquivan.
+Por eso se retiró el Portal SCADA, que editaba `eq.posicion`, y con él
+`compactarPlanta` y `acomodarEnFlujo`, que existían para escribirla. Mantener
+dos modelos de posición en paralelo fue el origen de casi todas las
+confusiones de esta parte.
+
+Del Portal se conservan sus herramientas de autoría, ya migradas: arrastre de
+equipos, **quiebres manuales de cañería** (el tirador redondo sobre cada
+trazo; doble clic lo suelta), títulos de área movibles, zoom, renombrar y
+duplicar equipos, y el botón que genera la planta de prueba de 500 equipos
+—que se había quedado sin pantalla al retirar el Portal, y es el caso con el
+que se mide todo—.
 
 El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
-`preferencias.js`): se ajusta con los sliders del ensayo y la Vista de
-operación lo aplica. Es una decisión sobre qué es legible, no un parámetro
-de laboratorio. El **selector de pantalla NO se comparte**, y no debe: la
-Vista de operación tiene que usar el panel donde realmente dibuja.
-
-Por eso el ensayo y la Vista de operación **solo coinciden con "Panel real de
-esta ventana" elegido en el ensayo** — con una pantalla simulada dan repartos
-distintos, y eso es lo correcto: el reparto depende del panel. Por eso los
-dos paneles laterales miden lo mismo (300 px): con anchos distintos el
-lienzo cambia y el reparto deja de coincidir aunque el método sea el mismo.
+`preferencias.js`). El **selector de pantalla NO**, y no debe: operación
+tiene que usar el panel donde realmente dibuja. Por eso las dos solo
+coinciden con "Panel real de esta ventana" elegido en el editor, y por eso
+los dos paneles laterales miden lo mismo (300 px).
 
 ## Dos gramáticas visuales
 
@@ -167,6 +167,11 @@ que dejar la pantalla fija.
 
 Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
 28 px de mínimo, 10 a 48 px.
+
+Ruteo de cañerías de la planta demo (470 conexiones, los tres métodos), de
+clic en "Cañerías" a tabla completa: **0,6 s**. Si eso se va a varios
+segundos, algo volvió a comparar de más — el perfil por etapas está en las
+trampas de más abajo.
 
 ## Trampas ya pisadas
 
@@ -262,22 +267,110 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   separar los campos y multiplicarlos. Si un valor lo escriben dos autores
   con intenciones distintas, van dos campos.
 
-- **Un total no compara métodos que no procesan lo mismo.** El ensayo mide
-  ahora largo de cañería y cruces por método, pero el escalonado rutea solo
-  las conexiones de la VISTA activa (188) y el compactado las de toda la
-  planta (470). En totales el escalonado parecía usar 61% menos cañería
-  (28.010 contra 72.695) — un espejismo: por conexión son 149 contra 155,
-  prácticamente iguales. Lo que sí cambia de verdad son los cruces: 1.04 por
-  conexión contra 0.21. Las dos columnas van normalizadas por conexión.
+- **Un total no compara métodos que no procesan lo mismo.** El editor mide
+  largo de cañería y cruces por método, pero el escalonado rutea solo las
+  conexiones de la VISTA activa (173 en la planta demo, pantalla de
+  referencia) y el compactado las de toda la planta (470). En totales el
+  escalonado parece usar casi la mitad de cañería (≈38.600 contra ≈72.400),
+  y es un espejismo: por conexión son 223 contra 154, o sea 45% MÁS. Los
+  cruces van en la misma dirección: 1.86 por conexión contra 0.19. Las dos
+  columnas van normalizadas por conexión, y las cifras dependen de la
+  pantalla elegida —cambia el reparto en vistas y con él qué conexiones se
+  rutean—, así que para comparar hay que dejarla fija.
 
 - **El escalonado solo es legible con contorno escalonado.** Sus áreas se
-  entrelazan por construcción, así que dibujarlas como rectángulo —lo que
-  hace el Portal, desde el bounding box de sus equipos— las superpone. Al
-  traer el escalonado al Portal, los 4 títulos de la planta semilla se
-  dibujaban uno encima de otro. Los títulos ahora se esquivan (bajan hasta
-  encontrar lugar, salvo los movidos a mano), pero los cuadros siguen
-  superponiéndose: es inherente, no un bug a cazar.
+  entrelazan por construcción, así que dibujarlas como rectángulo —desde el
+  bounding box de sus equipos— las superpone. Por eso el escalonado se dibuja
+  con `contornosDeArea` en las dos pantallas y su solape medido es 0. Los
+  otros dos métodos sí usan rectángulo, y ahí el solape es real y se mide
+  (34.8% en el libre sobre la semilla, 84.9% sobre la demo): es inherente al
+  método, no un bug a cazar.
+
+  Los TÍTULOS son otra cosa y sí se arreglan: dos áreas vecinas comparten
+  borde de arriba y sus títulos se dibujaban uno encima del otro —medido, 2
+  de 4 pares en la semilla y 1 en la vista activa de la demo—. Se recorren de
+  arriba hacia abajo y cada uno baja hasta encontrar lugar; uno movido a mano
+  no se toca. Después del esquive: 0 pares en las dos plantas.
 
 - **Al medir superficies pisadas, medir la UNIÓN y no la suma de los pares.**
   Sumar pares cuenta la misma superficie una vez por cada par que la comparte:
   con 200 áreas daba 2315% de un lienzo.
+
+- **Una búsqueda de desvío sin límites se va de la pantalla.** Cuando el
+  trazo por defecto atraviesa un equipo, `buscarQuiebreLibre` (`puertos.js`)
+  busca en espiral un quiebre que lo esquive. Sin acotarla, en la planta
+  semilla la conexión `con1` esquivaba por un punto **108 unidades arriba
+  del borde**: la cañería salía del lienzo y volvía, y su tirador de quiebre
+  quedaba donde nadie lo podía agarrar. Ahora los candidatos se descartan
+  fuera del lienzo (que es el bounding box de lo dibujado, así que sale de
+  las mismas cajas de equipo). Un trazo que roza un ícono adentro es mejor
+  que uno impecable que se va afuera. Medido en la semilla, revirtiendo solo
+  `puertos.js` y `ensayo.js`: 259 → 177 de cañería por conexión en el
+  escalonado (−32%), con los mismos cruces. En la demo casi no se nota (223
+  antes y después): ahí el lienzo es tan grande que la espiral rara vez se
+  le escapa; el problema aparece en lienzos chicos.
+
+- **Una espiral que barre dx y después dy siempre devuelve la esquina.** La
+  misma búsqueda probaba los candidatos en el orden del barrido, así que de
+  cada anillo devolvía la esquina superior izquierda: la más lejana del
+  anillo (√2 veces el radio) y, encima, un sesgo sistemático de todos los
+  desvíos hacia arriba y a la izquierda. Los candidatos de cada anillo se
+  ordenan ahora por distancia real al punto de partida.
+
+- **La espiral de ruteo casi nunca encuentra salida, y ese es el caso a
+  optimizar.** Medido en la planta demo: de las conexiones cuyo trazo por
+  defecto choca, esquivan **7 de 169** (compactado), **0 de 60**
+  (escalonado) y **3 de 420** (libre). El resto se rinde y se queda con el
+  trazo por defecto. No es un bug: mover UN quiebre no puede despejar una
+  ruta larga que cruza varias áreas llenas; la búsqueda está pensada para
+  "un equipo de por medio", como dice su propio comentario. Lo que importa
+  es que el fracaso salga barato, porque es el caso normal: antes cada
+  fracaso probaba los 1.680 candidatos del radio 400 para terminar sin
+  nada. Los desvíos que sí salen están todos dentro de 160, así que el
+  radio se bajó a 200 — verificado ruta por ruta: las 1.113 rutas de la
+  demo salen **idénticas** con 200 y con 400, mismo largo y mismos cruces.
+
+- **Preguntar "¿choca?" contra las 500 cajas es el 86% del ruteo.** Con la
+  espiral probando cientos de candidatos, cada uno con 6 tramos, la
+  comparación una-por-una llegaba a millones de pruebas por conexión. La
+  respuesta es un índice espacial (`indiceDeObstaculos` en `puertos.js`):
+  celdas del tamaño típico de un equipo, cada caja guardada ya ensanchada
+  por el margen, y como los tramos son ortogonales las celdas que cruza un
+  tramo son un rectángulo de la grilla. Se arma UNA vez por método, no por
+  conexión. Y los equipos de los extremos se saltean por id en la consulta:
+  antes se armaba un array filtrado por conexión, o sea 470 copias de 500
+  cajas por método.
+
+- **Los cruces no necesitan mirar todos los pares.** Eran 3,2 millones de
+  pares y 1,5 s por método. Dos hechos lo vuelven casi lineal sin cambiar un
+  resultado: todos los tramos son ortogonales y, con el test de orientación
+  que se usaba, dos tramos PARALELOS nunca cuentan como cruce (los signos
+  empatan; colineales dan 0 y 0), así que solo hay que mirar los pares
+  horizontal × vertical; y para ese par el test se reduce a que se toquen
+  los rangos. Con las verticales ordenadas por x, cada horizontal mira solo
+  su franja. 1,5 s → 5 ms, con los conteos intactos (90 / 321 / 911 en la
+  demo). Los dos atajos están atados a su versión ingenua por tests: si
+  alguien los cambia y dejan de coincidir, saltan.
+
+- **Un `waitForTimeout` fijo no es una medición.** El primer número que se
+  anotó del ruteo —161 s— era el tiempo que el script de Playwright esperaba
+  a propósito, no lo que tardaba la app (eran 10,2 s). Para medir hay que
+  esperar a que aparezca el RESULTADO (`waitForFunction` sobre la tabla), no
+  dejar pasar un rato largo y leer el reloj.
+
+- **En SVG el orden de dibujo ES el orden de los clics, y eso ya mordió dos
+  veces.** No hay `z-index`: lo que se dibuja después queda encima y se lleva
+  el `mousedown`. Cada equipo tiene un rectángulo de clic TRANSPARENTE más
+  grande que su ícono, así que cualquier cosa dibujada antes que los equipos
+  y que caiga sobre uno deja de poder agarrarse, sin ningún error a la vista
+  —solo un arrastre que no hace nada—. Pasó con los tiradores de quiebre y
+  otra vez con los títulos de área, que al bajar para esquivarse caen sobre
+  un ícono. Los dos van ahora DESPUÉS de los equipos. Regla: lo que se
+  arrastra se dibuja al final.
+
+- **Un elemento que se acomoda solo tiene que poder agarrarse donde SE VE.**
+  El arrastre del título partía del ancla calculada (la esquina del área),
+  no de donde el título había quedado después de esquivar: al primer clic
+  saltaba hacia arriba el tamaño del esquive. El arrastre parte ahora de la
+  posición dibujada (`base` en `titulosDeArea`), así que agarrarlo no lo
+  mueve.
