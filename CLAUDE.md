@@ -115,11 +115,27 @@ dos modelos de posición en paralelo fue el origen de casi todas las
 confusiones de esta parte.
 
 Del Portal se conservan sus herramientas de autoría, ya migradas: arrastre de
-equipos, **quiebres manuales de cañería** (el tirador redondo sobre cada
-trazo; doble clic lo suelta), títulos de área movibles, zoom, renombrar y
-duplicar equipos, y el botón que genera la planta de prueba de 500 equipos
-—que se había quedado sin pantalla al retirar el Portal, y es el caso con el
-que se mide todo—.
+equipos, títulos de área movibles, zoom, renombrar y duplicar equipos, y el
+botón que genera la planta de prueba de 500 equipos —que se había quedado sin
+pantalla al retirar el Portal, y es el caso con el que se mide todo—.
+
+Edición de cañerías, toda sobre el tirador del codo:
+
+| Gesto | Qué hace |
+|---|---|
+| arrastrar el codo | fija por dónde pasa (`quiebreManual`) |
+| doble clic en el codo | lo suelta, vuelve al ruteo automático |
+| **un clic** en el codo | **elige** la conexión |
+| arrastrar un extremo (solo en la elegida) | fija por qué punto del perímetro sale (`puertoDe`/`puertoA`), pegado a la silueta real |
+| doble clic en un extremo | lo suelta |
+
+Las manijas de extremo se dibujan **solo para la conexión elegida**: con 173
+cañerías en la vista de la demo, dos manijas por conexión taparían el dibujo.
+El panel lateral de la conexión elegida es además el único lugar donde se
+borra **una** conexión — antes el único camino era "borrar todas" las de un
+equipo. Y al elegir el destino de una conexión nueva hay línea de
+previsualización (`rutaHaciaPunto`), que sale del mismo puerto por el que
+saldrá la cañería definitiva.
 
 El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
 `preferencias.js`). El **selector de pantalla NO**, y no debe: operación
@@ -374,3 +390,19 @@ trampas de más abajo.
   saltaba hacia arriba el tamaño del esquive. El arrastre parte ahora de la
   posición dibujada (`base` en `titulosDeArea`), así que agarrarlo no lo
   mueve.
+
+- **Un resultado intermedio no se guarda como si fuera dato.**
+  `puntoPerimetroCercano` devolvía `{x, y, dir, dist}` —`dist` es de la
+  búsqueda de `formas.js`, así elige el candidato más cercano— y el Portal
+  guardaba ese objeto entero dentro de la conexión, contra lo que decía el
+  comentario de la propia función. Queda un campo persistido que nadie lee y
+  que el próximo que abra el JSON va a interpretar como parte del formato.
+  Devuelve ahora solo `{x, y, dir}`; `puertoElegido` ignora los extras, así
+  que los datos viejos siguen funcionando.
+
+- **Seguir el puntero re-renderiza toda la planta.** La previsualización de
+  conexión y los arrastres actualizan estado en cada `mousemove`, y eso
+  reconcilia los 183 equipos de la vista: medido, 43 ms por cuadro en la
+  demo. No es nuevo de la previsualización —arrastrar un equipo cuesta lo
+  mismo— pero es el techo actual. La salida, cuando moleste, es memoizar la
+  capa de equipos para que no dependa del estado que cambia por movimiento.

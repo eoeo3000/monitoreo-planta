@@ -3,7 +3,7 @@ import { migrarEscalas } from '../../analista/store';
 import { empaquetarSkyline } from './skyline';
 import { solapamientoDeCajas } from './ensayo';
 import { contornosDeArea, repartirEnVistas, encuadrar } from './escalonado';
-import { rutaPuertos, indiceDeObstaculos, crucesEntreRutas } from '../puertos';
+import { rutaPuertos, indiceDeObstaculos, crucesEntreRutas, puntoPerimetroCercano, puertoElegido } from '../puertos';
 
 // Geometría pura: se puede probar sin navegador y sin React, que es
 // justamente lo que motivó separarla del store.
@@ -474,5 +474,29 @@ describe('crucesEntreRutas — el índice cuenta lo mismo que comparar todos los
     const v = { puntos: [{ x: 50, y: 50 }, { x: 50, y: 150 }] };
     expect(crucesEntreRutas([h, v])).toBe(ingenuo([h, v]));
     expect(crucesEntreRutas([h, v])).toBe(1);
+  });
+});
+
+describe('extremo de conexión fijado a mano', () => {
+  const icono = { anchoBase: 40, altoBase: 40, escala: 1, formas: [{ tipo: 'rectangulo', x: 0, y: 0, ancho: 40, alto: 40 }] };
+  const posicion = { x: 100, y: 140 }; // centro en x, borde inferior en y
+
+  test('devuelve solo {x, y, dir} — nada de la búsqueda interna', () => {
+    const p = puntoPerimetroCercano(posicion, icono, { x: 60, y: 120 });
+    expect(p).not.toBeNull();
+    expect(Object.keys(p).sort()).toEqual(['dir', 'x', 'y']);
+  });
+
+  test('el puerto fijado a mano le gana al automático', () => {
+    const fijado = puntoPerimetroCercano(posicion, icono, { x: 60, y: 120 });
+    const auto = puertoElegido(posicion, icono, { x: 400, y: 140 }, undefined);
+    const conFijado = puertoElegido(posicion, icono, { x: 400, y: 140 }, fijado);
+    expect(conFijado).not.toEqual(auto);
+    expect(conFijado.dir).toBe(fijado.dir);
+  });
+
+  test('un extremo guardado con formato viejo se ignora en vez de romper', () => {
+    const auto = puertoElegido(posicion, icono, { x: 400, y: 140 }, undefined);
+    expect(puertoElegido(posicion, icono, { x: 400, y: 140 }, { lado: 'izq', t: 0.5 })).toEqual(auto);
   });
 });
