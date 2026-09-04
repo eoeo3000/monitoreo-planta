@@ -255,6 +255,14 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
   separar los campos y multiplicarlos. Si un valor lo escriben dos autores
   con intenciones distintas, van dos campos.
 
+- **Un total no compara métodos que no procesan lo mismo.** El ensayo mide
+  ahora largo de cañería y cruces por método, pero el escalonado rutea solo
+  las conexiones de la VISTA activa (188) y el compactado las de toda la
+  planta (470). En totales el escalonado parecía usar 61% menos cañería
+  (28.010 contra 72.695) — un espejismo: por conexión son 149 contra 155,
+  prácticamente iguales. Lo que sí cambia de verdad son los cruces: 1.04 por
+  conexión contra 0.21. Las dos columnas van normalizadas por conexión.
+
 - **Al medir superficies pisadas, medir la UNIÓN y no la suma de los pares.**
   Sumar pares cuenta la misma superficie una vez por cada par que la comparte:
   con 200 áreas daba 2315% de un lienzo.

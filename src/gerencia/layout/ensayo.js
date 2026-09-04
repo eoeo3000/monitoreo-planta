@@ -1,6 +1,8 @@
 import { MULTIPLICADORES_FINOS, buscarMejorAncho } from './grilla';
 import { empaquetarSkyline } from './skyline';
 import { celdaDeEquipo, ALTO_TAG } from './escalonado';
+import { iconoBaseDe } from '../iconos';
+import { cajaEquipo, rutaEntreEquipos, crucesEntreRutas, largoDeRutas } from '../puertos';
 
 // Métodos de layout que solo existen para COMPARARSE contra el de
 // producción en la pantalla de ensayo, más las métricas con las que se los
@@ -133,3 +135,41 @@ export function metricas({ ancho, alto, areaIconos, arObjetivo }) {
   };
 }
 
+// Qué le hace un método de acomodado a las CAÑERÍAS. Los métodos que
+// reacomodan ignorando el proceso (escalonado, libre) ganan en densidad,
+// pero la pregunta que faltaba responder con números es cuánto le cuesta
+// eso al diagrama: si las conexiones quedan cortas y locales o hechas un
+// ovillo.
+//
+// `piezas` son las de un método ya resuelto (eq + posición + escala), y
+// solo se rutean las conexiones cuyos DOS extremos están entre ellas: una
+// conexión que sale de la vista no se puede dibujar, y se cuenta aparte.
+//
+// Cuesta caro (el ruteo esquiva las cajas de todos los demás equipos), así
+// que la pantalla lo calcula solo cuando se piden las cañerías.
+export function metricasDeCanerias(piezas, conexiones, data) {
+  const porId = new Map(piezas.map((p) => [p.eq.id, p]));
+  const iconoDe = (p) => {
+    const base = iconoBaseDe(p.eq.tipo, data);
+    return base ? { ...base, escala: p.escala } : null;
+  };
+  const cajas = piezas
+    .map((p) => ({ id: p.eq.id, caja: cajaEquipo({ x: p.x, y: p.y }, iconoDe(p)) }))
+    .filter((c) => c.caja);
+
+  const rutas = [];
+  let fuera = 0;
+  conexiones.forEach((c) => {
+    const de = porId.get(c.deId);
+    const a = porId.get(c.aId);
+    if (!de || !a) {
+      // Al menos un extremo cayó en otra vista (o en otra planta).
+      if (porId.has(c.deId) || porId.has(c.aId)) fuera += 1;
+      return;
+    }
+    const r = rutaEntreEquipos(c, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe(de), iconoDe(a), cajas);
+    if (r) rutas.push(r);
+  });
+
+  return { rutas, largo: Math.round(largoDeRutas(rutas)), cruces: crucesEntreRutas(rutas), fuera };
+}

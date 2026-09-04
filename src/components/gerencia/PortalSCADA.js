@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { SEVERIDAD, SEVERIDAD_ORDEN } from '../../analista/severidad';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { iconoConEscala } from '../../gerencia/iconos';
-import { puertoHacia, puertoElegido, puntoPerimetroCercano, puntoDeManual, rutaPuertos, rutaHaciaPunto, cajaEquipo } from '../../gerencia/puertos';
+import { puertoHacia, puntoPerimetroCercano, puntoDeManual, rutaHaciaPunto, rutaEntreEquipos, cajaEquipo } from '../../gerencia/puertos';
 import VistaSectores from './VistaSectores';
 import './portalScada.css';
 
@@ -81,16 +81,11 @@ function buscarPosicionSinSolape(posDeseada, iconoMovido, idExcluir, equiposDePl
 // trae, se comporta como antes: puerto automático según dirección, quiebre
 // automático a mitad de camino (o esquivando obstáculos si `cajasEquipos`
 // trae las cajas de los demás equipos de la planta — ver rutaPuertos).
-function rutaEntreEquiposScada(conexion, deEq, aEq, posDe, posA, data, cajasEquipos) {
-  const iconoDe = iconoConEscala(deEq, data);
-  const iconoA = iconoConEscala(aEq, data);
-  if (!iconoDe || !iconoA) return null;
-  const puertoDe = puertoElegido(posDe, iconoDe, posA, conexion.puertoDe);
-  const puertoA = puertoElegido(posA, iconoA, posDe, conexion.puertoA);
-  if (!puertoDe || !puertoA) return null;
-  const obstaculos = cajasEquipos ? cajasEquipos.filter((c) => c.id !== deEq.id && c.id !== aEq.id).map((c) => c.caja) : undefined;
-  return rutaPuertos(puertoDe, puertoA, conexion.quiebreManual, obstaculos);
-}
+// El ruteo entre dos equipos vive en puertos.js: es geometría pura y la
+// necesita también el ensayo, para medir cuánta cañería y cuántos cruces
+// deja cada método de acomodado.
+const rutaEntreEquiposScada = (conexion, deEq, aEq, posDe, posA, data, cajasEquipos) =>
+  rutaEntreEquipos(conexion, deEq, aEq, posDe, posA, iconoConEscala(deEq, data), iconoConEscala(aEq, data), cajasEquipos);
 
 // Portal de gerencia: gramática visual aparte de Industry (piel "Overlook
 // HMI"). Reemplaza también al editor de Planta — mismas funciones de edición

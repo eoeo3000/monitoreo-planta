@@ -3,7 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible } from '../../gerencia/layout/grilla';
-import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas } from '../../gerencia/layout/ensayo';
+import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas, metricasDeCanerias } from '../../gerencia/layout/ensayo';
 import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
 import './portalScada.css';
 
@@ -44,6 +44,7 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono,
   const setTamMinPx = (min) => setTamanoIcono({ min });
   const setTamMaxPx = (max) => setTamanoIcono({ max });
   const [vistaActiva, setVistaActiva] = useState(0);
+  const [verCanerias, setVerCanerias] = useState(false);
   const [pantallaId, setPantallaId] = useState('ref');
   const [panelReal, setPanelReal] = useState(null);
   const svgRef = useRef(null);
@@ -215,12 +216,24 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono,
     };
   }, [plantaId, equiposDePlanta, data, AR_OBJETIVO]);
 
+  const conexionesDePlanta = useMemo(() => data.conexiones.filter((c) => c.plantaId === plantaId), [data.conexiones, plantaId]);
+
+  // Qué le hace cada método a las cañerías. Apagado por defecto: el ruteo
+  // esquiva las cajas de todos los equipos, así que con 500 tarda.
+  const canerias = useMemo(() => {
+    if (!verCanerias || conexionesDePlanta.length === 0) return {};
+    const de = (r) => (r ? metricasDeCanerias(r.piezas, conexionesDePlanta, data) : null);
+    return { actual: de(actual), escalonado: de(escalonado), libre: de(libre) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verCanerias, conexionesDePlanta, data, actual, escalonado, libre]);
+
   const vista = metodo === 'libre' ? libre : metodo === 'escalonado' ? escalonado : actual;
+  const caneriasVista = canerias[metodo] || null;
 
   const filas = [
-    { clave: 'actual', nombre: 'Actual · bloques por área', r: actual },
-    { clave: 'escalonado', nombre: 'Escalonado · flujo continuo', r: escalonado },
-    { clave: 'libre', nombre: `Libre · por equipo${agruparPorArea ? ' (agrupado)' : ''}`, r: libre },
+    { clave: 'actual', nombre: 'Actual · bloques por área', r: actual, c: canerias.actual },
+    { clave: 'escalonado', nombre: 'Escalonado · flujo continuo', r: escalonado, c: canerias.escalonado },
+    { clave: 'libre', nombre: `Libre · por equipo${agruparPorArea ? ' (agrupado)' : ''}`, r: libre, c: canerias.libre },
   ];
 
   return (
@@ -291,6 +304,12 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono,
           Agrupar por área
         </label>
 
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 'var(--space-3)' }}>
+          <input type="checkbox" checked={verCanerias} onChange={(e) => setVerCanerias(e.target.checked)} />
+          Cañerías
+          <span style={{ color: 'var(--scada-texto-2)', fontSize: 11 }}>(tarda con 500)</span>
+        </label>
+
         {/* Tamaño del ícono en pantalla. El mínimo no es una preferencia:
             define cuántos equipos entran, porque el encuadre normaliza la
             escala interna y lo único que mueve el tamaño en pantalla es la
@@ -358,7 +377,20 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono,
                 )}
               </p>
             )}
+            {caneriasVista && (
+              <p style={{ fontSize: 11.5, color: 'var(--scada-texto-2)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                {caneriasVista.rutas.length} cañerías dibujadas en esta vista
+                {caneriasVista.fuera > 0 && `, y ${caneriasVista.fuera} que salen de ella y no se pueden dibujar`}.
+              </p>
+            )}
           </div>
+        )}
+
+        {verCanerias && (
+          <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', margin: '0 0 6px', lineHeight: 1.45 }}>
+            Cañería y cruces van POR CONEXIÓN: el escalonado rutea solo las de la vista activa y el compactado las de toda la planta, así que los totales
+            no serían comparables.
+          </p>
         )}
 
         <table style={{ width: '100%', fontSize: 11.5, borderCollapse: 'collapse', marginBottom: 'var(--space-3)' }}>
@@ -368,6 +400,12 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono,
               <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }}>Vacío</th>
               <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }}>Desvío</th>
               <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }} title="Cuánto se pisan entre sí las cajas de las áreas. Cero = cada área quedó en su propia zona.">Solape</th>
+              {verCanerias && (
+                <>
+                  <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }} title="Largo medio de cañería POR CONEXIÓN, en unidades del lienzo. Por conexión y no total, porque el escalonado rutea solo las de la vista activa y el total no sería comparable.">Cañería</th>
+                  <th style={{ textAlign: 'right', padding: '4px 0', borderBottom: '1px solid var(--scada-borde)' }} title="Cruces entre cañerías POR CONEXIÓN. Es lo que dice si el diagrama queda legible o hecho un ovillo.">Cruces</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -383,6 +421,16 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono,
                 <td style={{ textAlign: 'right', padding: '5px 0', borderBottom: '1px solid var(--scada-borde)', fontVariantNumeric: 'tabular-nums' }}>
                   {f.r ? `${(f.r.metricas.solape * 100).toFixed(1)}%` : '—'}
                 </td>
+                {verCanerias && (
+                  <>
+                    <td style={{ textAlign: 'right', padding: '5px 0', borderBottom: '1px solid var(--scada-borde)', fontVariantNumeric: 'tabular-nums' }}>
+                      {f.c && f.c.rutas.length ? Math.round(f.c.largo / f.c.rutas.length) : '—'}
+                    </td>
+                    <td style={{ textAlign: 'right', padding: '5px 0', borderBottom: '1px solid var(--scada-borde)', fontVariantNumeric: 'tabular-nums' }}>
+                      {f.c && f.c.rutas.length ? (f.c.cruces / f.c.rutas.length).toFixed(2) : '—'}
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
           </tbody>
@@ -461,6 +509,11 @@ export default function EnsayoLayout({ data, plantaId, setPlantaId, tamanoIcono,
                 opacity={0.75}
               />
             ))}
+
+            {caneriasVista &&
+              caneriasVista.rutas.map((r, i) => (
+                <path key={`cx-${i}`} d={r.d} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeLinecap="butt" shapeRendering="crispEdges" />
+              ))}
 
             {vista.piezas.map((p) => {
               const icono = iconoBaseDe(p.eq.tipo, data);

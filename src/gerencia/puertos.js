@@ -235,7 +235,7 @@ export function rutaPuertos(puertoA, puertoB, quiebreManual, obstaculos) {
   const puntos = puntosPara(quiebre).map(redondear);
   const filtrados = puntos.filter((p, i) => i === 0 || p.x !== puntos[i - 1].x || p.y !== puntos[i - 1].y);
   const d = filtrados.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  return { d, inicio: filtrados[0], fin: filtrados[filtrados.length - 1], medio: redondear(quiebre) };
+  return { d, puntos: filtrados, inicio: filtrados[0], fin: filtrados[filtrados.length - 1], medio: redondear(quiebre) };
 }
 
 // Variante para la línea de previsualización mientras se conecta: el destino
@@ -247,4 +247,59 @@ export function rutaHaciaPunto(puertoA, destino) {
   const filtrados = puntos.filter((p, i) => i === 0 || p.x !== puntos[i - 1].x || p.y !== puntos[i - 1].y);
   const d = filtrados.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
   return { d };
+}
+
+// Ruta entre DOS EQUIPOS: resuelve sus íconos, elige el puerto de cada uno
+// mejor orientado hacia el otro (o respeta el que se fijó a mano) y rutea
+// esquivando las cajas de los demás.
+//
+// Vive acá y no en PortalSCADA.js porque es geometría pura —no sabe de
+// React— y la necesitan dos pantallas: el Portal para dibujar el proceso, y
+// el ensayo para MEDIR cuánta cañería y cuántos cruces deja cada método de
+// acomodado. Con la copia dentro del componente, esa comparación no se podía
+// hacer sin duplicar el ruteo.
+export function rutaEntreEquipos(conexion, deEq, aEq, posDe, posA, iconoDe, iconoA, cajasEquipos) {
+  if (!iconoDe || !iconoA) return null;
+  const puertoDe = puertoElegido(posDe, iconoDe, posA, conexion.puertoDe);
+  const puertoA = puertoElegido(posA, iconoA, posDe, conexion.puertoA);
+  if (!puertoDe || !puertoA) return null;
+  const obstaculos = cajasEquipos ? cajasEquipos.filter((c) => c.id !== deEq.id && c.id !== aEq.id).map((c) => c.caja) : undefined;
+  return rutaPuertos(puertoDe, puertoA, conexion.quiebreManual, obstaculos);
+}
+
+// Cuántas veces se cruzan entre sí los trazos de un conjunto de rutas —
+// tramos de la MISMA ruta no cuentan. Es la métrica que dice si un método de
+// acomodado deja el proceso legible o hecho un ovillo.
+export function crucesEntreRutas(rutas) {
+  const segmentos = [];
+  rutas.forEach((r, iRuta) => {
+    const pts = r.puntos || [];
+    for (let i = 0; i < pts.length - 1; i++) segmentos.push({ iRuta, a: pts[i], b: pts[i + 1] });
+  });
+  const orient = (p, q, r) => Math.sign((q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y));
+  let cruces = 0;
+  for (let i = 0; i < segmentos.length; i++) {
+    for (let j = i + 1; j < segmentos.length; j++) {
+      const s = segmentos[i];
+      const t = segmentos[j];
+      if (s.iRuta === t.iRuta) continue;
+      const d1 = orient(s.a, s.b, t.a);
+      const d2 = orient(s.a, s.b, t.b);
+      const d3 = orient(t.a, t.b, s.a);
+      const d4 = orient(t.a, t.b, s.b);
+      if (d1 !== d2 && d3 !== d4) cruces += 1;
+    }
+  }
+  return cruces;
+}
+
+// Largo total de cañería, en unidades del lienzo. Como los tramos son
+// ortogonales, alcanza con sumar |dx| + |dy|.
+export function largoDeRutas(rutas) {
+  return rutas.reduce((total, r) => {
+    const pts = r.puntos || [];
+    let l = 0;
+    for (let i = 0; i < pts.length - 1; i++) l += Math.abs(pts[i + 1].x - pts[i].x) + Math.abs(pts[i + 1].y - pts[i].y);
+    return total + l;
+  }, 0);
 }
