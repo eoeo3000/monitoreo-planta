@@ -22,9 +22,10 @@ import './portalScada.css';
 // override sobre el cálculo (eq.posicionPropia), igual que escalaPropia pisa
 // a la escala del tipo. "Restablecer posiciones" los borra.
 //
-// Todavía no migrado del Portal: quiebres manuales de cañería, títulos de
-// área movibles, renombrar y duplicar equipos. Las acciones siguen en el
-// store, sin pantalla que las llame.
+// Del Portal se conservan sus herramientas de autoría: arrastre de equipos,
+// quiebres manuales de cañería (el tirador redondo sobre cada trazo; doble
+// clic lo suelta), títulos de área movibles, zoom, renombrar y duplicar
+// equipos, y el generador de la planta de prueba.
 
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };
 const SIN_DIAGNOSTICO = 'var(--e-sindiagnostico)';
@@ -65,6 +66,11 @@ export default function EditorPlanta({
   cambiarEscalaTipo,
   cambiarEscalaEquipo,
   restablecerTamanios,
+  renombrarEquipo,
+  duplicarEquipo,
+  moverTituloArea,
+  actualizarConexion,
+  generarPlantaDePrueba,
 }) {
   const [metodo, setMetodo] = useState('escalonado');
   const [agruparPorArea, setAgruparPorArea] = useState(true);
@@ -89,6 +95,8 @@ export default function EditorPlanta({
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
   const [arrastre, setArrastre] = useState(null); // { id, dx, dy, live }
+  const [tituloArrastre, setTituloArrastre] = useState(null); // { areaId, dx, dy, live }
+  const [quiebreArrastre, setQuiebreArrastre] = useState(null); // { conexionId, live }
 
   // Un punto del evento, en coordenadas del lienzo. Sin esto el arrastre se
   // mueve a distinta velocidad que el puntero, porque el viewBox no está a
@@ -300,6 +308,27 @@ export default function EditorPlanta({
   const vista = metodo === 'libre' ? libre : metodo === 'escalonado' ? escalonado : actual;
   const caneriasVista = canerias[metodo] || null;
 
+  // Dónde va el título de cada área: la esquina superior izquierda de sus
+  // equipos ya ubicados, más el desplazamiento que el usuario le haya dado.
+  // Se calcula de las piezas y no de una caja reservada, igual que el resto.
+  const titulosDeArea = useMemo(() => {
+    if (!vista) return [];
+    const porArea = new Map();
+    vista.piezas.forEach((p) => {
+      const x = p.x - p.anchoIcono / 2;
+      const y = p.y - p.altoIcono;
+      const prev = porArea.get(p.eq.areaId);
+      if (!prev) porArea.set(p.eq.areaId, { x, y });
+      else porArea.set(p.eq.areaId, { x: Math.min(prev.x, x), y: Math.min(prev.y, y) });
+    });
+    return [...porArea.entries()].map(([areaId, esquina]) => {
+      const area = areasDePlanta.find((a) => a.id === areaId);
+      const enVuelo = tituloArrastre?.areaId === areaId ? tituloArrastre.live : null;
+      const off = enVuelo || area?.tituloOffset || { dx: 0, dy: 0 };
+      return { areaId, nombre: area?.nombre || '', x: esquina.x + off.dx, y: esquina.y - 6 + off.dy };
+    });
+  }, [vista, areasDePlanta, tituloArrastre]);
+
   // Lupa: divide el lienzo alrededor de su centro, sin mover el contenido.
   // Es inspección, no layout — el reparto en vistas no la mira.
   const lienzoDibujo =
@@ -340,6 +369,19 @@ export default function EditorPlanta({
             <option key={p.id} value={p.id}>{p.nombre}</option>
           ))}
         </select>
+
+        {/* El generador de la planta de prueba vivía en el Portal, que se
+            retiró: sin este botón los 500 equipos quedaban inalcanzables
+            desde la pantalla, y son el caso con el que se mide todo. */}
+        <button
+          onClick={() => {
+            const id = generarPlantaDePrueba();
+            if (id) setPlantaId(id);
+          }}
+          style={{ width: '100%', marginBottom: 'var(--space-3)', background: 'var(--scada-panel)', color: 'var(--scada-texto-2)', border: '1px solid var(--scada-borde)', padding: '5px 6px', fontFamily: 'inherit', fontSize: 11.5, cursor: 'pointer' }}
+        >
+          Generar planta de prueba (500 equipos)
+        </button>
 
         {/* La pantalla de destino cambia todo: la proporción decide la forma
             que busca el empaquetado, y el área en píxeles decide cuántos
@@ -473,8 +515,22 @@ export default function EditorPlanta({
                 const suyas = conexionesDePlanta.filter((c) => c.deId === eq.id || c.aId === eq.id);
                 return (
                   <>
-                    <div style={{ color: 'var(--scada-texto)', fontWeight: 700 }}>{eq.tag}</div>
+                    <input
+                      key={eq.id}
+                      defaultValue={eq.tag}
+                      onBlur={(e) => renombrarEquipo(eq.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.target.blur();
+                      }}
+                      style={{ width: '100%', background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 13, fontWeight: 700, padding: '4px 6px', marginBottom: 4 }}
+                    />
                     <div>{eq.tipo}{eq.posicionPropia ? ' · movido a mano' : ' · posición calculada'}</div>
+                    <button
+                      onClick={() => setSeleccionado(duplicarEquipo(eq.id))}
+                      style={{ background: 'none', color: 'var(--scada-titulo)', border: 'none', fontSize: 11, cursor: 'pointer', padding: '4px 0 0' }}
+                    >
+                      Duplicar equipo
+                    </button>
                     {suyas.length > 0 && (
                       <div style={{ marginTop: 4 }}>
                         {suyas.length} conexión{suyas.length > 1 ? 'es' : ''}{' '}
@@ -655,16 +711,31 @@ export default function EditorPlanta({
             preserveAspectRatio="xMinYMin meet"
             style={{ width: '100%', height: '100%', display: 'block', cursor: modoConectar ? 'crosshair' : 'default' }}
             onMouseMove={(e) => {
-              if (!arrastre) return;
               const p = puntoSvg(e);
-              if (p) setArrastre({ ...arrastre, live: { x: Math.round(p.x + arrastre.dx), y: Math.round(p.y + arrastre.dy) } });
+              if (!p) return;
+              if (arrastre) setArrastre({ ...arrastre, live: { x: Math.round(p.x + arrastre.dx), y: Math.round(p.y + arrastre.dy) } });
+              else if (tituloArrastre) setTituloArrastre({ ...tituloArrastre, live: { dx: Math.round(p.x - tituloArrastre.dx), dy: Math.round(p.y - tituloArrastre.dy) } });
+              else if (quiebreArrastre) setQuiebreArrastre({ ...quiebreArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
             }}
             onMouseUp={() => {
-              if (!arrastre) return;
-              if (arrastre.live) moverEquipoPropio(arrastre.id, arrastre.live);
-              setArrastre(null);
+              if (arrastre) {
+                if (arrastre.live) moverEquipoPropio(arrastre.id, arrastre.live);
+                setArrastre(null);
+              }
+              if (tituloArrastre) {
+                if (tituloArrastre.live) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
+                setTituloArrastre(null);
+              }
+              if (quiebreArrastre) {
+                if (quiebreArrastre.live) actualizarConexion(quiebreArrastre.conexionId, { quiebreManual: quiebreArrastre.live });
+                setQuiebreArrastre(null);
+              }
             }}
-            onMouseLeave={() => setArrastre(null)}
+            onMouseLeave={() => {
+              setArrastre(null);
+              setTituloArrastre(null);
+              setQuiebreArrastre(null);
+            }}
           >
             <defs>
               <linearGradient id="ensayoGradMetal" x1="0" y1="0" x2="0" y2="1">
@@ -714,8 +785,30 @@ export default function EditorPlanta({
 
             {caneriasVista &&
               caneriasVista.rutas.map((r, i) => (
-                <path key={`cx-${i}`} d={r.d} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeLinecap="butt" shapeRendering="crispEdges" />
+                <path key={`cx-${r.conexion?.id || i}`} d={r.d} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeLinecap="butt" shapeRendering="crispEdges" />
               ))}
+
+            {titulosDeArea.map((t) => (
+              <text
+                key={`ti-${t.areaId}`}
+                x={t.x}
+                y={t.y}
+                fontSize={13}
+                fontWeight={700}
+                letterSpacing="0.04em"
+                fill={colorDeArea[t.areaId] || 'var(--scada-titulo)'}
+                style={{ cursor: 'grab', userSelect: 'none' }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  const q = puntoSvg(e);
+                  const area = areasDePlanta.find((a) => a.id === t.areaId);
+                  const off = area?.tituloOffset || { dx: 0, dy: 0 };
+                  if (q) setTituloArrastre({ areaId: t.areaId, dx: q.x - off.dx, dy: q.y - off.dy, live: null });
+                }}
+              >
+                {t.nombre.toUpperCase()}
+              </text>
+            ))}
 
             {vista.piezas.map((p) => {
               const icono = iconoBaseDe(p.eq.tipo, data);
@@ -793,6 +886,38 @@ export default function EditorPlanta({
                 </g>
               );
             })}
+
+            {/* Tiradores de quiebre, al final a propósito: el rectángulo de
+                clic transparente de cada equipo se dibuja antes y, si el
+                tirador quedara debajo, el mousedown nunca le llegaría. */}
+            {caneriasVista &&
+              caneriasVista.rutas.map((r) => {
+                if (!r.conexion) return null;
+                const enVuelo = quiebreArrastre?.conexionId === r.conexion.id ? quiebreArrastre.live : null;
+                const medio = enVuelo || r.medio;
+                return (
+                  <circle
+                    key={`q-${r.conexion.id}`}
+                    data-quiebre={r.conexion.id}
+                    cx={medio.x}
+                    cy={medio.y}
+                    r={5}
+                    fill={r.conexion.quiebreManual ? 'var(--scada-titulo)' : 'var(--scada-tuberia)'}
+                    opacity={0.85}
+                    style={{ cursor: 'grab' }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setQuiebreArrastre({ conexionId: r.conexion.id, live: null });
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      actualizarConexion(r.conexion.id, { quiebreManual: undefined });
+                    }}
+                  >
+                    <title>{r.conexion.quiebreManual ? 'Quiebre fijado a mano — doble clic para soltarlo' : 'Arrastrar para fijar por dónde pasa'}</title>
+                  </circle>
+                );
+              })}
           </svg>
         )}
       </div>

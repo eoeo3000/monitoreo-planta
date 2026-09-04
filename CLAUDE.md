@@ -114,9 +114,12 @@ Por eso se retiró el Portal SCADA, que editaba `eq.posicion`, y con él
 dos modelos de posición en paralelo fue el origen de casi todas las
 confusiones de esta parte.
 
-Todavía sin migrar del Portal: quiebres manuales de cañería, títulos de área
-movibles, renombrar y duplicar equipos. Sus acciones siguen en el store, sin
-pantalla que las llame.
+Del Portal se conservan sus herramientas de autoría, ya migradas: arrastre de
+equipos, **quiebres manuales de cañería** (el tirador redondo sobre cada
+trazo; doble clic lo suelta), títulos de área movibles, zoom, renombrar y
+duplicar equipos, y el botón que genera la planta de prueba de 500 equipos
+—que se había quedado sin pantalla al retirar el Portal, y es el caso con el
+que se mide todo—.
 
 El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
 `preferencias.js`). El **selector de pantalla NO**, y no debe: operación
@@ -278,3 +281,20 @@ Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
 - **Al medir superficies pisadas, medir la UNIÓN y no la suma de los pares.**
   Sumar pares cuenta la misma superficie una vez por cada par que la comparte:
   con 200 áreas daba 2315% de un lienzo.
+
+- **Una búsqueda de desvío sin límites se va de la pantalla.** Cuando el
+  trazo por defecto atraviesa un equipo, `buscarQuiebreLibre` (`puertos.js`)
+  busca en espiral un quiebre que lo esquive. Sin acotarla, en la planta
+  semilla la conexión `con1` esquivaba por un punto **108 unidades arriba
+  del borde**: la cañería salía del lienzo y volvía, y su tirador de quiebre
+  quedaba donde nadie lo podía agarrar. Ahora los candidatos se descartan
+  fuera del lienzo (que es el bounding box de lo dibujado, así que sale de
+  las mismas cajas de equipo). Un trazo que roza un ícono adentro es mejor
+  que uno impecable que se va afuera.
+
+- **Una espiral que barre dx y después dy siempre devuelve la esquina.** La
+  misma búsqueda probaba los candidatos en el orden del barrido, así que de
+  cada anillo devolvía la esquina superior izquierda: la más lejana del
+  anillo (√2 veces el radio) y, encima, un sesgo sistemático de todos los
+  desvíos hacia arriba y a la izquierda. Los candidatos de cada anillo se
+  ordenan ahora por distancia real al punto de partida.

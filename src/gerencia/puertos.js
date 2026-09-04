@@ -184,17 +184,39 @@ function rutaChocaConObstaculos(puntos, obstaculos) {
   return false;
 }
 
-// Busca en espiral cuadrada, alrededor de `base`, el primer punto que
-// cumple `esLibre` — mismo patrón que usa PortalSCADA.js para reubicar un
-// equipo que quedó solapado con otro.
-function buscarQuiebreLibre(base, esLibre) {
+// Busca en espiral cuadrada, alrededor de `base`, el punto más cercano que
+// cumple `esLibre`.
+//
+// Dos detalles que no son adorno:
+//
+// - `limites` ({izq, der, arriba, abajo}) descarta los candidatos fuera del
+//   lienzo. Sin eso la espiral se iba afuera: en la planta semilla la
+//   conexión con1 esquivaba por un quiebre 108 unidades ARRIBA del borde,
+//   así que la cañería salía de la pantalla y volvía, y su tirador de
+//   quiebre quedaba donde nadie lo podía agarrar. Es preferible un trazo que
+//   roza un ícono adentro del lienzo a uno impecable que se va afuera.
+//
+// - Los candidatos de cada anillo se prueban ordenados por distancia real a
+//   `base`, no en el orden del barrido. Recorrer dx y luego dy devolvía
+//   siempre la esquina superior izquierda del anillo, que es la más lejana
+//   (√2 veces el radio) y además sesgaba todos los desvíos hacia arriba y a
+//   la izquierda.
+function buscarQuiebreLibre(base, esLibre, limites) {
+  const dentro = (c) =>
+    !limites || (c.x >= limites.izq && c.x <= limites.der && c.y >= limites.arriba && c.y <= limites.abajo);
+
   for (let radio = PASO_RUTEO; radio <= RADIO_RUTEO_MAX; radio += PASO_RUTEO) {
+    const anillo = [];
     for (let dx = -radio; dx <= radio; dx += PASO_RUTEO) {
       for (let dy = -radio; dy <= radio; dy += PASO_RUTEO) {
         if (Math.abs(dx) !== radio && Math.abs(dy) !== radio) continue;
-        const candidato = { x: base.x + dx, y: base.y + dy };
-        if (esLibre(candidato)) return candidato;
+        anillo.push({ x: base.x + dx, y: base.y + dy, d2: dx * dx + dy * dy });
       }
+    }
+    anillo.sort((a, b) => a.d2 - b.d2);
+    for (const c of anillo) {
+      const candidato = { x: c.x, y: c.y };
+      if (dentro(candidato) && esLibre(candidato)) return candidato;
     }
   }
   return null;
@@ -210,11 +232,14 @@ function buscarQuiebreLibre(base, esLibre) {
 // perpendiculares al glifo (esa parte no se toca, es la regla dura del
 // modelo de puertos); lo que se mueve es por dónde pasa la ruta en el medio.
 //
+// `limites` ({izq, der, arriba, abajo}) acota dónde puede caer el quiebre al
+// esquivar: sin eso el desvío se va del lienzo.
+//
 // `obstaculos` (cajas de otros equipos, de cajaEquipo) solo se usa cuando NO
 // hay quiebreManual: si el trazo por defecto atraviesa alguna, se busca un
 // quiebre cercano que lo esquive — el usuario que ya movió el quiebre a mano
 // resolvió el cruce por su cuenta, y esa elección no se pisa.
-export function rutaPuertos(puertoA, puertoB, quiebreManual, obstaculos) {
+export function rutaPuertos(puertoA, puertoB, quiebreManual, obstaculos, limites) {
   const p1 = { x: puertoA.x + DIR_VECTOR[puertoA.dir].x * TRAMO_MINIMO, y: puertoA.y + DIR_VECTOR[puertoA.dir].y * TRAMO_MINIMO };
   const p2 = { x: puertoB.x + DIR_VECTOR[puertoB.dir].x * TRAMO_MINIMO, y: puertoB.y + DIR_VECTOR[puertoB.dir].y * TRAMO_MINIMO };
   const horizA = esHorizontal(puertoA.dir);
@@ -229,7 +254,7 @@ export function rutaPuertos(puertoA, puertoB, quiebreManual, obstaculos) {
   let quiebre = quiebreManual || (horizA === horizB ? { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 } : { x: p2.x, y: p1.y });
 
   if (!quiebreManual && obstaculos && obstaculos.length > 0 && rutaChocaConObstaculos(puntosPara(quiebre), obstaculos)) {
-    quiebre = buscarQuiebreLibre(quiebre, (candidato) => !rutaChocaConObstaculos(puntosPara(candidato), obstaculos)) || quiebre;
+    quiebre = buscarQuiebreLibre(quiebre, (candidato) => !rutaChocaConObstaculos(puntosPara(candidato), obstaculos), limites) || quiebre;
   }
 
   const puntos = puntosPara(quiebre).map(redondear);
@@ -258,13 +283,13 @@ export function rutaHaciaPunto(puertoA, destino) {
 // el ensayo para MEDIR cuánta cañería y cuántos cruces deja cada método de
 // acomodado. Con la copia dentro del componente, esa comparación no se podía
 // hacer sin duplicar el ruteo.
-export function rutaEntreEquipos(conexion, deEq, aEq, posDe, posA, iconoDe, iconoA, cajasEquipos) {
+export function rutaEntreEquipos(conexion, deEq, aEq, posDe, posA, iconoDe, iconoA, cajasEquipos, limites) {
   if (!iconoDe || !iconoA) return null;
   const puertoDe = puertoElegido(posDe, iconoDe, posA, conexion.puertoDe);
   const puertoA = puertoElegido(posA, iconoA, posDe, conexion.puertoA);
   if (!puertoDe || !puertoA) return null;
   const obstaculos = cajasEquipos ? cajasEquipos.filter((c) => c.id !== deEq.id && c.id !== aEq.id).map((c) => c.caja) : undefined;
-  return rutaPuertos(puertoDe, puertoA, conexion.quiebreManual, obstaculos);
+  return rutaPuertos(puertoDe, puertoA, conexion.quiebreManual, obstaculos, limites);
 }
 
 // Cuántas veces se cruzan entre sí los trazos de un conjunto de rutas —

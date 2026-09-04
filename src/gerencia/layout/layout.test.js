@@ -3,6 +3,7 @@ import { migrarEscalas } from '../../analista/store';
 import { empaquetarSkyline } from './skyline';
 import { solapamientoDeCajas } from './ensayo';
 import { contornosDeArea, repartirEnVistas, encuadrar } from './escalonado';
+import { rutaPuertos } from '../puertos';
 
 // Geometría pura: se puede probar sin navegador y sin React, que es
 // justamente lo que motivó separarla del store.
@@ -279,5 +280,42 @@ describe('contornosDeArea', () => {
   test('sin tramos no hay contorno', () => {
     expect(contornosDeArea([])).toEqual([]);
     expect(contornosDeArea(undefined)).toEqual([]);
+  });
+});
+
+describe('rutaPuertos — el desvío para esquivar un equipo', () => {
+  // Dos puertos enfrentados a distinta altura: el quiebre por defecto queda
+  // en el medio (150, 150) y el tramo vertical atraviesa la caja.
+  const puertoA = { x: 0, y: 100, dir: 'E' };
+  const puertoB = { x: 300, y: 200, dir: 'W' };
+  const estorbo = [{ izq: 140, der: 160, arriba: 140, abajo: 160 }];
+
+  test('sin estorbos el quiebre es el punto medio', () => {
+    expect(rutaPuertos(puertoA, puertoB, null, []).medio).toEqual({ x: 150, y: 150 });
+  });
+
+  test('el desvío es el punto libre MÁS CERCANO, no la esquina del anillo', () => {
+    // Barrer dx y después dy devolvía la esquina superior izquierda del
+    // anillo —la más lejana— y sesgaba todos los desvíos hacia arriba y a
+    // la izquierda. Ordenado por distancia real, sale un desplazamiento
+    // sobre un solo eje.
+    const r = rutaPuertos(puertoA, puertoB, null, estorbo);
+    expect(r.medio).toEqual({ x: 110, y: 150 });
+  });
+
+  test('los límites del lienzo acotan el desvío', () => {
+    // Sin acotar, la espiral se iba de la pantalla: la cañería salía del
+    // lienzo y volvía, y su tirador de quiebre quedaba inalcanzable.
+    const limites = { izq: 120, der: 400, arriba: 0, abajo: 400 };
+    const r = rutaPuertos(puertoA, puertoB, null, estorbo, limites);
+    expect(r.medio.x).toBeGreaterThanOrEqual(limites.izq);
+    expect(r.medio.x).toBeLessThanOrEqual(limites.der);
+    expect(r.medio.y).toBeGreaterThanOrEqual(limites.arriba);
+    expect(r.medio.y).toBeLessThanOrEqual(limites.abajo);
+  });
+
+  test('un quiebre puesto a mano no se toca, aunque haya estorbos', () => {
+    const r = rutaPuertos(puertoA, puertoB, { x: 150, y: 150 }, estorbo);
+    expect(r.medio).toEqual({ x: 150, y: 150 });
   });
 });

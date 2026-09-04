@@ -254,7 +254,10 @@ export function useAnalistaData() {
       const original = d.equipos.find((eq) => eq.id === equipoId);
       if (!original) return d;
       const posBase = original.posicion || POSICION_DEFAULT;
-      const copia = { ...original, id, posicion: { x: posBase.x + 40, y: posBase.y + 40 } };
+      // Sin posicionPropia: la copia entra al layout calculado en vez de
+      // nacer pegada encima del original con su mismo override.
+      const { posicionPropia, ...sinOverride } = original;
+      const copia = { ...sinOverride, id, posicion: { x: posBase.x + 40, y: posBase.y + 40 } };
       return { ...d, equipos: [...d.equipos, copia] };
     });
     return id;

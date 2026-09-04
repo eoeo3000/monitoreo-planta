@@ -147,6 +147,9 @@ export function metricas({ ancho, alto, areaIconos, arObjetivo }) {
 //
 // Cuesta caro (el ruteo esquiva las cajas de todos los demás equipos), así
 // que la pantalla lo calcula solo cuando se piden las cañerías.
+// Cuánto puede desviarse una cañería más allá del borde de lo dibujado.
+const MARGEN_LIENZO = 20;
+
 export function metricasDeCanerias(piezas, conexiones, data) {
   const porId = new Map(piezas.map((p) => [p.eq.id, p]));
   const iconoDe = (p) => {
@@ -156,6 +159,18 @@ export function metricasDeCanerias(piezas, conexiones, data) {
   const cajas = piezas
     .map((p) => ({ id: p.eq.id, caja: cajaEquipo({ x: p.x, y: p.y }, iconoDe(p)) }))
     .filter((c) => c.caja);
+
+  // Los desvíos para esquivar equipos se acotan al lienzo: el lienzo es el
+  // bounding box de lo dibujado, así que sale de las mismas cajas. Sin este
+  // límite la espiral de buscarQuiebreLibre se iba afuera de la pantalla.
+  const limites = cajas.length
+    ? {
+        izq: Math.min(...cajas.map((c) => c.caja.izq)) - MARGEN_LIENZO,
+        der: Math.max(...cajas.map((c) => c.caja.der)) + MARGEN_LIENZO,
+        arriba: Math.min(...cajas.map((c) => c.caja.arriba)) - MARGEN_LIENZO,
+        abajo: Math.max(...cajas.map((c) => c.caja.abajo)) + MARGEN_LIENZO,
+      }
+    : null;
 
   const rutas = [];
   let fuera = 0;
@@ -167,8 +182,8 @@ export function metricasDeCanerias(piezas, conexiones, data) {
       if (porId.has(c.deId) || porId.has(c.aId)) fuera += 1;
       return;
     }
-    const r = rutaEntreEquipos(c, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe(de), iconoDe(a), cajas);
-    if (r) rutas.push(r);
+    const r = rutaEntreEquipos(c, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe(de), iconoDe(a), cajas, limites);
+    if (r) rutas.push({ ...r, conexion: c });
   });
 
   return { rutas, largo: Math.round(largoDeRutas(rutas)), cruces: crucesEntreRutas(rutas), fuera };
