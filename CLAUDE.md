@@ -115,11 +115,38 @@ dos modelos de posición en paralelo fue el origen de casi todas las
 confusiones de esta parte.
 
 Del Portal se conservan sus herramientas de autoría, ya migradas: arrastre de
-equipos, **quiebres manuales de cañería** (el tirador redondo sobre cada
-trazo; doble clic lo suelta), títulos de área movibles, zoom, renombrar y
-duplicar equipos, y el botón que genera la planta de prueba de 500 equipos
-—que se había quedado sin pantalla al retirar el Portal, y es el caso con el
-que se mide todo—.
+equipos, títulos de área movibles, zoom, renombrar y duplicar equipos, y el
+botón que genera la planta de prueba de 500 equipos —que se había quedado sin
+pantalla al retirar el Portal, y es el caso con el que se mide todo—.
+
+Edición de cañerías, toda sobre el tirador del codo:
+
+| Gesto | Qué hace |
+|---|---|
+| arrastrar el codo | fija por dónde pasa (`quiebreManual`) |
+| doble clic en el codo | lo suelta, vuelve al ruteo automático |
+| **un clic** en el codo | **elige** la conexión |
+| arrastrar un extremo (solo en la elegida) | fija por qué punto del perímetro sale (`puertoDe`/`puertoA`), pegado a la silueta real |
+| doble clic en un extremo | lo suelta |
+| clic en la × (solo en la elegida) | borra la conexión |
+
+Las manijas de extremo se dibujan **solo para la conexión elegida**: con 173
+cañerías en la vista de la demo, dos manijas por conexión taparían el dibujo.
+
+Una conexión con un extremo en OTRA vista se dibuja como **conector de salida**
+de P&ID: un cabo corto que apunta afuera del dibujo, con el TAG del otro
+extremo y a qué vista ir (un clic lleva). El cabo apunta al borde, no hacia
+donde está el otro equipo: ese equipo vive en otro lienzo y su posición acá no
+querría decir nada.
+Elegida una conexión aparece además su **×** (la que tenían las líneas en el
+Portal) y el panel lateral con lo mismo: borrar **una** conexión, que antes
+solo se podía haciendo "borrar todas" las de un equipo. La × va solo en la
+elegida y borra directo, sin confirmar: no es un clic al voleo sobre una
+línea cualquiera, hubo que elegirla antes.
+
+Al elegir el destino de una conexión nueva hay línea de previsualización
+(`rutaHaciaPunto`), que sale del mismo puerto por el que saldrá la cañería
+definitiva.
 
 El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
 `preferencias.js`). El **selector de pantalla NO**, y no debe: operación
@@ -145,8 +172,9 @@ El acomodado se verifica con números, no a ojo. Estas son las cifras al
 cambiás algo de `layout/`, corrélas y comparalas**: si se movieron, hay que
 saber por qué.
 
-Compactado (planta semilla): factor global 1.0, bomba renderizada a 75×94,
-proporciones del catálogo intactas, idempotente en compactadas sucesivas.
+El compactado ya no se aplica con un botón —se retiró con el Portal, ver más
+arriba—, así que no hay nada que medir de "compactar dos veces". Sigue vivo
+como el método **Actual** de la tabla, y ahí es donde se lo compara.
 
 Ensayo de layout, lienzo vacío | desvío | solape (escalonado con el mínimo
 por defecto de 28 px; sus cifras son las de la vista activa, no las de la
@@ -168,10 +196,19 @@ que dejar la pantalla fija.
 Reparto en vistas de la planta demo (pantalla de referencia): 4 vistas a
 28 px de mínimo, 10 a 48 px.
 
+Conexiones que CRUZAN de vista: 0 de 3 en la semilla, **3 de 470 (0.6%)** en
+la demo a 28 px, 6 (1.3%) a 48 px. Son pocas porque el reparto nunca parte un
+área entre vistas y la demo conecta con colectores DENTRO de cada área: solo
+cruza lo que une áreas distintas. Una planta con un flujo de proceso que
+atraviesa áreas daría muchas más, así que el número dice más de los datos que
+del algoritmo.
+
 Ruteo de cañerías de la planta demo (470 conexiones, los tres métodos), de
-clic en "Cañerías" a tabla completa: **0,6 s**. Si eso se va a varios
-segundos, algo volvió a comparar de más — el perfil por etapas está en las
-trampas de más abajo.
+clic en "Cañerías" a tabla completa: **0,6–0,7 s** según la corrida
+(`canerias.js demo`). Si eso se va a varios segundos, algo volvió a comparar
+de más — el perfil por etapas está en las trampas de más abajo. Por método,
+cañería y cruces POR CONEXIÓN: 154 · 0.19 el compactado, 223 · 1.86 el
+escalonado, 797 · 1.94 el libre.
 
 ## Trampas ya pisadas
 
@@ -374,3 +411,38 @@ trampas de más abajo.
   saltaba hacia arriba el tamaño del esquive. El arrastre parte ahora de la
   posición dibujada (`base` en `titulosDeArea`), así que agarrarlo no lo
   mueve.
+
+- **Un resultado intermedio no se guarda como si fuera dato.**
+  `puntoPerimetroCercano` devolvía `{x, y, dir, dist}` —`dist` es de la
+  búsqueda de `formas.js`, así elige el candidato más cercano— y el Portal
+  guardaba ese objeto entero dentro de la conexión, contra lo que decía el
+  comentario de la propia función. Queda un campo persistido que nadie lee y
+  que el próximo que abra el JSON va a interpretar como parte del formato.
+  Devuelve ahora solo `{x, y, dir}`; `puertoElegido` ignora los extras, así
+  que los datos viejos siguen funcionando.
+
+- **Seguir el puntero re-renderiza toda la planta.** La previsualización de
+  conexión y los arrastres actualizan estado en cada `mousemove`, y eso
+  reconcilia los 183 equipos de la vista: medido, 43 ms por cuadro en la
+  demo. No es nuevo de la previsualización —arrastrar un equipo cuesta lo
+  mismo— pero es el techo actual. La salida, cuando moleste, es memoizar la
+  capa de equipos para que no dependa del estado que cambia por movimiento.
+
+- **Un cartel que se sale del viewBox no se dibuja, y el aire del encuadre no
+  alcanza.** Los conectores de salida nacen en el borde del dibujo por
+  definición —son equipos pegados al límite—, así que el texto se iba afuera:
+  medido, 4 de 6 invisibles en la planta demo, justo el mal que el conector
+  viene a curar. Ahora el cartel se acota al lienzo visible (el lienzo más los
+  20 de aire que agrega el viewBox) y, si no entra del lado de afuera, se pasa
+  al otro lado del cabo en vez de salirse. Es el mismo error que la búsqueda
+  de quiebre sin límites, en otra parte del dibujo: **todo lo que se coloca
+  cerca de un borde necesita saber dónde está el borde.**
+
+- **Medir el lienzo por el ESTILO cuenta cualquier cosa.** El script que
+  cuenta títulos de área pisados los filtraba por `font-size: 13` y
+  `font-weight: 700`, que son también los del TAG de cada equipo: informaba
+  17 títulos en una planta de 4 áreas y 33.805 pares pisados en la demo, casi
+  todos TAGs. Los elementos que se miden llevan marcador propio
+  (`data-quiebre`, `data-salida`, `data-titulo-area`) y los scripts los
+  buscan por ahí. Una medición que se apoya en el estilo se rompe sola la
+  próxima vez que alguien cambie una tipografía.

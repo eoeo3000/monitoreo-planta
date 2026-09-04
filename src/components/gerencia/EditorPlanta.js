@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
+import { puntoPerimetroCercano, puertoElegido, puertoHacia, rutaHaciaPunto } from '../../gerencia/puertos';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible, anchoDeTitulo } from '../../gerencia/layout/grilla';
@@ -33,6 +34,9 @@ const TIPOS_VASIJA = ['tanque', 'agitador'];
 const FONT_SIZE_TAG = 13;
 // Alto de una línea de título de área: lo que baja un título al esquivar a otro.
 const ALTO_TITULO_TXT = 16;
+// Largo del cabo del conector de salida (la conexión que sigue en otra vista).
+const LARGO_SALIDA = 20;
+const DIR_VECTOR_SALIDA = { N: { x: 0, y: -1 }, S: { x: 0, y: 1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } };
 const ALTO_TAG = 18;
 
 // La pantalla donde se va a ver la planta es una VARIABLE del problema, no
@@ -99,6 +103,16 @@ export default function EditorPlanta({
   const [arrastre, setArrastre] = useState(null); // { id, dx, dy, live }
   const [tituloArrastre, setTituloArrastre] = useState(null); // { areaId, dx, dy, live }
   const [quiebreArrastre, setQuiebreArrastre] = useState(null); // { conexionId, live }
+  // La conexión elegida. Las manijas de sus EXTREMOS se dibujan solo para
+  // ella: con 173 cañerías en la vista de la demo, dos manijas por conexión
+  // taparían el dibujo. El codo, en cambio, está siempre: es por donde se
+  // la agarra.
+  const [conexionSel, setConexionSel] = useState(null);
+  const [extremoArrastre, setExtremoArrastre] = useState(null); // { conexionId, extremo: 'de'|'a', live }
+  // Puntero mientras se elige el destino de una conexión nueva, para dibujar
+  // la línea de previsualización. Solo se sigue en modo conectar y con
+  // origen elegido: seguirlo siempre re-renderiza 500 íconos por movimiento.
+  const [punteroConectar, setPunteroConectar] = useState(null);
 
   // Un punto del evento, en coordenadas del lienzo. Sin esto el arrastre se
   // mueve a distinta velocidad que el puntero, porque el viewBox no está a
@@ -309,6 +323,80 @@ export default function EditorPlanta({
 
   const vista = metodo === 'libre' ? libre : metodo === 'escalonado' ? escalonado : actual;
   const caneriasVista = canerias[metodo] || null;
+
+  // Piezas por id de equipo: lo necesitan las manijas de extremo (para pegar
+  // el punto al perímetro del equipo) y la previsualización.
+  const piezaPorId = useMemo(() => new Map((vista?.piezas || []).map((p) => [p.eq.id, p])), [vista]);
+  const iconoConEscala = (pieza) => {
+    const base = iconoBaseDe(pieza.eq.tipo, data);
+    return base ? { ...base, escala: pieza.escala } : null;
+  };
+
+  // En qué vista quedó cada equipo. Solo el escalonado reparte en vistas;
+  // los otros dos métodos dibujan la planta entera, así que ahí no cruza
+  // nada y esto queda vacío.
+  const vistaDeEquipo = useMemo(() => {
+    const mapa = new Map();
+    vistasEscalonado.forEach((v, i) => v.piezas.forEach((p) => mapa.set(p.eq.id, i)));
+    return mapa;
+  }, [vistasEscalonado]);
+
+  // Conexiones con UN extremo en esta vista y el otro en otra. Hoy
+  // desaparecen del lienzo sin dejar rastro —solo una línea de texto en el
+  // panel— y son pocas: medido, 3 de 470 en la planta demo a 28 px de
+  // mínimo, 6 a 48 px. Se dibujan como conector de salida de P&ID: un cabo
+  // corto que apunta AFUERA del dibujo (no hacia donde está el otro equipo,
+  // que vive en otro lienzo y cuya posición acá no querría decir nada) con
+  // el TAG del otro extremo y a qué vista ir.
+  const salidasDeVista = useMemo(() => {
+    if (metodo !== 'escalonado' || !vista || piezaPorId.size === 0) return [];
+    const centro = { x: (vista.metricas?.lienzoAncho || 0) / 2, y: (vista.metricas?.lienzoAlto || 0) / 2 };
+    // El viewBox agrega 20 de aire por lado; ese es el borde real de lo visible.
+    const izqVisible = -20;
+    const arribaVisible = -20;
+    const derVisible = (vista.metricas?.lienzoAncho || 0) + 20;
+    const abajoVisible = (vista.metricas?.lienzoAlto || 0) + 20;
+    const salidas = [];
+    conexionesDePlanta.forEach((c) => {
+      const aca = piezaPorId.get(c.deId) || piezaPorId.get(c.aId);
+      const otroId = piezaPorId.has(c.deId) ? c.aId : c.deId;
+      if (!aca || piezaPorId.has(otroId)) return;
+      const vistaOtro = vistaDeEquipo.get(otroId);
+      if (vistaOtro === undefined) return; // el otro extremo no está en ninguna vista
+      const icono = iconoConEscala(aca);
+      if (!icono) return;
+      // Un objetivo bien lejos en la dirección opuesta al centro: el puerto
+      // que elige es el que mira hacia el borde más cercano.
+      const afuera = { x: aca.x + (aca.x - centro.x) * 10, y: aca.y + (aca.y - centro.y) * 10 };
+      const puerto = puertoHacia({ x: aca.x, y: aca.y }, icono, afuera);
+      if (!puerto) return;
+      const v = DIR_VECTOR_SALIDA[puerto.dir];
+      const x2 = puerto.x + v.x * LARGO_SALIDA;
+      const y2 = puerto.y + v.y * LARGO_SALIDA;
+      const sale = piezaPorId.has(c.deId); // el equipo de acá es el origen
+      const tagOtro = data.equipos.find((e) => e.id === otroId)?.tag || otroId;
+      const texto = `${sale ? '▸ ' : '◂ '}${tagOtro} · vista ${vistaOtro + 1}`;
+
+      // El cartel se acota al lienzo VISIBLE. Sin esto, un equipo pegado al
+      // borde lo manda afuera del viewBox y no se dibuja: medido, 4 de 6
+      // conectores de la planta demo quedaban invisibles — justo el mal que
+      // esto viene a curar. Si no entra del lado de afuera, el texto se pasa
+      // al otro lado del cabo en vez de salirse.
+      const ancho = texto.length * 5.6 + 8;
+      let ancla = v.x < 0 ? 'end' : v.x > 0 ? 'start' : 'middle';
+      let xTexto = x2 + (ancla === 'end' ? -6 : ancla === 'start' ? 6 : 0);
+      if (ancla === 'start' && xTexto + ancho > derVisible) { ancla = 'end'; xTexto = x2 - 6; }
+      else if (ancla === 'end' && xTexto - ancho < izqVisible) { ancla = 'start'; xTexto = x2 + 6; }
+      if (ancla === 'middle') xTexto = Math.min(derVisible - ancho / 2, Math.max(izqVisible + ancho / 2, xTexto));
+      else if (ancla === 'start') xTexto = Math.min(xTexto, derVisible - ancho);
+      else xTexto = Math.max(xTexto, izqVisible + ancho);
+      const yTexto = Math.min(abajoVisible - 2, Math.max(arribaVisible + 10, y2 - 6));
+
+      salidas.push({ id: c.id, sale, tagOtro, vistaOtro, texto, x1: puerto.x, y1: puerto.y, x2, y2, ancla, xTexto, yTexto });
+    });
+    return salidas;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metodo, vista, piezaPorId, conexionesDePlanta, vistaDeEquipo, data]);
 
   // Dónde va el título de cada área: la esquina superior izquierda de sus
   // equipos ya ubicados, más el desplazamiento que el usuario le haya dado.
@@ -535,6 +623,46 @@ export default function EditorPlanta({
             </button>
           </details>
 
+          {/* Panel de la conexión elegida. Antes el único modo de borrar era
+              "borrar todas" las de un equipo: con cuatro conexiones y una de
+              más había que borrar las cuatro y rehacer tres. */}
+          {conexionSel && (() => {
+            const c = conexionesDePlanta.find((x) => x.id === conexionSel);
+            if (!c) return null;
+            const tag = (id) => data.equipos.find((e) => e.id === id)?.tag || id;
+            const enVista = caneriasVista?.rutas.some((r) => r.conexion?.id === c.id);
+            return (
+              <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--scada-texto-2)', lineHeight: 1.5, borderTop: '1px solid var(--scada-borde)', paddingTop: 8 }}>
+                <div style={{ color: 'var(--scada-titulo)', fontWeight: 700 }}>
+                  {tag(c.deId)} → {tag(c.aId)}
+                </div>
+                {!enVista && <div>No se dibuja en esta vista: alguno de sus extremos cayó en otra.</div>}
+                <div>
+                  Quiebre: {c.quiebreManual ? 'a mano' : 'automático'} · extremos: {c.puertoDe ? 'de fijado' : 'de auto'}, {c.puertoA ? 'a fijado' : 'a auto'}
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
+                  {(c.quiebreManual || c.puertoDe || c.puertoA) && (
+                    <button
+                      onClick={() => actualizarConexion(c.id, { quiebreManual: undefined, puertoDe: undefined, puertoA: undefined })}
+                      style={{ background: 'none', color: 'var(--scada-titulo)', border: 'none', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                    >
+                      volver al ruteo automático
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      eliminarConexion(c.id);
+                      setConexionSel(null);
+                    }}
+                    style={{ background: 'none', color: 'var(--e-alarma)', border: 'none', fontSize: 11, cursor: 'pointer', padding: 0 }}
+                  >
+                    borrar esta conexión
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
           {seleccionado && (
             <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--scada-texto-2)', lineHeight: 1.5 }}>
               {(() => {
@@ -744,6 +872,8 @@ export default function EditorPlanta({
               if (arrastre) setArrastre({ ...arrastre, live: { x: Math.round(p.x + arrastre.dx), y: Math.round(p.y + arrastre.dy) } });
               else if (tituloArrastre) setTituloArrastre({ ...tituloArrastre, live: { dx: Math.round(p.x - tituloArrastre.dx), dy: Math.round(p.y - tituloArrastre.dy) } });
               else if (quiebreArrastre) setQuiebreArrastre({ ...quiebreArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
+              else if (extremoArrastre) setExtremoArrastre({ ...extremoArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
+              else if (modoConectar && origenConexion) setPunteroConectar({ x: Math.round(p.x), y: Math.round(p.y) });
             }}
             onMouseUp={() => {
               if (arrastre) {
@@ -755,14 +885,33 @@ export default function EditorPlanta({
                 setTituloArrastre(null);
               }
               if (quiebreArrastre) {
+                // Sin movimiento no hubo arrastre: fue un clic, y un clic
+                // ELIGE la conexión. Es lo que da un lugar para borrarla de
+                // a una y para mostrar las manijas de sus extremos, sin
+                // agregar más tiradores al lienzo.
                 if (quiebreArrastre.live) actualizarConexion(quiebreArrastre.conexionId, { quiebreManual: quiebreArrastre.live });
+                else setConexionSel((prev) => (prev === quiebreArrastre.conexionId ? null : quiebreArrastre.conexionId));
                 setQuiebreArrastre(null);
+              }
+              if (extremoArrastre) {
+                // El extremo se pega al perímetro del equipo: nunca queda un
+                // punto suelto en el aire. rutaPuertos intercala después el
+                // tramo que haga falta para llegar ortogonal.
+                if (extremoArrastre.live) {
+                  const pieza = piezaPorId.get(extremoArrastre.equipoId);
+                  const icono = pieza && iconoConEscala(pieza);
+                  const punto = icono && puntoPerimetroCercano({ x: pieza.x, y: pieza.y }, icono, extremoArrastre.live);
+                  if (punto) actualizarConexion(extremoArrastre.conexionId, extremoArrastre.extremo === 'de' ? { puertoDe: punto } : { puertoA: punto });
+                }
+                setExtremoArrastre(null);
               }
             }}
             onMouseLeave={() => {
               setArrastre(null);
               setTituloArrastre(null);
               setQuiebreArrastre(null);
+              setExtremoArrastre(null);
+              setPunteroConectar(null);
             }}
           >
             <defs>
@@ -813,7 +962,15 @@ export default function EditorPlanta({
 
             {caneriasVista &&
               caneriasVista.rutas.map((r, i) => (
-                <path key={`cx-${r.conexion?.id || i}`} d={r.d} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeLinecap="butt" shapeRendering="crispEdges" />
+                <path
+                  key={`cx-${r.conexion?.id || i}`}
+                  d={r.d}
+                  fill="none"
+                  stroke={r.conexion?.id === conexionSel ? 'var(--scada-titulo)' : 'var(--scada-tuberia)'}
+                  strokeWidth={r.conexion?.id === conexionSel ? 3 : 2}
+                  strokeLinecap="butt"
+                  shapeRendering="crispEdges"
+                />
               ))}
 
             {vista.piezas.map((p) => {
@@ -901,6 +1058,7 @@ export default function EditorPlanta({
             {titulosDeArea.map((t) => (
               <text
                 key={`ti-${t.areaId}`}
+                data-titulo-area={t.areaId}
                 x={t.x}
                 y={t.y}
                 fontSize={13}
@@ -920,6 +1078,119 @@ export default function EditorPlanta({
             ))}
 
 
+            {/* Línea de previsualización mientras se elige el destino: sin
+                ella el segundo clic se hace a ciegas. Sale del puerto del
+                origen orientado hacia el puntero, igual que saldrá la
+                cañería definitiva. */}
+            {modoConectar && origenConexion && punteroConectar && (() => {
+              const pieza = piezaPorId.get(origenConexion);
+              const icono = pieza && iconoConEscala(pieza);
+              if (!icono) return null;
+              const puerto = puertoElegido({ x: pieza.x, y: pieza.y }, icono, punteroConectar, undefined);
+              if (!puerto) return null;
+              const r = rutaHaciaPunto(puerto, punteroConectar);
+              return <path d={r.d} fill="none" stroke="var(--scada-titulo)" strokeWidth={1.5} strokeDasharray="5 4" opacity={0.9} />;
+            })()}
+
+            {/* Conectores de salida: la conexión sigue en otra vista. El
+                cabo apunta afuera del dibujo y el texto dice a dónde ir;
+                un clic lleva a esa vista. */}
+            {salidasDeVista.map((sal) => (
+              <g key={`sal-${sal.id}`} style={{ cursor: 'pointer' }} onClick={() => setVistaActiva(sal.vistaOtro)} data-salida={sal.id}>
+                <path
+                  d={`M ${sal.x1} ${sal.y1} L ${sal.x2} ${sal.y2}`}
+                  fill="none"
+                  stroke="var(--scada-tuberia)"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  shapeRendering="crispEdges"
+                />
+                <circle cx={sal.x2} cy={sal.y2} r={3} fill="none" stroke="var(--scada-tuberia)" strokeWidth={1.5} />
+                <text
+                  x={sal.xTexto}
+                  y={sal.yTexto}
+                  textAnchor={sal.ancla}
+                  fontSize={10}
+                  fontWeight={700}
+                  fill="var(--scada-tuberia)"
+                  style={{ userSelect: 'none' }}
+                >
+                  {sal.texto}
+                </text>
+                <title>
+                  {sal.sale ? `Sigue hacia ${sal.tagOtro}` : `Viene de ${sal.tagOtro}`}, en la vista {sal.vistaOtro + 1}. Clic para ir.
+                </title>
+              </g>
+            ))}
+
+            {/* La × que tenían las líneas en el Portal, pero solo en la
+                conexión elegida: ahí no es un clic al voleo sobre una línea
+                cualquiera —hubo que elegirla antes—, así que borra directo,
+                igual que el botón del panel. Con 173 cañerías en la vista de
+                la demo, una × por conexión sería puro ruido. */}
+            {caneriasVista &&
+              caneriasVista.rutas
+                .filter((r) => r.conexion && r.conexion.id === conexionSel)
+                .map((r) => {
+                  const enVuelo = quiebreArrastre?.conexionId === r.conexion.id ? quiebreArrastre.live : null;
+                  const medio = enVuelo || r.medio;
+                  return (
+                    <g
+                      key={`x-${r.conexion.id}`}
+                      data-borrar={r.conexion.id}
+                      transform={`translate(${medio.x + 14}, ${medio.y - 14})`}
+                      style={{ cursor: 'pointer' }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        eliminarConexion(r.conexion.id);
+                        setConexionSel(null);
+                      }}
+                    >
+                      <circle r={7} fill="var(--scada-subpanel)" stroke="var(--e-alarma)" strokeWidth={1} />
+                      <text textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight={700} fill="var(--e-alarma)" style={{ userSelect: 'none' }}>
+                        ×
+                      </text>
+                      <title>Borrar esta conexión</title>
+                    </g>
+                  );
+                })}
+
+            {/* Manijas de los EXTREMOS, solo de la conexión elegida: fijan
+                por qué punto del perímetro sale la cañería (conexion.puertoDe
+                / puertoA). Doble clic devuelve el extremo al automático. */}
+            {caneriasVista &&
+              caneriasVista.rutas
+                .filter((r) => r.conexion && r.conexion.id === conexionSel)
+                .flatMap((r) =>
+                  [
+                    { extremo: 'de', equipoId: r.conexion.deId, punto: r.inicio, fijado: r.conexion.puertoDe },
+                    { extremo: 'a', equipoId: r.conexion.aId, punto: r.fin, fijado: r.conexion.puertoA },
+                  ].map(({ extremo, equipoId, punto, fijado }) => {
+                    const enVuelo = extremoArrastre?.conexionId === r.conexion.id && extremoArrastre.extremo === extremo ? extremoArrastre.live : null;
+                    const p = enVuelo || punto;
+                    return (
+                      <g
+                        key={`ex-${r.conexion.id}-${extremo}`}
+                        data-extremo={`${r.conexion.id}-${extremo}`}
+                        style={{ cursor: 'grab' }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setExtremoArrastre({ conexionId: r.conexion.id, extremo, equipoId, live: null });
+                        }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          actualizarConexion(r.conexion.id, extremo === 'de' ? { puertoDe: undefined } : { puertoA: undefined });
+                        }}
+                      >
+                        <circle cx={p.x} cy={p.y} r={8} fill="transparent" />
+                        <circle cx={p.x} cy={p.y} r={3.5} fill={fijado ? 'var(--scada-titulo)' : 'var(--scada-tuberia)'} stroke="var(--scada-titulo)" strokeWidth={1} />
+                        <title>{fijado ? 'Extremo fijado a mano — doble clic para soltarlo' : 'Arrastrar para elegir por dónde sale'}</title>
+                      </g>
+                    );
+                  })
+                )}
+
             {/* Tiradores de quiebre, al final a propósito: el rectángulo de
                 clic transparente de cada equipo se dibuja antes y, si el
                 tirador quedara debajo, el mousedown nunca le llegaría. */}
@@ -936,6 +1207,8 @@ export default function EditorPlanta({
                     cy={medio.y}
                     r={5}
                     fill={r.conexion.quiebreManual ? 'var(--scada-titulo)' : 'var(--scada-tuberia)'}
+                    stroke={r.conexion.id === conexionSel ? 'var(--scada-titulo)' : 'none'}
+                    strokeWidth={2}
                     opacity={0.85}
                     style={{ cursor: 'grab' }}
                     onMouseDown={(e) => {
@@ -947,7 +1220,7 @@ export default function EditorPlanta({
                       actualizarConexion(r.conexion.id, { quiebreManual: undefined });
                     }}
                   >
-                    <title>{r.conexion.quiebreManual ? 'Quiebre fijado a mano — doble clic para soltarlo' : 'Arrastrar para fijar por dónde pasa'}</title>
+                    <title>{r.conexion.quiebreManual ? 'Quiebre fijado a mano — doble clic para soltarlo. Un clic elige la conexión.' : 'Arrastrar para fijar por dónde pasa. Un clic elige la conexión.'}</title>
                   </circle>
                 );
               })}
