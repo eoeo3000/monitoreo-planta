@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
-import { puntoPerimetroCercano, puertoElegido, puertoHacia, rutaHaciaPunto } from '../../gerencia/puertos';
+import { puntoPerimetroCercano, puertoElegido, puertoHacia, rutaHaciaPunto, rutaEntreEquipos } from '../../gerencia/puertos';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible, anchoDeTitulo } from '../../gerencia/layout/grilla';
@@ -331,6 +331,39 @@ export default function EditorPlanta({
     const base = iconoBaseDe(pieza.eq.tipo, data);
     return base ? { ...base, escala: pieza.escala } : null;
   };
+
+  // Rutas a dibujar. Mientras se arrastra el codo o un extremo, la del
+  // arrastre se recalcula en cada movimiento: antes solo se movía el
+  // tirador y la cañería se quedaba quieta hasta soltar, así que no se veía
+  // lo que se estaba haciendo. Es UNA ruta por cuadro, y sin esquivar
+  // obstáculos —con quiebre a mano el ruteo no los mira—, así que es barato.
+  const rutasDibujo = useMemo(() => {
+    const rutas = caneriasVista?.rutas || [];
+    const enVuelo = quiebreArrastre?.live ? quiebreArrastre : extremoArrastre?.live ? extremoArrastre : null;
+    if (!enVuelo) return rutas;
+    return rutas.map((r) => {
+      if (r.conexion?.id !== enVuelo.conexionId) return r;
+      const de = piezaPorId.get(r.conexion.deId);
+      const a = piezaPorId.get(r.conexion.aId);
+      const iconoDe = de && iconoConEscala(de);
+      const iconoA = a && iconoConEscala(a);
+      if (!iconoDe || !iconoA) return r;
+
+      let provisoria = r.conexion;
+      if (enVuelo === quiebreArrastre) {
+        provisoria = { ...r.conexion, quiebreManual: enVuelo.live };
+      } else {
+        const pieza = piezaPorId.get(enVuelo.equipoId);
+        const icono = pieza && iconoConEscala(pieza);
+        const punto = icono && puntoPerimetroCercano({ x: pieza.x, y: pieza.y }, icono, enVuelo.live);
+        if (!punto) return r;
+        provisoria = { ...r.conexion, ...(enVuelo.extremo === 'de' ? { puertoDe: punto } : { puertoA: punto }) };
+      }
+      const nueva = rutaEntreEquipos(provisoria, de.eq, a.eq, { x: de.x, y: de.y }, { x: a.x, y: a.y }, iconoDe, iconoA);
+      return nueva ? { ...nueva, conexion: r.conexion } : r;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caneriasVista, quiebreArrastre, extremoArrastre, piezaPorId, data]);
 
   // En qué vista quedó cada equipo. Solo el escalonado reparte en vistas;
   // los otros dos métodos dibujan la planta entera, así que ahí no cruza
@@ -961,7 +994,7 @@ export default function EditorPlanta({
             ))}
 
             {caneriasVista &&
-              caneriasVista.rutas.map((r, i) => (
+              rutasDibujo.map((r, i) => (
                 <path
                   key={`cx-${r.conexion?.id || i}`}
                   d={r.d}
@@ -1129,11 +1162,10 @@ export default function EditorPlanta({
                 igual que el botón del panel. Con 173 cañerías en la vista de
                 la demo, una × por conexión sería puro ruido. */}
             {caneriasVista &&
-              caneriasVista.rutas
+              rutasDibujo
                 .filter((r) => r.conexion && r.conexion.id === conexionSel)
                 .map((r) => {
-                  const enVuelo = quiebreArrastre?.conexionId === r.conexion.id ? quiebreArrastre.live : null;
-                  const medio = enVuelo || r.medio;
+                  const medio = r.medio;
                   return (
                     <g
                       key={`x-${r.conexion.id}`}
@@ -1160,15 +1192,14 @@ export default function EditorPlanta({
                 por qué punto del perímetro sale la cañería (conexion.puertoDe
                 / puertoA). Doble clic devuelve el extremo al automático. */}
             {caneriasVista &&
-              caneriasVista.rutas
+              rutasDibujo
                 .filter((r) => r.conexion && r.conexion.id === conexionSel)
                 .flatMap((r) =>
                   [
                     { extremo: 'de', equipoId: r.conexion.deId, punto: r.inicio, fijado: r.conexion.puertoDe },
                     { extremo: 'a', equipoId: r.conexion.aId, punto: r.fin, fijado: r.conexion.puertoA },
                   ].map(({ extremo, equipoId, punto, fijado }) => {
-                    const enVuelo = extremoArrastre?.conexionId === r.conexion.id && extremoArrastre.extremo === extremo ? extremoArrastre.live : null;
-                    const p = enVuelo || punto;
+                    const p = punto;
                     return (
                       <g
                         key={`ex-${r.conexion.id}-${extremo}`}
@@ -1195,10 +1226,9 @@ export default function EditorPlanta({
                 clic transparente de cada equipo se dibuja antes y, si el
                 tirador quedara debajo, el mousedown nunca le llegaría. */}
             {caneriasVista &&
-              caneriasVista.rutas.map((r) => {
+              rutasDibujo.map((r) => {
                 if (!r.conexion) return null;
-                const enVuelo = quiebreArrastre?.conexionId === r.conexion.id ? quiebreArrastre.live : null;
-                const medio = enVuelo || r.medio;
+                const medio = r.medio;
                 return (
                   <circle
                     key={`q-${r.conexion.id}`}

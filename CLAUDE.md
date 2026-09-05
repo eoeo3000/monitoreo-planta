@@ -123,7 +123,7 @@ Edición de cañerías, toda sobre el tirador del codo:
 
 | Gesto | Qué hace |
 |---|---|
-| arrastrar el codo | fija por dónde pasa (`quiebreManual`) |
+| arrastrar el codo | fija por dónde pasa (`quiebreManual`), y los puertos lo siguen |
 | doble clic en el codo | lo suelta, vuelve al ruteo automático |
 | **un clic** en el codo | **elige** la conexión |
 | arrastrar un extremo (solo en la elegida) | fija por qué punto del perímetro sale (`puertoDe`/`puertoA`), pegado a la silueta real |
@@ -132,6 +132,19 @@ Edición de cañerías, toda sobre el tirador del codo:
 
 Las manijas de extremo se dibujan **solo para la conexión elegida**: con 173
 cañerías en la vista de la demo, dos manijas por conexión taparían el dibujo.
+
+**Con quiebre a mano, el puerto mira AL QUIEBRE y no al otro equipo.** El
+primer tramo de la ruta va al quiebre, así que ese es el lado por el que
+conviene salir: mirando al otro equipo, subir el codo dejaba la cañería
+saliendo de costado y pegando el salto después. Mover el codo mueve entonces
+también el punto donde la línea toca el equipo — medido en la semilla, de
+`324,48` (el costado) a `342,2` (arriba) al llevar el codo por encima. Un
+extremo fijado a mano no se toca: ahí ya mandó quien lo fijó.
+
+Los arrastres de codo y de extremo **se ven mientras se arrastran**: la ruta
+en vuelo se recalcula en cada movimiento. Es UNA ruta por cuadro y sin
+esquivar obstáculos (con quiebre a mano el ruteo no los mira), así que sale
+gratis al lado del re-render.
 
 Una conexión con un extremo en OTRA vista se dibuja como **conector de salida**
 de P&ID: un cabo corto que apunta afuera del dibujo, con el TAG del otro
@@ -446,3 +459,10 @@ escalonado, 797 · 1.94 el libre.
   (`data-quiebre`, `data-salida`, `data-titulo-area`) y los scripts los
   buscan por ahí. Una medición que se apoya en el estilo se rompe sola la
   próxima vez que alguien cambie una tipografía.
+
+- **Un tirador que se mueve solo, sin que se mueva lo que representa, no
+  dice nada.** Al arrastrar el codo o un extremo se movía el círculo y la
+  cañería se quedaba quieta hasta soltar: se editaba a ciegas y el resultado
+  aparecía de golpe. Ahora la ruta del arrastre se recalcula en cada
+  movimiento. Cuesta una sola ruta por cuadro, contra las 470 de la tabla,
+  porque solo se rehace la que se está tocando.
