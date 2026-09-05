@@ -291,7 +291,7 @@ export function useAnalistaData() {
       const areaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
       const equipos = d.equipos.map((eq) => {
         if (!areaIds.includes(eq.areaId)) return eq;
-        const { posicionPropia, etiquetaOffset, ...resto } = eq;
+        const { posicionPropia, ...resto } = eq;
         return resto;
       });
       const areas = d.areas.map((a) => (areaIds.includes(a.id) ? { ...a, tituloOffset: undefined } : a));
@@ -335,13 +335,6 @@ export function useAnalistaData() {
     setData((d) => ({
       ...d,
       areas: d.areas.map((a) => (a.id === areaId ? { ...a, tituloOffset } : a)),
-    }));
-  }, []);
-
-  const moverEtiquetaEquipo = useCallback((equipoId, etiquetaOffset) => {
-    setData((d) => ({
-      ...d,
-      equipos: d.equipos.map((eq) => (eq.id === equipoId ? { ...eq, etiquetaOffset } : eq)),
     }));
   }, []);
 
@@ -623,7 +616,6 @@ export function useAnalistaData() {
     cambiarEscalaEquipo,
     restablecerTamanios,
     moverTituloArea,
-    moverEtiquetaEquipo,
     reunirEquiposDispersos,
     crearTipoPersonalizado,
     actualizarTipoPersonalizado,

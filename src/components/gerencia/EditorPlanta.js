@@ -7,6 +7,7 @@ import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible, anchoDeTitulo } from '../../gerencia/layout/grilla';
 import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas, metricasDeCanerias, conectoresDeSalida } from '../../gerencia/layout/ensayo';
 import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
+import { conPosicionPropia } from '../../gerencia/layout/overrides';
 import './portalScada.css';
 
 // EDITOR DE PLANTA. Unifica lo que antes eran dos pantallas: el Portal SCADA
@@ -173,11 +174,12 @@ export default function EditorPlanta({
   // La posición puesta a mano gana sobre la calculada. Se aplica acá, una
   // sola vez, para que la usen por igual el dibujo, las cañerías y el
   // arrastre en curso.
+  // conPosicionPropia hace el override guardado; acá se le suma el arrastre
+  // EN CURSO, que es lo único de esto que existe solo en el editor.
   const conOverride = (piezas) =>
-    piezas.map((p) => {
+    conPosicionPropia(piezas).map((p) => {
       const enVuelo = arrastre && arrastre.id === p.eq.id ? arrastre.live : null;
-      const pp = enVuelo || p.eq.posicionPropia;
-      return pp ? { ...p, x: pp.x, y: pp.y, propia: true } : p;
+      return enVuelo ? { ...p, x: enVuelo.x, y: enVuelo.y, propia: true } : p;
     });
 
   const estadoDe = (eq) => {
@@ -614,7 +616,7 @@ export default function EditorPlanta({
 
           <button
             onClick={() => {
-              if (window.confirm('Esto borra las posiciones que moviste a mano en esta planta y devuelve todos los equipos al layout calculado. También resetea los títulos de área y los TAG movidos. No se puede deshacer. ¿Continuar?')) {
+              if (window.confirm('Esto borra las posiciones que moviste a mano en esta planta y devuelve todos los equipos al layout calculado. También resetea los títulos de área que hayas movido. No se puede deshacer. ¿Continuar?')) {
                 restablecerPosiciones(plantaId);
               }
             }}
