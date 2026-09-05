@@ -509,6 +509,33 @@ export default function EditorPlanta({
       : vista
       ? { ancho: vista.metricas.lienzoAncho, alto: vista.metricas.lienzoAlto }
       : { ancho: 100, alto: 100 };
+  // Cuántos PÍXELES de pantalla mide una unidad del lienzo. Es lo que
+  // convierte el "peso" de un tipo en un tamaño real, y lo que explica que
+  // el mismo número se vea distinto en dos plantas: donde hay más contenido
+  // el lienzo es más grande y la cámara se aleja.
+  const pxPorUnidad =
+    panelReal && lienzoDibujo.ancho > 0
+      ? Math.min(panelReal.ancho / (lienzoDibujo.ancho + 40), panelReal.alto / (lienzoDibujo.alto + 40)) * zoom
+      : null;
+  // Los píxeles del ícono más chico y del más grande, COMO SE DIBUJAN.
+  // No son los de `encuadre`: ese los calcula con el lienzo de su propia
+  // vista y aplicando el tope del máximo, y el dibujo usa el lienzo común a
+  // todas las vistas y no aplica ese tope. Informar los de encuadre acá era
+  // decir un número que no se corresponde con nada de lo que se ve —medido
+  // en la planta semilla, decía 180 px y en pantalla eran 191—.
+  const pxDeLaVista = useMemo(() => {
+    if (!pxPorUnidad || !vista || vista.piezas.length === 0) return null;
+    const altos = vista.piezas.map((p) => p.altoIcono);
+    return { min: Math.min(...altos) * pxPorUnidad, max: Math.max(...altos) * pxPorUnidad };
+  }, [pxPorUnidad, vista]);
+
+  // Alto en pantalla de un tipo, tomado de un equipo suyo de esta vista.
+  const pxDelTipo = (tipo) => {
+    if (!pxPorUnidad || !vista) return null;
+    const p = vista.piezas.find((x) => x.eq.tipo === tipo);
+    return p ? Math.round(p.altoIcono * pxPorUnidad) : null;
+  };
+
   const vbAncho = (lienzoDibujo.ancho + 40) / zoom;
   const vbAlto = (lienzoDibujo.alto + 40) / zoom;
   const viewBox = `${(lienzoDibujo.ancho + 40) / 2 - vbAncho / 2 - 20} ${(lienzoDibujo.alto + 40) / 2 - vbAlto / 2 - 20} ${vbAncho} ${vbAlto}`;
@@ -657,9 +684,17 @@ export default function EditorPlanta({
               {[...Object.keys(SCADA_ICONOS), ...(data.tiposPersonalizados || []).map((t) => t.clave)].map((tipo) => {
                 const esc = data.escalasPorTipo?.[tipo] ?? 1;
                 const cambiar = (d) => ajustarEscalaTipo(plantaId, tipo, d);
+                const px = pxDelTipo(tipo);
                 return (
                   <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <span style={{ flexGrow: 1, fontSize: 11, textTransform: 'capitalize', padding: '4px 6px', background: 'var(--scada-panel)' }}>{tipo}</span>
+                    <span style={{ flexGrow: 1, fontSize: 11, textTransform: 'capitalize', padding: '4px 6px', background: 'var(--scada-panel)' }}>
+                      {tipo}
+                      {/* El peso NO es un tamaño: el mismo 3.50 da 132 px en la
+                          planta semilla y 72 en la demo. Los píxeles al lado
+                          son lo único que vuelve comparable el número entre
+                          plantas, que es donde se rompía el entendimiento. */}
+                      {px !== null && <span style={{ color: 'var(--scada-texto-2)', fontVariantNumeric: 'tabular-nums' }}> · {px} px</span>}
+                    </span>
                     <button onClick={() => cambiar(-0.1)} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 22, height: 22, cursor: 'pointer' }}>−</button>
                     <span style={{ width: 32, textAlign: 'center', fontSize: 11, background: 'var(--scada-panel)', fontVariantNumeric: 'tabular-nums' }}>{esc.toFixed(2)}</span>
                     <button onClick={() => cambiar(0.1)} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 22, height: 22, cursor: 'pointer' }}>+</button>
@@ -823,8 +858,9 @@ export default function EditorPlanta({
             </select>
             {escalonado?.encuadre && (
               <p style={{ fontSize: 11.5, color: 'var(--scada-texto-2)', margin: '6px 0 0', lineHeight: 1.5 }}>
-                Ícono más chico a {escalonado.encuadre.minPx.toFixed(0)} px, el más grande a {escalonado.encuadre.maxPx.toFixed(0)} px
-                {escalonado.encuadre.topado && ' · la cámara frenó en el máximo'}.
+                {pxDeLaVista
+                  ? `Ícono más chico a ${pxDeLaVista.min.toFixed(0)} px, el más grande a ${pxDeLaVista.max.toFixed(0)} px.`
+                  : `Ícono más chico a ${escalonado.encuadre.minPx.toFixed(0)} px, el más grande a ${escalonado.encuadre.maxPx.toFixed(0)} px.`}
                 {escalonado.minimoInalcanzable && (
                   <>
                     {' '}
@@ -1011,8 +1047,31 @@ export default function EditorPlanta({
                     e.stopPropagation();
                     const actual = p.eq.escalaPropia ?? data.escalasPorTipo?.[p.eq.tipo] ?? 1;
                     const factor = p.eq.factorAuto ?? 1;
-                    const nota = factor !== 1 ? ` Además lleva un factor de ×${factor.toFixed(2)}.` : '';
-                    const r = window.prompt(`Tamaño de ${p.eq.tag}: ${actual.toFixed(2)}.${nota} Vacío = usar el del tipo:`, actual.toFixed(2));
+                    // El peso NO es un tamaño: es cuánto mide este equipo
+                    // respecto de los demás. Los píxeles salen de multiplicarlo
+                    // por el factor y por cuánto acerca la cámara, que depende
+                    // de cuánto contenido tenga la planta. Por eso el mismo
+                    // número se ve distinto en dos plantas, y por eso el prompt
+                    // dice las tres cosas y no solo la primera.
+                    const px = pxPorUnidad ? Math.round(p.altoIcono * pxPorUnidad) : null;
+                    const r = window.prompt(
+                      [
+                        `${p.eq.tag} · tipo ${p.eq.tipo}`,
+                        factor !== 1
+                          ? `peso ${actual.toFixed(2)} × factor ${factor.toFixed(2)} = ${(actual * factor).toFixed(2)}`
+                          : `peso ${actual.toFixed(2)}`,
+                        px !== null ? `hoy se dibuja a ${px} px de alto` : '',
+                        '',
+                        'El peso es relativo entre equipos, no un tamaño: la cámara se',
+                        'ajusta al panel, así que el mismo peso da píxeles distintos en',
+                        'otra planta o en otra vista.',
+                        '',
+                        'Peso nuevo (vacío = usar el del tipo):',
+                      ]
+                        .filter((l) => l !== '')
+                        .join('\n'),
+                      actual.toFixed(2)
+                    );
                     if (r === null) return;
                     if (r.trim() === '') return cambiarEscalaEquipo(p.eq.id, null);
                     const num = Number(r.replace(',', '.'));
