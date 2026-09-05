@@ -99,7 +99,16 @@ export default function EditorPlanta({
   // Edición. El layout se sigue calculando; lo que el usuario mueve queda
   // como override en eq.posicionPropia (ver store.js), igual que escalaPropia
   // pisa a la escala del tipo.
-  const [zoom, setZoom] = useState(1);
+  const [zoomLupa, setZoomLupa] = useState(1);
+  // La cámara puede fijarse a un absoluto (px por unidad), y ese absoluto
+  // sobrevive el cambio de MÉTODO, de vista y de pantalla: cada uno tiene
+  // su propio zoomDeAjuste (el que llena el panel), así que fijar el
+  // absoluto significa recalcular qué zoom hace falta en cada caso para
+  // llegar a ÉL, no guardar un zoom fijo. Sin esto, "Actual" y "Escalonado"
+  // dibujaban el mismo tanque a 33 y 101 px porque cada uno llena el panel
+  // con lo que tiene — el mismo problema que resolvió la cámara editable
+  // entre plantas, ahora entre métodos.
+  const [pxObjetivo, setPxObjetivo] = useState(null);
   const [seleccionado, setSeleccionado] = useState(null);
   const [modoConectar, setModoConectar] = useState(false);
   const [origenConexion, setOrigenConexion] = useState(null);
@@ -533,10 +542,23 @@ export default function EditorPlanta({
   // planta rala (medido: 191 px con el máximo en 180, 120 o 60 — no hacía
   // nada). Toparlo agranda el viewBox más allá del lienzo, así que sobra
   // lienzo vacío en vez de agrandar el ícono — la misma idea que "una vista
-  // menos llena queda con aire, no agrandada".
+  // menos llena queda con aire, no agrandada". Un objetivo de cámara fijado
+  // a mano bypasea el tope, igual que la lupa: los dos son la acción
+  // explícita de la persona, y el tope solo ata la cámara AUTOMÁTICA.
   const zoomTopeMax = tamMaxPx && altoIconoMaxPlanta > 0 ? tamMaxPx / altoIconoMaxPlanta : Infinity;
   const zoomDeAjuste =
-    zoomDeAjusteSinTope !== null ? Math.min(zoomDeAjusteSinTope, zoomTopeMax) : null;
+    zoomDeAjusteSinTope === null ? null : pxObjetivo !== null ? zoomDeAjusteSinTope : Math.min(zoomDeAjusteSinTope, zoomTopeMax);
+  // La lupa es un zoom RELATIVO (parte del que llena el panel); el objetivo
+  // de cámara es un ABSOLUTO que tiene que sostenerse pase lo que pase con
+  // el zoomDeAjuste de turno — así que en vez de guardar un zoom fijo, acá
+  // se recalcula el zoom que hace falta para llegar a él. Sin esto, fijar
+  // la cámara en "Escalonado" y pasar a "Actual" (u otra planta, u otra
+  // vista) volvía a un número distinto: cada uno llena el panel con lo que
+  // tiene y el zoom guardado no lo compensaba.
+  const zoom =
+    pxObjetivo !== null && zoomDeAjusteSinTope
+      ? Math.min(20, Math.max(0.02, pxObjetivo / zoomDeAjusteSinTope))
+      : zoomLupa;
   const pxPorUnidad = zoomDeAjuste !== null ? zoomDeAjuste * zoom : null;
   // Cuánto hay que agrandar el viewBox más allá del lienzo para lograr el
   // zoom topado sin que la lupa (el `zoom` manual) se entere: 1 si no topó.
@@ -684,15 +706,21 @@ export default function EditorPlanta({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
             <span style={{ color: 'var(--scada-texto-2)' }}>Lupa</span>
-            <button onClick={() => setZoom((z) => Math.max(0.02, Math.round((z - 0.1) * 100) / 100))} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}>
+            <button
+              onClick={() => { setPxObjetivo(null); setZoomLupa((z) => Math.max(0.02, Math.round((z - 0.1) * 100) / 100)); }}
+              style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
+            >
               −
             </button>
             <span style={{ minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom((z) => Math.min(20, Math.round((z + 0.1) * 100) / 100))} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}>
+            <button
+              onClick={() => { setPxObjetivo(null); setZoomLupa((z) => Math.min(20, Math.round((z + 0.1) * 100) / 100)); }}
+              style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}
+            >
               +
             </button>
-            {zoom !== 1 && (
-              <button onClick={() => setZoom(1)} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontSize: 11, padding: '4px 6px', cursor: 'pointer' }}>
+            {(zoomLupa !== 1 || pxObjetivo !== null) && (
+              <button onClick={() => { setPxObjetivo(null); setZoomLupa(1); }} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontSize: 11, padding: '4px 6px', cursor: 'pointer' }}>
                 100%
               </button>
             )}
@@ -704,21 +732,26 @@ export default function EditorPlanta({
               con lo que haya. Por eso el mismo peso da 2,622 px por unidad en
               una planta de 13 equipos y 0,796 en una de 500 — 3,3× de
               diferencia que no sale de ningún número editable.
-              Fijándola a mano, dos plantas con los mismos pesos dan el mismo
-              tamaño: es el ancla que no existía. */}
+              Fijándola a mano, dos plantas (o dos MÉTODOS: medido, la misma
+              planta demo daba 33 px en "Actual" y 101 en "Escalonado") con
+              los mismos pesos dan el mismo tamaño: es el ancla que no
+              existía. A diferencia de la lupa, esto guarda un OBJETIVO
+              absoluto (pxObjetivo) y no un zoom fijo: cambiar de método, de
+              vista, de pantalla o de planta recalcula el zoom que hace falta
+              para seguir llegando a él, en vez de volver a otro número. */}
           {pxPorUnidad !== null && (
             <div style={{ marginTop: 6, fontSize: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ color: 'var(--scada-texto-2)' }}>Cámara</span>
                 <input
-                  key={`cam-${plantaId}-${Math.round(pxPorUnidad * 1000)}`}
+                  key={`cam-${pxObjetivo !== null ? 'fija' : `auto-${plantaId}-${metodo}-${Math.round(pxPorUnidad * 1000)}`}`}
                   type="number"
                   step="0.05"
                   min="0.01"
                   defaultValue={pxPorUnidad.toFixed(3)}
                   onBlur={(e) => {
                     const v = Number(String(e.target.value).replace(',', '.'));
-                    if (Number.isFinite(v) && v > 0 && zoomDeAjuste) setZoom(Math.min(20, Math.max(0.02, v / zoomDeAjuste)));
+                    if (Number.isFinite(v) && v > 0) setPxObjetivo(v);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') e.target.blur();
@@ -726,10 +759,16 @@ export default function EditorPlanta({
                   style={{ width: 72, background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '3px 5px', fontVariantNumeric: 'tabular-nums' }}
                 />
                 <span style={{ color: 'var(--scada-texto-2)' }}>px por unidad</span>
+                {pxObjetivo !== null && (
+                  <button onClick={() => setPxObjetivo(null)} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontSize: 11, padding: '4px 6px', cursor: 'pointer' }}>
+                    Automática
+                  </button>
+                )}
               </div>
               <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', margin: '4px 0 0', lineHeight: 1.45 }}>
-                Cuántos píxeles de pantalla mide una unidad del lienzo. Sola se ajusta para llenar el panel, así que una planta con más equipos la aleja
-                y todo se ve más chico con los mismos pesos. <strong>Poné el mismo número en dos plantas y los tamaños se pueden comparar.</strong>
+                Cuántos píxeles de pantalla mide una unidad del lienzo. Sola se ajusta para llenar el panel, así que una planta con más equipos —o un
+                método que muestra menos por vista— la acerca más.{' '}
+                <strong>Fijala y se sostiene sola al cambiar de método, planta o pantalla.</strong>
               </p>
             </div>
           )}
