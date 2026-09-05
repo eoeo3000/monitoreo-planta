@@ -513,10 +513,12 @@ export default function EditorPlanta({
   // convierte el "peso" de un tipo en un tamaño real, y lo que explica que
   // el mismo número se vea distinto en dos plantas: donde hay más contenido
   // el lienzo es más grande y la cámara se aleja.
-  const pxPorUnidad =
+  // El zoom que la cámara toma sola para llenar el panel, SIN la lupa.
+  const zoomDeAjuste =
     panelReal && lienzoDibujo.ancho > 0
-      ? Math.min(panelReal.ancho / (lienzoDibujo.ancho + 40), panelReal.alto / (lienzoDibujo.alto + 40)) * zoom
+      ? Math.min(panelReal.ancho / (lienzoDibujo.ancho + 40), panelReal.alto / (lienzoDibujo.alto + 40))
       : null;
+  const pxPorUnidad = zoomDeAjuste !== null ? zoomDeAjuste * zoom : null;
   // Los píxeles del ícono más chico y del más grande, COMO SE DIBUJAN.
   // No son los de `encuadre`: ese los calcula con el lienzo de su propia
   // vista y aplicando el tope del máximo, y el dibujo usa el lienzo común a
@@ -659,11 +661,11 @@ export default function EditorPlanta({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
             <span style={{ color: 'var(--scada-texto-2)' }}>Lupa</span>
-            <button onClick={() => setZoom((z) => Math.max(0.3, Math.round((z - 0.1) * 100) / 100))} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}>
+            <button onClick={() => setZoom((z) => Math.max(0.02, Math.round((z - 0.1) * 100) / 100))} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}>
               −
             </button>
             <span style={{ minWidth: 40, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{Math.round(zoom * 100)}%</span>
-            <button onClick={() => setZoom((z) => Math.min(3, Math.round((z + 0.1) * 100) / 100))} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}>
+            <button onClick={() => setZoom((z) => Math.min(20, Math.round((z + 0.1) * 100) / 100))} style={{ background: 'var(--scada-panel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', width: 24, height: 24, cursor: 'pointer' }}>
               +
             </button>
             {zoom !== 1 && (
@@ -672,6 +674,42 @@ export default function EditorPlanta({
               </button>
             )}
           </div>
+
+          {/* LA CÁMARA, visible y editable. Es la variable que faltaba: los
+              pesos dan las proporciones entre tipos, pero el tamaño en
+              píxeles lo fija la cámara, que sola se limita a llenar el panel
+              con lo que haya. Por eso el mismo peso da 2,622 px por unidad en
+              una planta de 13 equipos y 0,796 en una de 500 — 3,3× de
+              diferencia que no sale de ningún número editable.
+              Fijándola a mano, dos plantas con los mismos pesos dan el mismo
+              tamaño: es el ancla que no existía. */}
+          {pxPorUnidad !== null && (
+            <div style={{ marginTop: 6, fontSize: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: 'var(--scada-texto-2)' }}>Cámara</span>
+                <input
+                  key={`cam-${plantaId}-${Math.round(pxPorUnidad * 1000)}`}
+                  type="number"
+                  step="0.05"
+                  min="0.01"
+                  defaultValue={pxPorUnidad.toFixed(3)}
+                  onBlur={(e) => {
+                    const v = Number(String(e.target.value).replace(',', '.'));
+                    if (Number.isFinite(v) && v > 0 && zoomDeAjuste) setZoom(Math.min(20, Math.max(0.02, v / zoomDeAjuste)));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.target.blur();
+                  }}
+                  style={{ width: 72, background: 'var(--scada-subpanel)', color: 'var(--scada-texto)', border: '1px solid var(--scada-borde)', fontFamily: 'inherit', fontSize: 12, padding: '3px 5px', fontVariantNumeric: 'tabular-nums' }}
+                />
+                <span style={{ color: 'var(--scada-texto-2)' }}>px por unidad</span>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', margin: '4px 0 0', lineHeight: 1.45 }}>
+                Cuántos píxeles de pantalla mide una unidad del lienzo. Sola se ajusta para llenar el panel, así que una planta con más equipos la aleja
+                y todo se ve más chico con los mismos pesos. <strong>Poné el mismo número en dos plantas y los tamaños se pueden comparar.</strong>
+              </p>
+            </div>
+          )}
 
           <details style={{ marginTop: 8 }}>
             <summary style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--scada-texto-2)', cursor: 'pointer' }}>

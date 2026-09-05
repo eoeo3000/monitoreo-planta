@@ -579,6 +579,25 @@ escalonado, 797 · 1.94 el libre.
   altoBase 29 y dibuja 26, un 11% de diferencia que hacía fallar la
   comparación).
 
+- **La CÁMARA era la variable que nadie podía ver ni tocar.** El tamaño en
+  pantalla es `peso × factorAuto × cámara`, y de los tres solo el peso era
+  editable. La cámara se ajusta sola para llenar el panel con lo que haya, o
+  sea que depende de cuántos equipos tenga la planta: medido, 2,622 px por
+  unidad con 13 equipos contra 0,796 con 500 —3,3× que no sale de ningún
+  número—. Ahora se muestra y se edita en el panel del editor (px por
+  unidad). Fijándola, dos plantas se vuelven comparables, y el resto de la
+  diferencia queda al descubierto:
+
+  | | Salar (13) | Demo (500) | razón |
+  |---|---|---|---|
+  | cámara automática | 76 px | 30 px | 3,3× ← la cámara |
+  | cámara fijada en 1.000 | 29 px | 38 px | 1,31× ← el `factorAuto` |
+  | cámara fijada + "Restablecer tamaños" | **29 px** | **29 px** | idénticos |
+
+  La receta para que dos plantas se vean igual: **misma cámara, mismos pesos
+  y sin `factorAuto`** (que lo borra "Restablecer tamaños"). No hay un cuarto
+  factor escondido — está verificado equipo por equipo.
+
 - **Un peso relativo mostrado sin píxeles no se puede comparar entre
   plantas.** El panel decía "3.50" y el doble clic también, y esa misma
   bomba medía 132 px en la semilla y 72 en la demo: el peso es cuánto mide un
