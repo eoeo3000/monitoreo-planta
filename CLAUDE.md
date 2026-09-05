@@ -466,3 +466,23 @@ escalonado, 797 · 1.94 el libre.
   aparecía de golpe. Ahora la ruta del arrastre se recalcula en cada
   movimiento. Cuesta una sola ruta por cuadro, contra las 470 de la tabla,
   porque solo se rehace la que se está tocando.
+
+- **Un arrastre que escucha en el elemento se cancela solo al salir de él.**
+  Los listeners vivían en el `<svg>`, así que sacar el puntero del lienzo
+  disparaba `onMouseLeave` y el arrastre se perdía entero: sin guardar, sin
+  aviso, con el tirador volviendo a su lugar. En la planta demo los íconos
+  quedan pegados al borde de arriba, o sea que **cualquier arrastre hacia
+  arriba se cancelaba solo**. Medido: pidiendo 328 unidades de movimiento, el
+  tirador se movía 0 y no se guardaba nada. Mientras dura un arrastre los
+  listeners van en `window` —`getScreenCTM` convierte igual de bien un punto
+  de afuera del SVG— y soltar afuera compromete el arrastre. La
+  previsualización de conexión sí sigue atada al SVG: no es un arrastre, es
+  el puntero eligiendo destino.
+
+- **El extremo de una cañería se pega a la silueta, así que se mueve MUCHO
+  menos que el puntero.** Es lo correcto —una cañería tiene que tocar su
+  equipo— pero se lee como que "no sigue el mouse": arrastrando 166 unidades
+  sobre un motor de la demo, el tirador se corre 7, deslizándose por el
+  círculo. El punto que sí es libre es el CODO, que por eso puede quedar
+  lejos de todo. Los dos tiradores se pintan del color de "fijado a mano"
+  cuando lo están, y eso los hace fáciles de confundir.

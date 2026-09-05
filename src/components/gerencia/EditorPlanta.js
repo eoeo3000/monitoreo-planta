@@ -114,6 +114,8 @@ export default function EditorPlanta({
   // origen elegido: seguirlo siempre re-renderiza 500 íconos por movimiento.
   const [punteroConectar, setPunteroConectar] = useState(null);
 
+  const hayArrastre = Boolean(arrastre || tituloArrastre || quiebreArrastre || extremoArrastre);
+
   // Un punto del evento, en coordenadas del lienzo. Sin esto el arrastre se
   // mueve a distinta velocidad que el puntero, porque el viewBox no está a
   // escala 1:1 con la pantalla.
@@ -331,6 +333,67 @@ export default function EditorPlanta({
     const base = iconoBaseDe(pieza.eq.tipo, data);
     return base ? { ...base, escala: pieza.escala } : null;
   };
+
+  // Mientras dura un arrastre, el mouse se sigue en WINDOW y no en el <svg>.
+  // Con los listeners en el SVG, sacar el puntero del lienzo disparaba
+  // onMouseLeave y el arrastre se perdía entero, sin guardar y sin ningún
+  // aviso: en la planta demo los íconos están pegados al borde de arriba, así
+  // que cualquier arrastre hacia arriba se cancelaba solo. Medido: pidiendo
+  // 328 unidades de movimiento, el tirador se movía 0 y no se guardaba nada.
+  // getScreenCTM convierte igual de bien un punto de afuera del SVG, así que
+  // soltar afuera ahora COMPROMETE el arrastre, que es lo que uno espera.
+  useEffect(() => {
+    if (!hayArrastre) return undefined;
+
+    const alMover = (e) => {
+      const p = puntoSvg(e);
+      if (!p) return;
+      if (arrastre) setArrastre({ ...arrastre, live: { x: Math.round(p.x + arrastre.dx), y: Math.round(p.y + arrastre.dy) } });
+      else if (tituloArrastre) setTituloArrastre({ ...tituloArrastre, live: { dx: Math.round(p.x - tituloArrastre.dx), dy: Math.round(p.y - tituloArrastre.dy) } });
+      else if (quiebreArrastre) setQuiebreArrastre({ ...quiebreArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
+      else if (extremoArrastre) setExtremoArrastre({ ...extremoArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
+    };
+
+    const alSoltar = () => {
+      if (arrastre) {
+        if (arrastre.live) moverEquipoPropio(arrastre.id, arrastre.live);
+        setArrastre(null);
+      }
+      if (tituloArrastre) {
+        if (tituloArrastre.live) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
+        setTituloArrastre(null);
+      }
+      if (quiebreArrastre) {
+        // Sin movimiento no hubo arrastre: fue un clic, y un clic ELIGE la
+        // conexión. Es lo que da un lugar para borrarla de a una y para
+        // mostrar las manijas de sus extremos, sin sumar tiradores.
+        if (quiebreArrastre.live) actualizarConexion(quiebreArrastre.conexionId, { quiebreManual: quiebreArrastre.live });
+        else setConexionSel((prev) => (prev === quiebreArrastre.conexionId ? null : quiebreArrastre.conexionId));
+        setQuiebreArrastre(null);
+      }
+      if (extremoArrastre) {
+        // El extremo se PEGA al perímetro del equipo: nunca queda un punto
+        // suelto en el aire, por lejos que se lo suelte. Por eso se mueve
+        // mucho menos que el puntero — se desliza por la silueta.
+        if (extremoArrastre.live) {
+          const pieza = piezaPorId.get(extremoArrastre.equipoId);
+          const icono = pieza && iconoConEscala(pieza);
+          const punto = icono && puntoPerimetroCercano({ x: pieza.x, y: pieza.y }, icono, extremoArrastre.live);
+          if (punto) actualizarConexion(extremoArrastre.conexionId, extremoArrastre.extremo === 'de' ? { puertoDe: punto } : { puertoA: punto });
+        }
+        setExtremoArrastre(null);
+      }
+    };
+
+    window.addEventListener('mousemove', alMover);
+    window.addEventListener('mouseup', alSoltar);
+    return () => {
+      window.removeEventListener('mousemove', alMover);
+      window.removeEventListener('mouseup', alSoltar);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayArrastre, arrastre, tituloArrastre, quiebreArrastre, extremoArrastre, piezaPorId, data]);
+
 
   // Rutas a dibujar. Mientras se arrastra el codo o un extremo, la del
   // arrastre se recalcula en cada movimiento: antes solo se movía el
@@ -900,52 +963,14 @@ export default function EditorPlanta({
             preserveAspectRatio="xMinYMin meet"
             style={{ width: '100%', height: '100%', display: 'block', cursor: modoConectar ? 'crosshair' : 'default' }}
             onMouseMove={(e) => {
-              const p = puntoSvg(e);
-              if (!p) return;
-              if (arrastre) setArrastre({ ...arrastre, live: { x: Math.round(p.x + arrastre.dx), y: Math.round(p.y + arrastre.dy) } });
-              else if (tituloArrastre) setTituloArrastre({ ...tituloArrastre, live: { dx: Math.round(p.x - tituloArrastre.dx), dy: Math.round(p.y - tituloArrastre.dy) } });
-              else if (quiebreArrastre) setQuiebreArrastre({ ...quiebreArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
-              else if (extremoArrastre) setExtremoArrastre({ ...extremoArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
-              else if (modoConectar && origenConexion) setPunteroConectar({ x: Math.round(p.x), y: Math.round(p.y) });
-            }}
-            onMouseUp={() => {
-              if (arrastre) {
-                if (arrastre.live) moverEquipoPropio(arrastre.id, arrastre.live);
-                setArrastre(null);
-              }
-              if (tituloArrastre) {
-                if (tituloArrastre.live) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
-                setTituloArrastre(null);
-              }
-              if (quiebreArrastre) {
-                // Sin movimiento no hubo arrastre: fue un clic, y un clic
-                // ELIGE la conexión. Es lo que da un lugar para borrarla de
-                // a una y para mostrar las manijas de sus extremos, sin
-                // agregar más tiradores al lienzo.
-                if (quiebreArrastre.live) actualizarConexion(quiebreArrastre.conexionId, { quiebreManual: quiebreArrastre.live });
-                else setConexionSel((prev) => (prev === quiebreArrastre.conexionId ? null : quiebreArrastre.conexionId));
-                setQuiebreArrastre(null);
-              }
-              if (extremoArrastre) {
-                // El extremo se pega al perímetro del equipo: nunca queda un
-                // punto suelto en el aire. rutaPuertos intercala después el
-                // tramo que haga falta para llegar ortogonal.
-                if (extremoArrastre.live) {
-                  const pieza = piezaPorId.get(extremoArrastre.equipoId);
-                  const icono = pieza && iconoConEscala(pieza);
-                  const punto = icono && puntoPerimetroCercano({ x: pieza.x, y: pieza.y }, icono, extremoArrastre.live);
-                  if (punto) actualizarConexion(extremoArrastre.conexionId, extremoArrastre.extremo === 'de' ? { puertoDe: punto } : { puertoA: punto });
-                }
-                setExtremoArrastre(null);
+              // La previsualización de conexión sí se sigue solo adentro:
+              // no es un arrastre, es el puntero eligiendo destino.
+              if (modoConectar && origenConexion && !hayArrastre) {
+                const p = puntoSvg(e);
+                if (p) setPunteroConectar({ x: Math.round(p.x), y: Math.round(p.y) });
               }
             }}
-            onMouseLeave={() => {
-              setArrastre(null);
-              setTituloArrastre(null);
-              setQuiebreArrastre(null);
-              setExtremoArrastre(null);
-              setPunteroConectar(null);
-            }}
+            onMouseLeave={() => setPunteroConectar(null)}
           >
             <defs>
               <linearGradient id="ensayoGradMetal" x1="0" y1="0" x2="0" y2="1">
