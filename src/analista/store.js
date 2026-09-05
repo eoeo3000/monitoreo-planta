@@ -24,10 +24,16 @@ function datosSemilla() {
     avisos: SEED_AVISOS,
     evidencias: [],
     conexiones: SEED_CONEXIONES,
-    // Sobrescribe, por tipo, el multiplicador de escala por defecto de
-    // scadaIconos.js — vacío significa "tamaño de fábrica (x1)". Se edita
-    // desde el panel "Tamaños de equipo" del Portal SCADA, sin tocar código.
-    escalasPorTipo: {},
+    // Multiplicador de escala por tipo, POR PLANTA: { plantaId: { tipo: n } }.
+    // Vacío significa "tamaño de fábrica (x1)". Se edita desde el panel
+    // "Tamaños de equipo" del Editor de planta.
+    //
+    // Era una tabla global a toda la app, y eso confundía de una forma
+    // concreta: se subía "tanque" mirando una planta y todas las demás
+    // cambiaban de tamaño sin avisar. Al volver a mirar la otra, el doble
+    // clic informaba el mismo número —porque era el mismo— y parecía que
+    // dos plantas con parámetros idénticos se veían distinto.
+    escalasPorPlanta: {},
     // Tipos de equipo creados desde Administración > Equipos (formas simples
     // + puertos), para equipos que no están en el catálogo fijo de
     // mockData.js. Solo visuales por ahora: no tienen modoFalla propio.
@@ -51,6 +57,30 @@ function datosSemilla() {
 // Se exporta para poder probarla: es la parte con más riesgo de este cambio
 // —toca datos ya guardados de los que no hay copia— y conviene tenerla
 // cubierta y no solo leída.
+// Los tamaños por tipo eran una tabla global; ahora son de cada planta. Lo
+// guardado se copia TAL CUAL a todas las plantas existentes, así ninguna
+// cambia de aspecto al actualizar; después la tabla global se borra para que
+// no queden dos fuentes de verdad.
+// Los tamaños por tipo son de cada planta, pero todo el layout los lee de
+// `data.escalasPorTipo` (escalaVisible, escalaDeCatalogo, buscarMejorAncho…).
+// En vez de pasarle el plantaId a media docena de funciones de geometría,
+// cada pantalla resuelve la tabla UNA vez y trabaja con estos datos: los
+// mismos de siempre, con la tabla de SU planta puesta donde el layout la
+// busca. Hay que memoizarlo, porque devuelve un objeto nuevo.
+export function datosDePlanta(data, plantaId) {
+  return { ...data, escalasPorTipo: data?.escalasPorPlanta?.[plantaId] || {} };
+}
+
+export function migrarEscalasPorPlanta(d) {
+  if (!d || !Array.isArray(d.plantas)) return d;
+  if (d.escalasPorPlanta) return d; // ya migrado
+  const global = d.escalasPorTipo || {};
+  const porPlanta = {};
+  d.plantas.forEach((p) => { porPlanta[p.id] = { ...global }; });
+  const { escalasPorTipo, ...resto } = d;
+  return { ...resto, escalasPorPlanta: porPlanta };
+}
+
 export function migrarEscalas(d) {
   if (!d || !Array.isArray(d.equipos)) return d;
   const equipos = d.equipos.map((eq) => {
@@ -75,7 +105,9 @@ export function migrarEscalas(d) {
 function loadInitial() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return migrarEscalas(JSON.parse(raw));
+    // Orden: primero la de factorAuto, que todavía lee la tabla GLOBAL, y
+    // recién después la que la reparte por planta.
+    if (raw) return migrarEscalasPorPlanta(migrarEscalas(JSON.parse(raw)));
   } catch (e) {
     // localStorage no disponible o datos corruptos: usamos el set de prueba
   }
@@ -263,8 +295,28 @@ export function useAnalistaData() {
     return id;
   }, []);
 
-  const cambiarEscalaTipo = useCallback((tipo, escala) => {
-    setData((d) => ({ ...d, escalasPorTipo: { ...d.escalasPorTipo, [tipo]: escala } }));
+  const cambiarEscalaTipo = useCallback((plantaId, tipo, escala) => {
+    if (!plantaId) return;
+    setData((d) => ({
+      ...d,
+      escalasPorPlanta: { ...d.escalasPorPlanta, [plantaId]: { ...(d.escalasPorPlanta?.[plantaId] || {}), [tipo]: escala } },
+    }));
+  }, []);
+
+  // Sube o baja el multiplicador de un tipo. Va por DELTA y no por valor
+  // final a propósito: los botones ± calculaban el nuevo valor a partir del
+  // que tenían dibujado, así que dos clics seguidos antes de que React
+  // re-renderizara partían los dos del mismo número y el segundo pisaba al
+  // primero — medido, 5 clics movían de 1.00 a 1.10 en vez de a 1.50.
+  // Leyendo el valor acá adentro, cada clic parte del anterior.
+  const ajustarEscalaTipo = useCallback((plantaId, tipo, delta, { min = 0.3, max = 4 } = {}) => {
+    if (!plantaId) return;
+    setData((d) => {
+      const dePlanta = d.escalasPorPlanta?.[plantaId] || {};
+      const actual = dePlanta[tipo] ?? 1;
+      const nueva = Math.min(max, Math.max(min, Math.round((actual + delta) * 100) / 100));
+      return { ...d, escalasPorPlanta: { ...d.escalasPorPlanta, [plantaId]: { ...dePlanta, [tipo]: nueva } } };
+    });
   }, []);
 
   // Posición puesta a mano en el Editor de planta, POR ENCIMA de la que
@@ -315,8 +367,9 @@ export function useAnalistaData() {
   //
   // Es la salida masiva que faltaba: sin esto, deshacer un tamaño
   // equivocado era equipo por equipo, y en la planta demo son 500. NO toca
-  // escalasPorTipo, que es global a toda la app — bajarlo desde acá le
-  // cambiaría el tamaño a las demás plantas sin avisar.
+  // los multiplicadores por tipo de la planta: son otro ajuste, con su
+  // propio botón, y borrar los dos de un saque sería más de lo que dice el
+  // aviso.
   const restablecerTamanios = useCallback((plantaId) => {
     setData((d) => {
       const areaIds = d.areas.filter((a) => a.plantaId === plantaId).map((a) => a.id);
@@ -613,6 +666,7 @@ export function useAnalistaData() {
     renombrarEquipo,
     duplicarEquipo,
     cambiarEscalaTipo,
+    ajustarEscalaTipo,
     cambiarEscalaEquipo,
     restablecerTamanios,
     moverTituloArea,

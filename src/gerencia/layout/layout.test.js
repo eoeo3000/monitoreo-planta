@@ -1,5 +1,5 @@
 import { escalaDeCatalogo, escalaVisible, calcularGrillaArea, anchoDeTitulo, PAD_ZONA, ALTO_TITULO } from './grilla';
-import { migrarEscalas } from '../../analista/store';
+import { migrarEscalas, migrarEscalasPorPlanta, datosDePlanta } from '../../analista/store';
 import { empaquetarSkyline } from './skyline';
 import { solapamientoDeCajas } from './ensayo';
 import { contornosDeArea, repartirEnVistas, encuadrar } from './escalonado';
@@ -543,5 +543,39 @@ describe('el puerto sigue al quiebre puesto a mano', () => {
     expect(r.puntos[0]).not.toEqual(sinFijar.puntos[0]);
     // el otro extremo, que no se fijó, sí sigue al quiebre
     expect(r.puntos[r.puntos.length - 1]).toEqual(sinFijar.puntos[sinFijar.puntos.length - 1]);
+  });
+});
+
+describe('los tamaños por tipo pasan a ser de cada planta', () => {
+  const viejo = {
+    plantas: [{ id: 'p1' }, { id: 'p2' }],
+    equipos: [],
+    escalasPorTipo: { tanque: 3.5, bomba: 1.2 },
+  };
+
+  test('lo guardado se copia TAL CUAL a todas las plantas', () => {
+    const d = migrarEscalasPorPlanta(viejo);
+    expect(d.escalasPorPlanta).toEqual({
+      p1: { tanque: 3.5, bomba: 1.2 },
+      p2: { tanque: 3.5, bomba: 1.2 },
+    });
+  });
+
+  test('la tabla global se borra: una sola fuente de verdad', () => {
+    expect(migrarEscalasPorPlanta(viejo).escalasPorTipo).toBeUndefined();
+  });
+
+  test('no vuelve a migrar lo ya migrado', () => {
+    const yaEsta = { plantas: [{ id: 'p1' }], escalasPorPlanta: { p1: { tanque: 2 } } };
+    expect(migrarEscalasPorPlanta(yaEsta)).toBe(yaEsta);
+  });
+
+  test('datosDePlanta pone la tabla de SU planta donde el layout la busca', () => {
+    const d = migrarEscalasPorPlanta({ ...viejo, escalasPorPlanta: undefined });
+    const conP1 = { ...d, escalasPorPlanta: { p1: { tanque: 3.5 }, p2: { tanque: 1 } } };
+    expect(datosDePlanta(conP1, 'p1').escalasPorTipo).toEqual({ tanque: 3.5 });
+    expect(datosDePlanta(conP1, 'p2').escalasPorTipo).toEqual({ tanque: 1 });
+    // una planta sin tabla propia arranca en vacío, o sea tamaño de catálogo
+    expect(datosDePlanta(conP1, 'p3').escalasPorTipo).toEqual({});
   });
 });
