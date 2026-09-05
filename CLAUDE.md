@@ -326,9 +326,15 @@ escalonado, 797 · 1.94 el libre.
   que decide cuántas áreas entran por vista. Con el tipo tanque agrandado a
   3× y un mínimo de 35 px, el tope de 180 px llevaba la planta demo de 19
   vistas a 54, casi todas de una sola área con tres equipos. La prueba usa
-  ahora `minPxParaCaber` (el tamaño SIN topar) y el tope se aplica solo al
-  dibujar. Con eso el reparto da igual con el máximo en 180 que en 400,
-  que es la propiedad que hay que sostener.
+  ahora `minPxParaCaber` (el tamaño SIN topar). Con eso el reparto da igual
+  con el máximo en 180 que en 400, que es la propiedad que hay que sostener.
+
+  **Ojo: el tope tampoco se aplica al dibujar.** Se dijo que sí y no es
+  cierto — medido en la planta semilla con la bomba en 3.50: con el máximo en
+  180, en 120 y en 60, se dibuja siempre a 191 px. El editor y operación
+  encuadran con el lienzo COMÚN a todas las vistas y el `zoom` del panel, sin
+  pasar por el `zoomTope` de `encuadrar`. O sea que hoy el slider "Máximo" no
+  hace nada.
 
 - **Una bisección sobre un criterio inalcanzable devuelve el PEOR
   resultado, no ninguno.** Si el mínimo no se cumple ni con un área sola, no
@@ -559,3 +565,26 @@ escalonado, 797 · 1.94 el libre.
   así que dos clics antes de que React re-renderizara partían del mismo
   número: medido, 5 clics movían de 1.00 a 1.10 en vez de a 1.50. La acción
   del store va ahora por DELTA y lee el valor actual adentro del `setData`.
+
+- **Un número informado que no sale del mismo cálculo que el dibujo es
+  ficción.** La línea "Ícono más chico a X px, el más grande a Y px" salía de
+  `encuadre`, que calcula con el lienzo de SU vista y aplicando el tope del
+  máximo; el dibujo usa el lienzo común a todas las vistas y no aplica ese
+  tope. Medido en la semilla: la línea decía 180 px y en pantalla eran 191.
+  Ahora los px que se informan —en esa línea, en cada fila del panel de
+  tamaños y en el doble clic— salen de `pxPorUnidad`, la misma conversión con
+  la que se dibuja, y se verifican contra el rectángulo de clic de un equipo,
+  que es el único elemento cuya caja en el DOM es exactamente la del ícono
+  (el `getBoundingClientRect` de un glifo mide la TINTA: la bomba declara
+  altoBase 29 y dibuja 26, un 11% de diferencia que hacía fallar la
+  comparación).
+
+- **Un peso relativo mostrado sin píxeles no se puede comparar entre
+  plantas.** El panel decía "3.50" y el doble clic también, y esa misma
+  bomba medía 132 px en la semilla y 72 en la demo: el peso es cuánto mide un
+  equipo RESPECTO DE LOS DEMÁS, y los píxeles dependen además de `factorAuto`
+  y de cuánto acerca la cámara. Ahora cada fila del panel muestra "· N px" y
+  el doble clic desglosa peso × factor = efectivo y el alto real. El número
+  sigue siendo relativo —no hay forma de que el mismo peso dé los mismos
+  píxeles en dos plantas con densidades distintas— pero deja de aparentar ser
+  un tamaño.
