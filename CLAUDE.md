@@ -34,7 +34,9 @@ src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   skyline.js                   UNA implementación del empaquetado
   compactado.js                el compactado de producción (bloques por área)
   escalonado.js                el layout escalonado y su reparto en vistas
-  ensayo.js                    métodos alternativos que se comparan en pantalla
+  ensayo.js                    métodos alternativos que se comparan en pantalla,
+                               más la geometría de cañerías que comparten el
+                               editor y operación (métricas y conectores de salida)
 src/gerencia/iconos.js       resuelve íconos de fábrica y personalizados
 src/gerencia/puertos.js      puertos de conexión y ruteo de cañerías
 src/components/gerencia/EditorPlanta.js    donde se arma la planta
@@ -100,7 +102,15 @@ Cosas que se rompen sin avisar si no se saben.
   panel de comparación de métodos, los sliders de tamaño legible, el selector
   de pantalla, las cañerías y las métricas.
 - **Vista de operación** — VIGILANCIA de condición, solo lectura. Lo mismo,
-  sin controles.
+  sin controles, y con las **cañerías apagadas por defecto**: acá se viene a
+  mirar condición, y sobre el escalonado las conexiones se cruzan mucho
+  (1.86 por conexión contra 0.19 del compactado). Se prenden con un
+  interruptor, persistido en `preferencias.js`. Antes no estaban y punto,
+  con el argumento de que el diagrama de proceso era el Portal SCADA; el
+  Portal se retiró y el editor dibuja las cañerías sobre ESTE MISMO layout,
+  así que negarlas dejaba a dos pantallas del mismo acomodado mostrando
+  cosas distintas. Que estén apagadas por defecto sigue siendo razonable;
+  que no estuvieran, no.
 
 **Las posiciones NO son dato.** El escalonado las calcula en cada render
 desde los tipos y las áreas. Lo que se autora son las ENTRADAS del layout:
@@ -215,6 +225,10 @@ la demo a 28 px, 6 (1.3%) a 48 px. Son pocas porque el reparto nunca parte un
 cruza lo que une áreas distintas. Una planta con un flujo de proceso que
 atraviesa áreas daría muchas más, así que el número dice más de los datos que
 del algoritmo.
+
+Vista de operación con la planta demo: abre en **0,2 s** con las cañerías
+apagadas, y prenderlas cuesta otros **0,2 s** (rutea solo la vista activa y
+un solo método, contra los tres de la tabla del editor).
 
 Ruteo de cañerías de la planta demo (470 conexiones, los tres métodos), de
 clic en "Cañerías" a tabla completa: **0,6–0,7 s** según la corrida
@@ -466,3 +480,23 @@ escalonado, 797 · 1.94 el libre.
   aparecía de golpe. Ahora la ruta del arrastre se recalcula en cada
   movimiento. Cuesta una sola ruta por cuadro, contra las 470 de la tabla,
   porque solo se rehace la que se está tocando.
+
+- **Un arrastre que escucha en el elemento se cancela solo al salir de él.**
+  Los listeners vivían en el `<svg>`, así que sacar el puntero del lienzo
+  disparaba `onMouseLeave` y el arrastre se perdía entero: sin guardar, sin
+  aviso, con el tirador volviendo a su lugar. En la planta demo los íconos
+  quedan pegados al borde de arriba, o sea que **cualquier arrastre hacia
+  arriba se cancelaba solo**. Medido: pidiendo 328 unidades de movimiento, el
+  tirador se movía 0 y no se guardaba nada. Mientras dura un arrastre los
+  listeners van en `window` —`getScreenCTM` convierte igual de bien un punto
+  de afuera del SVG— y soltar afuera compromete el arrastre. La
+  previsualización de conexión sí sigue atada al SVG: no es un arrastre, es
+  el puntero eligiendo destino.
+
+- **El extremo de una cañería se pega a la silueta, así que se mueve MUCHO
+  menos que el puntero.** Es lo correcto —una cañería tiene que tocar su
+  equipo— pero se lee como que "no sigue el mouse": arrastrando 166 unidades
+  sobre un motor de la demo, el tirador se corre 7, deslizándose por el
+  círculo. El punto que sí es libre es el CODO, que por eso puede quedar
+  lejos de todo. Los dos tiradores se pintan del color de "fijado a mano"
+  cuando lo están, y eso los hace fáciles de confundir.

@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
-import { puntoPerimetroCercano, puertoElegido, puertoHacia, rutaHaciaPunto, rutaEntreEquipos } from '../../gerencia/puertos';
+import { puntoPerimetroCercano, puertoElegido, rutaHaciaPunto, rutaEntreEquipos } from '../../gerencia/puertos';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible, anchoDeTitulo } from '../../gerencia/layout/grilla';
-import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas, metricasDeCanerias } from '../../gerencia/layout/ensayo';
+import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas, metricasDeCanerias, conectoresDeSalida } from '../../gerencia/layout/ensayo';
 import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
 import './portalScada.css';
 
@@ -34,9 +34,6 @@ const TIPOS_VASIJA = ['tanque', 'agitador'];
 const FONT_SIZE_TAG = 13;
 // Alto de una línea de título de área: lo que baja un título al esquivar a otro.
 const ALTO_TITULO_TXT = 16;
-// Largo del cabo del conector de salida (la conexión que sigue en otra vista).
-const LARGO_SALIDA = 20;
-const DIR_VECTOR_SALIDA = { N: { x: 0, y: -1 }, S: { x: 0, y: 1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } };
 const ALTO_TAG = 18;
 
 // La pantalla donde se va a ver la planta es una VARIABLE del problema, no
@@ -113,6 +110,8 @@ export default function EditorPlanta({
   // la línea de previsualización. Solo se sigue en modo conectar y con
   // origen elegido: seguirlo siempre re-renderiza 500 íconos por movimiento.
   const [punteroConectar, setPunteroConectar] = useState(null);
+
+  const hayArrastre = Boolean(arrastre || tituloArrastre || quiebreArrastre || extremoArrastre);
 
   // Un punto del evento, en coordenadas del lienzo. Sin esto el arrastre se
   // mueve a distinta velocidad que el puntero, porque el viewBox no está a
@@ -332,6 +331,67 @@ export default function EditorPlanta({
     return base ? { ...base, escala: pieza.escala } : null;
   };
 
+  // Mientras dura un arrastre, el mouse se sigue en WINDOW y no en el <svg>.
+  // Con los listeners en el SVG, sacar el puntero del lienzo disparaba
+  // onMouseLeave y el arrastre se perdía entero, sin guardar y sin ningún
+  // aviso: en la planta demo los íconos están pegados al borde de arriba, así
+  // que cualquier arrastre hacia arriba se cancelaba solo. Medido: pidiendo
+  // 328 unidades de movimiento, el tirador se movía 0 y no se guardaba nada.
+  // getScreenCTM convierte igual de bien un punto de afuera del SVG, así que
+  // soltar afuera ahora COMPROMETE el arrastre, que es lo que uno espera.
+  useEffect(() => {
+    if (!hayArrastre) return undefined;
+
+    const alMover = (e) => {
+      const p = puntoSvg(e);
+      if (!p) return;
+      if (arrastre) setArrastre({ ...arrastre, live: { x: Math.round(p.x + arrastre.dx), y: Math.round(p.y + arrastre.dy) } });
+      else if (tituloArrastre) setTituloArrastre({ ...tituloArrastre, live: { dx: Math.round(p.x - tituloArrastre.dx), dy: Math.round(p.y - tituloArrastre.dy) } });
+      else if (quiebreArrastre) setQuiebreArrastre({ ...quiebreArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
+      else if (extremoArrastre) setExtremoArrastre({ ...extremoArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
+    };
+
+    const alSoltar = () => {
+      if (arrastre) {
+        if (arrastre.live) moverEquipoPropio(arrastre.id, arrastre.live);
+        setArrastre(null);
+      }
+      if (tituloArrastre) {
+        if (tituloArrastre.live) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
+        setTituloArrastre(null);
+      }
+      if (quiebreArrastre) {
+        // Sin movimiento no hubo arrastre: fue un clic, y un clic ELIGE la
+        // conexión. Es lo que da un lugar para borrarla de a una y para
+        // mostrar las manijas de sus extremos, sin sumar tiradores.
+        if (quiebreArrastre.live) actualizarConexion(quiebreArrastre.conexionId, { quiebreManual: quiebreArrastre.live });
+        else setConexionSel((prev) => (prev === quiebreArrastre.conexionId ? null : quiebreArrastre.conexionId));
+        setQuiebreArrastre(null);
+      }
+      if (extremoArrastre) {
+        // El extremo se PEGA al perímetro del equipo: nunca queda un punto
+        // suelto en el aire, por lejos que se lo suelte. Por eso se mueve
+        // mucho menos que el puntero — se desliza por la silueta.
+        if (extremoArrastre.live) {
+          const pieza = piezaPorId.get(extremoArrastre.equipoId);
+          const icono = pieza && iconoConEscala(pieza);
+          const punto = icono && puntoPerimetroCercano({ x: pieza.x, y: pieza.y }, icono, extremoArrastre.live);
+          if (punto) actualizarConexion(extremoArrastre.conexionId, extremoArrastre.extremo === 'de' ? { puertoDe: punto } : { puertoA: punto });
+        }
+        setExtremoArrastre(null);
+      }
+    };
+
+    window.addEventListener('mousemove', alMover);
+    window.addEventListener('mouseup', alSoltar);
+    return () => {
+      window.removeEventListener('mousemove', alMover);
+      window.removeEventListener('mouseup', alSoltar);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hayArrastre, arrastre, tituloArrastre, quiebreArrastre, extremoArrastre, piezaPorId, data]);
+
+
   // Rutas a dibujar. Mientras se arrastra el codo o un extremo, la del
   // arrastre se recalcula en cada movimiento: antes solo se movía el
   // tirador y la cañería se quedaba quieta hasta soltar, así que no se veía
@@ -374,62 +434,18 @@ export default function EditorPlanta({
     return mapa;
   }, [vistasEscalonado]);
 
-  // Conexiones con UN extremo en esta vista y el otro en otra. Hoy
-  // desaparecen del lienzo sin dejar rastro —solo una línea de texto en el
-  // panel— y son pocas: medido, 3 de 470 en la planta demo a 28 px de
-  // mínimo, 6 a 48 px. Se dibujan como conector de salida de P&ID: un cabo
-  // corto que apunta AFUERA del dibujo (no hacia donde está el otro equipo,
-  // que vive en otro lienzo y cuya posición acá no querría decir nada) con
-  // el TAG del otro extremo y a qué vista ir.
+  // Conectores de salida: la cañería que sigue en otra vista. La geometría
+  // vive en layout/ensayo.js porque la comparte con la Vista de operación.
   const salidasDeVista = useMemo(() => {
-    if (metodo !== 'escalonado' || !vista || piezaPorId.size === 0) return [];
-    const centro = { x: (vista.metricas?.lienzoAncho || 0) / 2, y: (vista.metricas?.lienzoAlto || 0) / 2 };
-    // El viewBox agrega 20 de aire por lado; ese es el borde real de lo visible.
-    const izqVisible = -20;
-    const arribaVisible = -20;
-    const derVisible = (vista.metricas?.lienzoAncho || 0) + 20;
-    const abajoVisible = (vista.metricas?.lienzoAlto || 0) + 20;
-    const salidas = [];
-    conexionesDePlanta.forEach((c) => {
-      const aca = piezaPorId.get(c.deId) || piezaPorId.get(c.aId);
-      const otroId = piezaPorId.has(c.deId) ? c.aId : c.deId;
-      if (!aca || piezaPorId.has(otroId)) return;
-      const vistaOtro = vistaDeEquipo.get(otroId);
-      if (vistaOtro === undefined) return; // el otro extremo no está en ninguna vista
-      const icono = iconoConEscala(aca);
-      if (!icono) return;
-      // Un objetivo bien lejos en la dirección opuesta al centro: el puerto
-      // que elige es el que mira hacia el borde más cercano.
-      const afuera = { x: aca.x + (aca.x - centro.x) * 10, y: aca.y + (aca.y - centro.y) * 10 };
-      const puerto = puertoHacia({ x: aca.x, y: aca.y }, icono, afuera);
-      if (!puerto) return;
-      const v = DIR_VECTOR_SALIDA[puerto.dir];
-      const x2 = puerto.x + v.x * LARGO_SALIDA;
-      const y2 = puerto.y + v.y * LARGO_SALIDA;
-      const sale = piezaPorId.has(c.deId); // el equipo de acá es el origen
-      const tagOtro = data.equipos.find((e) => e.id === otroId)?.tag || otroId;
-      const texto = `${sale ? '▸ ' : '◂ '}${tagOtro} · vista ${vistaOtro + 1}`;
-
-      // El cartel se acota al lienzo VISIBLE. Sin esto, un equipo pegado al
-      // borde lo manda afuera del viewBox y no se dibuja: medido, 4 de 6
-      // conectores de la planta demo quedaban invisibles — justo el mal que
-      // esto viene a curar. Si no entra del lado de afuera, el texto se pasa
-      // al otro lado del cabo en vez de salirse.
-      const ancho = texto.length * 5.6 + 8;
-      let ancla = v.x < 0 ? 'end' : v.x > 0 ? 'start' : 'middle';
-      let xTexto = x2 + (ancla === 'end' ? -6 : ancla === 'start' ? 6 : 0);
-      if (ancla === 'start' && xTexto + ancho > derVisible) { ancla = 'end'; xTexto = x2 - 6; }
-      else if (ancla === 'end' && xTexto - ancho < izqVisible) { ancla = 'start'; xTexto = x2 + 6; }
-      if (ancla === 'middle') xTexto = Math.min(derVisible - ancho / 2, Math.max(izqVisible + ancho / 2, xTexto));
-      else if (ancla === 'start') xTexto = Math.min(xTexto, derVisible - ancho);
-      else xTexto = Math.max(xTexto, izqVisible + ancho);
-      const yTexto = Math.min(abajoVisible - 2, Math.max(arribaVisible + 10, y2 - 6));
-
-      salidas.push({ id: c.id, sale, tagOtro, vistaOtro, texto, x1: puerto.x, y1: puerto.y, x2, y2, ancla, xTexto, yTexto });
+    if (metodo !== 'escalonado' || !vista) return [];
+    return conectoresDeSalida({
+      piezas: vista.piezas,
+      conexiones: conexionesDePlanta,
+      vistaDeEquipo,
+      data,
+      lienzo: { ancho: vista.metricas?.lienzoAncho || 0, alto: vista.metricas?.lienzoAlto || 0 },
     });
-    return salidas;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metodo, vista, piezaPorId, conexionesDePlanta, vistaDeEquipo, data]);
+  }, [metodo, vista, conexionesDePlanta, vistaDeEquipo, data]);
 
   // Dónde va el título de cada área: la esquina superior izquierda de sus
   // equipos ya ubicados, más el desplazamiento que el usuario le haya dado.
@@ -900,52 +916,14 @@ export default function EditorPlanta({
             preserveAspectRatio="xMinYMin meet"
             style={{ width: '100%', height: '100%', display: 'block', cursor: modoConectar ? 'crosshair' : 'default' }}
             onMouseMove={(e) => {
-              const p = puntoSvg(e);
-              if (!p) return;
-              if (arrastre) setArrastre({ ...arrastre, live: { x: Math.round(p.x + arrastre.dx), y: Math.round(p.y + arrastre.dy) } });
-              else if (tituloArrastre) setTituloArrastre({ ...tituloArrastre, live: { dx: Math.round(p.x - tituloArrastre.dx), dy: Math.round(p.y - tituloArrastre.dy) } });
-              else if (quiebreArrastre) setQuiebreArrastre({ ...quiebreArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
-              else if (extremoArrastre) setExtremoArrastre({ ...extremoArrastre, live: { x: Math.round(p.x), y: Math.round(p.y) } });
-              else if (modoConectar && origenConexion) setPunteroConectar({ x: Math.round(p.x), y: Math.round(p.y) });
-            }}
-            onMouseUp={() => {
-              if (arrastre) {
-                if (arrastre.live) moverEquipoPropio(arrastre.id, arrastre.live);
-                setArrastre(null);
-              }
-              if (tituloArrastre) {
-                if (tituloArrastre.live) moverTituloArea(tituloArrastre.areaId, tituloArrastre.live);
-                setTituloArrastre(null);
-              }
-              if (quiebreArrastre) {
-                // Sin movimiento no hubo arrastre: fue un clic, y un clic
-                // ELIGE la conexión. Es lo que da un lugar para borrarla de
-                // a una y para mostrar las manijas de sus extremos, sin
-                // agregar más tiradores al lienzo.
-                if (quiebreArrastre.live) actualizarConexion(quiebreArrastre.conexionId, { quiebreManual: quiebreArrastre.live });
-                else setConexionSel((prev) => (prev === quiebreArrastre.conexionId ? null : quiebreArrastre.conexionId));
-                setQuiebreArrastre(null);
-              }
-              if (extremoArrastre) {
-                // El extremo se pega al perímetro del equipo: nunca queda un
-                // punto suelto en el aire. rutaPuertos intercala después el
-                // tramo que haga falta para llegar ortogonal.
-                if (extremoArrastre.live) {
-                  const pieza = piezaPorId.get(extremoArrastre.equipoId);
-                  const icono = pieza && iconoConEscala(pieza);
-                  const punto = icono && puntoPerimetroCercano({ x: pieza.x, y: pieza.y }, icono, extremoArrastre.live);
-                  if (punto) actualizarConexion(extremoArrastre.conexionId, extremoArrastre.extremo === 'de' ? { puertoDe: punto } : { puertoA: punto });
-                }
-                setExtremoArrastre(null);
+              // La previsualización de conexión sí se sigue solo adentro:
+              // no es un arrastre, es el puntero eligiendo destino.
+              if (modoConectar && origenConexion && !hayArrastre) {
+                const p = puntoSvg(e);
+                if (p) setPunteroConectar({ x: Math.round(p.x), y: Math.round(p.y) });
               }
             }}
-            onMouseLeave={() => {
-              setArrastre(null);
-              setTituloArrastre(null);
-              setQuiebreArrastre(null);
-              setExtremoArrastre(null);
-              setPunteroConectar(null);
-            }}
+            onMouseLeave={() => setPunteroConectar(null)}
           >
             <defs>
               <linearGradient id="ensayoGradMetal" x1="0" y1="0" x2="0" y2="1">

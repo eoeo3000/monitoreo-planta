@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
+import { metricasDeCanerias, conectoresDeSalida } from '../../gerencia/layout/ensayo';
 import './portalScada.css';
 
 // Vista de OPERACIÓN: mirar una planta, no editarla. No hay un solo control
@@ -9,11 +10,18 @@ import './portalScada.css';
 // que se dibuja se recalcula en cada render con el método escalonado, así
 // que tampoco depende de que alguien haya compactado antes.
 //
-// Es de VIGILANCIA DE CONDICIÓN, no un diagrama de proceso. Por eso NO
-// dibuja cañerías: el escalonado reacomoda los equipos ignorando el proceso
-// para meter la mayor cantidad legible por pantalla, y encima de ese orden
-// las conexiones saldrían como un ovillo. El diagrama de proceso, con sus
-// cañerías ruteadas, es el Portal SCADA — son complementarias.
+// Es de VIGILANCIA DE CONDICIÓN, no un diagrama de proceso, así que las
+// cañerías vienen APAGADAS: el escalonado reacomoda los equipos ignorando el
+// proceso para meter la mayor cantidad legible por pantalla, y encima de ese
+// orden las conexiones se cruzan mucho — medido, 1.86 cruces por conexión
+// contra 0.19 del compactado—.
+//
+// Pero se pueden prender, y el interruptor está persistido. Antes no
+// existían acá y punto, con el argumento de que el diagrama de proceso era
+// el Portal SCADA; el Portal se retiró y el Editor de planta dibuja las
+// cañerías sobre ESTE MISMO layout, así que negarlas acá dejaba a dos
+// pantallas del mismo acomodado mostrando cosas distintas. Sigue siendo
+// razonable que estén apagadas por defecto; no lo era que no estuvieran.
 
 const ESTADO_COLOR = { normal: 'var(--e-normal)', observacion: 'var(--e-observacion)', alerta: 'var(--e-alerta)', alarma: 'var(--e-alarma)' };
 const SIN_DIAGNOSTICO = 'var(--e-sindiagnostico)';
@@ -37,7 +45,7 @@ const FONT_SIZE_TAG = 13;
 
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
-export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcono }) {
+export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcono, verCanerias, setVerCanerias }) {
   const [vistaActiva, setVistaActiva] = useState(0);
   const [panel, setPanel] = useState(null);
   const svgRef = useRef(null);
@@ -88,6 +96,8 @@ export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcon
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [equiposDePlanta, data.diagnosticos]);
 
+  const conexionesDePlanta = useMemo(() => data.conexiones.filter((c) => c.plantaId === plantaId), [data.conexiones, plantaId]);
+
   const vistas = useMemo(() => {
     if (!panel || equiposDePlanta.length === 0) return [];
     const arObjetivo = panel.ancho / panel.alto;
@@ -113,6 +123,25 @@ export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcon
   }, [vistas]);
 
   const vista = vistas[Math.min(vistaActiva, vistas.length - 1)] || null;
+
+  // Se rutea SOLO la vista activa y solo con el interruptor prendido: es la
+  // parte cara (esquivar equipos) y la pantalla tiene que abrir rápido.
+  const canerias = useMemo(() => {
+    if (!verCanerias || !vista) return null;
+    return metricasDeCanerias(vista.piezas, conexionesDePlanta, data);
+  }, [verCanerias, vista, conexionesDePlanta, data]);
+
+  // En qué vista quedó cada equipo, para los conectores de salida.
+  const vistaDeEquipo = useMemo(() => {
+    const mapa = new Map();
+    vistas.forEach((v, i) => v.piezas.forEach((p) => mapa.set(p.eq.id, i)));
+    return mapa;
+  }, [vistas]);
+
+  const salidas = useMemo(() => {
+    if (!verCanerias || !vista) return [];
+    return conectoresDeSalida({ piezas: vista.piezas, conexiones: conexionesDePlanta, vistaDeEquipo, data, lienzo: vista.lienzo });
+  }, [verCanerias, vista, conexionesDePlanta, vistaDeEquipo, data]);
   const nombreDeArea = (id) => areasDePlanta.find((a) => a.id === id)?.nombre;
 
   const etiquetaSelect = { display: 'block', fontSize: 12, color: 'var(--scada-texto-2)', marginBottom: 4 };
@@ -171,6 +200,21 @@ export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcon
           </>
         )}
 
+        {/* Apagado por defecto: acá se viene a mirar condición, y sobre el
+            escalonado las cañerías se cruzan (1.86 por conexión contra 0.19
+            del compactado). Pero a veces hace falta saber de dónde viene un
+            equipo, y el editor las dibuja sobre este mismo layout. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--scada-texto-2)', cursor: 'pointer', marginBottom: 'var(--space-3)' }}>
+          <input type="checkbox" checked={Boolean(verCanerias)} onChange={(e) => setVerCanerias(e.target.checked)} />
+          Ver cañerías
+          {verCanerias && canerias && (
+            <span style={{ marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
+              {canerias.rutas.length}
+              {canerias.fuera > 0 && ` +${canerias.fuera}`}
+            </span>
+          )}
+        </label>
+
         <div style={{ fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--scada-texto-2)', margin: '0 0 8px' }}>
           Estado de los equipos
         </div>
@@ -197,7 +241,7 @@ export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcon
         </table>
 
         <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', lineHeight: 1.5, margin: '0 0 var(--space-3)' }}>
-          Tamaño mínimo de ícono: {tamanoIcono.min} px. Es lo que decide cuántas vistas hacen falta, y se ajusta desde Ensayo de layout.
+          Tamaño mínimo de ícono: {tamanoIcono.min} px. Es lo que decide cuántas vistas hacen falta, y se ajusta desde el Editor de planta.
         </p>
 
         {vista?.minimoInalcanzable && (
@@ -236,6 +280,38 @@ export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcon
                   strokeDasharray="4 3"
                   opacity={0.75}
                 />
+              ))}
+
+              {/* Cañerías: debajo de los equipos, para que un trazo no
+                  tape el color de condición, que es lo que se viene a
+                  mirar acá. */}
+              {canerias &&
+                canerias.rutas.map((r, i) => (
+                  <path
+                    key={`cx-${r.conexion?.id || i}`}
+                    d={r.d}
+                    fill="none"
+                    stroke="var(--scada-tuberia)"
+                    strokeWidth={2}
+                    strokeLinecap="butt"
+                    shapeRendering="crispEdges"
+                    opacity={0.75}
+                  />
+                ))}
+
+              {/* La conexión que sigue en otra vista: sin esto desaparece
+                  del lienzo sin dejar rastro. Un clic lleva a esa vista. */}
+              {salidas.map((sal) => (
+                <g key={`sal-${sal.id}`} style={{ cursor: 'pointer' }} onClick={() => setVistaActiva(sal.vistaOtro)} data-salida={sal.id}>
+                  <path d={`M ${sal.x1} ${sal.y1} L ${sal.x2} ${sal.y2}`} fill="none" stroke="var(--scada-tuberia)" strokeWidth={2} strokeDasharray="3 3" shapeRendering="crispEdges" />
+                  <circle cx={sal.x2} cy={sal.y2} r={3} fill="none" stroke="var(--scada-tuberia)" strokeWidth={1.5} />
+                  <text x={sal.xTexto} y={sal.yTexto} textAnchor={sal.ancla} fontSize={10} fontWeight={700} fill="var(--scada-tuberia)" style={{ userSelect: 'none' }}>
+                    {sal.texto}
+                  </text>
+                  <title>
+                    {sal.sale ? `Sigue hacia ${sal.tagOtro}` : `Viene de ${sal.tagOtro}`}, en la vista {sal.vistaOtro + 1}. Clic para ir.
+                  </title>
+                </g>
               ))}
 
               {vista.piezas.map((p) => {
