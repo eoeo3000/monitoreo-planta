@@ -328,6 +328,8 @@ export default function EditorPlanta({
   // Piezas por id de equipo: lo necesitan las manijas de extremo (para pegar
   // el punto al perímetro del equipo) y la previsualización.
   const piezaPorId = useMemo(() => new Map((vista?.piezas || []).map((p) => [p.eq.id, p])), [vista]);
+  const tagDe = (id) => data.equipos.find((e) => e.id === id)?.tag || id;
+
   const iconoConEscala = (pieza) => {
     const base = iconoBaseDe(pieza.eq.tipo, data);
     return base ? { ...base, escala: pieza.escala } : null;
@@ -926,6 +928,15 @@ export default function EditorPlanta({
               }
             }}
             onMouseLeave={() => setPunteroConectar(null)}
+            onClick={(e) => {
+              // Solo el vacío: e.target es el <svg> únicamente cuando no se
+              // tocó ningún hijo. Sin esto no había forma de soltar la
+              // conexión elegida salvo volver a hacerle clic exacto encima.
+              if (e.target === e.currentTarget) {
+                setConexionSel(null);
+                setSeleccionado(null);
+              }
+            }}
           >
             <defs>
               <linearGradient id="ensayoGradMetal" x1="0" y1="0" x2="0" y2="1">
@@ -975,15 +986,43 @@ export default function EditorPlanta({
 
             {caneriasVista &&
               rutasDibujo.map((r, i) => (
-                <path
-                  key={`cx-${r.conexion?.id || i}`}
-                  d={r.d}
-                  fill="none"
-                  stroke={r.conexion?.id === conexionSel ? 'var(--scada-titulo)' : 'var(--scada-tuberia)'}
-                  strokeWidth={r.conexion?.id === conexionSel ? 3 : 2}
-                  strokeLinecap="butt"
-                  shapeRendering="crispEdges"
-                />
+                <g key={`cx-${r.conexion?.id || i}`}>
+                  <path
+                    d={r.d}
+                    fill="none"
+                    stroke={r.conexion?.id === conexionSel ? 'var(--scada-titulo)' : 'var(--scada-tuberia)'}
+                    strokeWidth={r.conexion?.id === conexionSel ? 3 : 2}
+                    strokeLinecap="butt"
+                    shapeRendering="crispEdges"
+                  />
+                  {/* Trazo transparente y ANCHO para poder agarrar la cañería
+                      en todo su largo. Antes elegirla exigía acertarle al
+                      tirador del codo, un círculo de 5 px sin nada que lo
+                      anunciara: la función existía y no se encontraba.
+                      Va junto con las cañerías y no después de los equipos a
+                      propósito — si fuera después, una cañería que pasa por
+                      encima de un ícono le robaría el clic al equipo, y
+                      arrastrar equipos importa más que elegir una línea. El
+                      precio es que el tramo tapado por un ícono no se puede
+                      agarrar ahí; se agarra en cualquier otro punto. */}
+                  {r.conexion && (
+                    <path
+                      d={r.d}
+                      data-linea={r.conexion.id}
+                      fill="none"
+                      stroke="transparent"
+                      strokeWidth={12}
+                      strokeLinecap="butt"
+                      style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConexionSel((prev) => (prev === r.conexion.id ? null : r.conexion.id));
+                      }}
+                    >
+                      <title>{`${tagDe(r.conexion.deId)} → ${tagDe(r.conexion.aId)} · clic para elegirla`}</title>
+                    </path>
+                  )}
+                </g>
               ))}
 
             {vista.piezas.map((p) => {
