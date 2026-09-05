@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { condicionActual } from '../../analista/store';
+import { condicionActual, datosDePlanta } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
 import { metricasDeCanerias, conectoresDeSalida } from '../../gerencia/layout/ensayo';
@@ -46,7 +46,10 @@ const FONT_SIZE_TAG = 13;
 
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
-export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcono, verCanerias, setVerCanerias }) {
+export default function VistaOperacion({ data: datosCrudos, plantaId, setPlantaId, tamanoIcono, verCanerias, setVerCanerias }) {
+  // Igual que en el editor: la tabla de escalas es la de la planta elegida.
+  const data = useMemo(() => datosDePlanta(datosCrudos, plantaId), [datosCrudos, plantaId]);
+
   const [vistaActiva, setVistaActiva] = useState(0);
   const [panel, setPanel] = useState(null);
   const svgRef = useRef(null);

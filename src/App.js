@@ -17,7 +17,8 @@ export default function App() {
   const dePlanta = { plantaId, setPlantaId };
   // El tamaño legible del ícono es una decisión, no un parámetro de
   // laboratorio: se ajusta en el ensayo y lo aplica la Vista de operación.
-  const [tamanoIcono, setTamanoIcono] = useTamanoIcono();
+  // Por planta: el mínimo decide cuántas vistas arma ESA planta.
+  const [tamanoIcono, setTamanoIcono] = useTamanoIcono(plantaId);
   const deTamano = { tamanoIcono, setTamanoIcono };
   // Si operación dibuja las cañerías. Persistido, como la planta elegida.
   const [verCaneriasOperacion, setVerCaneriasOperacion] = useVerCaneriasOperacion();

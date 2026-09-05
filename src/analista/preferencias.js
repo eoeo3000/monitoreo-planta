@@ -60,18 +60,36 @@ const acotar = ({ min, max }) => ({
   max: Math.min(400, Math.max(60, Number(max) || TAMANO_ICONO_DEFAULT.max)),
 });
 
-export function useTamanoIcono() {
-  const [tamano, setTamano] = useState(() => acotar({ ...TAMANO_ICONO_DEFAULT, ...(leer().tamanoIcono || {}) }));
+// Es POR PLANTA. El mínimo decide cuántas vistas hacen falta, y eso depende
+// de la planta: una de 500 equipos no quiere el mismo mínimo que una de 13.
+// Al cambiar de planta en el selector, vuelve el valor con el que la estabas
+// mirando; una planta que nunca se tocó arranca en el default.
+//
+// Lo que SÍ se comparte es entre PANTALLAS: el editor y la Vista de
+// operación leen el mismo valor para la misma planta, porque si no el
+// reparto en vistas de una no coincidiría con el de la otra.
+export function useTamanoIcono(plantaId) {
+  const [porPlanta, setPorPlanta] = useState(() => leer().tamanoIconoPorPlanta || {});
 
   useEffect(() => {
     try {
-      localStorage.setItem(CLAVE, JSON.stringify({ ...leer(), tamanoIcono: tamano }));
+      localStorage.setItem(CLAVE, JSON.stringify({ ...leer(), tamanoIconoPorPlanta: porPlanta }));
     } catch (e) {
       // sin persistencia, pero la sesión sigue funcionando
     }
-  }, [tamano]);
+  }, [porPlanta]);
 
-  const cambiar = useCallback((cambios) => setTamano((prev) => acotar({ ...prev, ...cambios })), []);
+  const tamano = acotar({ ...TAMANO_ICONO_DEFAULT, ...(porPlanta[plantaId] || {}) });
+  const cambiar = useCallback(
+    (cambios) => {
+      if (!plantaId) return;
+      setPorPlanta((prev) => ({
+        ...prev,
+        [plantaId]: acotar({ ...TAMANO_ICONO_DEFAULT, ...(prev[plantaId] || {}), ...cambios }),
+      }));
+    },
+    [plantaId]
+  );
   return [tamano, cambiar];
 }
 

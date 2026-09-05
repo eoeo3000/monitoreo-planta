@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { condicionActual } from '../../analista/store';
+import { condicionActual, datosDePlanta } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { puntoPerimetroCercano, puertoElegido, rutaHaciaPunto, rutaEntreEquipos } from '../../gerencia/puertos';
 import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
@@ -58,7 +58,7 @@ const PANTALLAS = [
 const PALETA_AREAS = ['#00a2e8', '#ff00ff', '#f2b705', '#2ecc71', '#e8590c', '#9b59b6', '#1abc9c', '#e74c3c'];
 
 export default function EditorPlanta({
-  data,
+  data: datosCrudos,
   plantaId,
   setPlantaId,
   tamanoIcono,
@@ -67,7 +67,7 @@ export default function EditorPlanta({
   restablecerPosiciones,
   crearConexion,
   eliminarConexion,
-  cambiarEscalaTipo,
+  ajustarEscalaTipo,
   cambiarEscalaEquipo,
   restablecerTamanios,
   renombrarEquipo,
@@ -76,6 +76,11 @@ export default function EditorPlanta({
   actualizarConexion,
   generarPlantaDePrueba,
 }) {
+  // Los tamaños por tipo son de ESTA planta. Todo lo de abajo usa `data`
+  // como siempre; lo único que cambia es que su tabla de escalas es la que
+  // corresponde a la planta elegida.
+  const data = useMemo(() => datosDePlanta(datosCrudos, plantaId), [datosCrudos, plantaId]);
+
   const [metodo, setMetodo] = useState('escalonado');
   const [agruparPorArea, setAgruparPorArea] = useState(true);
   // Compartidos con la Vista de operación y persistidos: mover el mínimo acá
@@ -646,12 +651,12 @@ export default function EditorPlanta({
               Tamaños de equipo
             </summary>
             <p style={{ fontSize: 11, color: 'var(--scada-texto-2)', margin: '6px 0', lineHeight: 1.45 }}>
-              El tamaño relativo entre tipos decide la densidad y, con ella, cuántas vistas hacen falta. Doble clic sobre un equipo para el suyo propio.
+              De <strong>esta planta</strong>: cada una tiene su propia tabla. El tamaño relativo entre tipos decide la densidad y, con ella, cuántas vistas hacen falta. Doble clic sobre un equipo para el suyo propio.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
               {[...Object.keys(SCADA_ICONOS), ...(data.tiposPersonalizados || []).map((t) => t.clave)].map((tipo) => {
                 const esc = data.escalasPorTipo?.[tipo] ?? 1;
-                const cambiar = (d) => cambiarEscalaTipo(tipo, Math.min(4, Math.max(0.3, Math.round((esc + d) * 100) / 100)));
+                const cambiar = (d) => ajustarEscalaTipo(plantaId, tipo, d);
                 return (
                   <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <span style={{ flexGrow: 1, fontSize: 11, textTransform: 'capitalize', padding: '4px 6px', background: 'var(--scada-panel)' }}>{tipo}</span>
