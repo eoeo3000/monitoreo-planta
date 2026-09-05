@@ -6,7 +6,7 @@ import { SCADA_ICONOS } from '../../gerencia/scadaIconos';
 import { calcularLayoutCompacto } from '../../gerencia/layout/compactado';
 import { escalaVisible, anchoDeTitulo } from '../../gerencia/layout/grilla';
 import { empaquetarLibre, metricas, cajasPorArea, solapamientoDeCajas, metricasDeCanerias, conectoresDeSalida } from '../../gerencia/layout/ensayo';
-import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
+import { contornosDeArea, repartirEnVistas, celdaDeEquipo } from '../../gerencia/layout/escalonado';
 import { conPosicionPropia } from '../../gerencia/layout/overrides';
 import './portalScada.css';
 
@@ -169,6 +169,16 @@ export default function EditorPlanta({
     const ids = new Set(areasDePlanta.map((a) => a.id));
     return data.equipos.filter((eq) => ids.has(eq.areaId));
   }, [data.equipos, areasDePlanta]);
+
+  // El ícono más grande de TODA la planta, sin topar — el mismo criterio
+  // que altoIconoMinPlanta en repartirEnVistas: todas las vistas se dibujan
+  // a la misma cámara, así que el tope tiene que medirse contra la planta
+  // entera y no contra la vista activa, o el mismo tipo cambiaría de tamaño
+  // al cambiar de vista.
+  const altoIconoMaxPlanta = useMemo(() => {
+    const altos = equiposDePlanta.map((eq) => celdaDeEquipo(eq, data)).filter(Boolean).map((c) => c.altoIcono);
+    return altos.length ? Math.max(...altos) : 1;
+  }, [equiposDePlanta, data]);
 
   const colorDeArea = useMemo(() => {
     const mapa = {};
@@ -514,11 +524,24 @@ export default function EditorPlanta({
   // el mismo número se vea distinto en dos plantas: donde hay más contenido
   // el lienzo es más grande y la cámara se aleja.
   // El zoom que la cámara toma sola para llenar el panel, SIN la lupa.
-  const zoomDeAjuste =
+  const zoomDeAjusteSinTope =
     panelReal && lienzoDibujo.ancho > 0
       ? Math.min(panelReal.ancho / (lienzoDibujo.ancho + 40), panelReal.alto / (lienzoDibujo.alto + 40))
       : null;
+  // El "Máximo" topa qué tan cerca puede acercarse la cámara sola: sin esto
+  // llenaba el panel igual y el ícono más grande podía salir enorme en una
+  // planta rala (medido: 191 px con el máximo en 180, 120 o 60 — no hacía
+  // nada). Toparlo agranda el viewBox más allá del lienzo, así que sobra
+  // lienzo vacío en vez de agrandar el ícono — la misma idea que "una vista
+  // menos llena queda con aire, no agrandada".
+  const zoomTopeMax = tamMaxPx && altoIconoMaxPlanta > 0 ? tamMaxPx / altoIconoMaxPlanta : Infinity;
+  const zoomDeAjuste =
+    zoomDeAjusteSinTope !== null ? Math.min(zoomDeAjusteSinTope, zoomTopeMax) : null;
   const pxPorUnidad = zoomDeAjuste !== null ? zoomDeAjuste * zoom : null;
+  // Cuánto hay que agrandar el viewBox más allá del lienzo para lograr el
+  // zoom topado sin que la lupa (el `zoom` manual) se entere: 1 si no topó.
+  const factorTope =
+    zoomDeAjusteSinTope && zoomDeAjuste ? zoomDeAjusteSinTope / zoomDeAjuste : 1;
   // Los píxeles del ícono más chico y del más grande, COMO SE DIBUJAN.
   // No son los de `encuadre`: ese los calcula con el lienzo de su propia
   // vista y aplicando el tope del máximo, y el dibujo usa el lienzo común a
@@ -538,8 +561,8 @@ export default function EditorPlanta({
     return p ? Math.round(p.altoIcono * pxPorUnidad) : null;
   };
 
-  const vbAncho = (lienzoDibujo.ancho + 40) / zoom;
-  const vbAlto = (lienzoDibujo.alto + 40) / zoom;
+  const vbAncho = ((lienzoDibujo.ancho + 40) * factorTope) / zoom;
+  const vbAlto = ((lienzoDibujo.alto + 40) * factorTope) / zoom;
   const viewBox = `${(lienzoDibujo.ancho + 40) / 2 - vbAncho / 2 - 20} ${(lienzoDibujo.alto + 40) / 2 - vbAlto / 2 - 20} ${vbAncho} ${vbAlto}`;
 
   const filas = [

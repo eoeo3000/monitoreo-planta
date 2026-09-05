@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { condicionActual, datosDePlanta } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
-import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
+import { contornosDeArea, repartirEnVistas, celdaDeEquipo } from '../../gerencia/layout/escalonado';
 import { metricasDeCanerias, conectoresDeSalida } from '../../gerencia/layout/ensayo';
 import { conPosicionPropia } from '../../gerencia/layout/overrides';
 import './portalScada.css';
@@ -129,6 +129,25 @@ export default function VistaOperacion({ data: datosCrudos, plantaId, setPlantaI
     if (vistas.length === 0) return null;
     return { ancho: Math.max(...vistas.map((v) => v.lienzo.ancho)), alto: Math.max(...vistas.map((v) => v.lienzo.alto)) };
   }, [vistas]);
+
+  // El ícono más grande de TODA la planta, sin topar — mismo criterio que
+  // el mínimo: todas las vistas se dibujan a la misma cámara, así que el
+  // tope tiene que medirse contra la planta entera.
+  const altoIconoMaxPlanta = useMemo(() => {
+    const altos = equiposDePlanta.map((eq) => celdaDeEquipo(eq, data)).filter(Boolean).map((c) => c.altoIcono);
+    return altos.length ? Math.max(...altos) : 1;
+  }, [equiposDePlanta, data]);
+
+  // El "Máximo" topa la cámara automática, igual que en el editor: sin esto
+  // llenaba el panel igual y el ícono más grande podía salir enorme en una
+  // planta rala. Toparlo agranda el viewBox más allá del lienzo en vez de
+  // agrandar el ícono.
+  const factorTope = useMemo(() => {
+    if (!panel || !lienzoComun || !tamanoIcono.max) return 1;
+    const zoomSinTope = Math.min(panel.ancho / (lienzoComun.ancho + 40), panel.alto / (lienzoComun.alto + 40));
+    const zoomTope = altoIconoMaxPlanta > 0 ? tamanoIcono.max / altoIconoMaxPlanta : Infinity;
+    return zoomSinTope > 0 ? zoomSinTope / Math.min(zoomSinTope, zoomTope) : 1;
+  }, [panel, lienzoComun, tamanoIcono.max, altoIconoMaxPlanta]);
 
   const vista = vistas[Math.min(vistaActiva, vistas.length - 1)] || null;
 
@@ -263,7 +282,13 @@ export default function VistaOperacion({ data: datosCrudos, plantaId, setPlantaI
       <div style={{ flexGrow: 1, minWidth: 0, padding: 'var(--space-3)', background: 'var(--scada-subpanel)' }}>
         <svg
           ref={svgRef}
-          viewBox={lienzoComun ? `-20 -20 ${lienzoComun.ancho + 40} ${lienzoComun.alto + 40}` : '0 0 100 100'}
+          viewBox={
+            lienzoComun
+              ? `${(lienzoComun.ancho + 40) / 2 - ((lienzoComun.ancho + 40) * factorTope) / 2 - 20} ${
+                  (lienzoComun.alto + 40) / 2 - ((lienzoComun.alto + 40) * factorTope) / 2 - 20
+                } ${(lienzoComun.ancho + 40) * factorTope} ${(lienzoComun.alto + 40) * factorTope}`
+              : '0 0 100 100'
+          }
           preserveAspectRatio="xMinYMin meet"
           style={{ width: '100%', height: '100%', display: 'block' }}
         >
