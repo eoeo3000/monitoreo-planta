@@ -612,6 +612,37 @@ escalonado, 797 · 1.94 el libre.
   y sin `factorAuto`** (que lo borra "Restablecer tamaños"). No hay un cuarto
   factor escondido — está verificado equipo por equipo.
 
+- **Guardar un ZOOM fijo no sostiene una cámara fija — hay que guardar el
+  OBJETIVO.** El mismo problema de arriba aparece igual entre MÉTODOS: la
+  planta demo daba 33 px en "Actual" y 101 en "Escalonado" para el mismo
+  tanque, porque "Actual" mete TODA la planta en una vista (lienzo enorme,
+  cámara lejos) y "Escalonado" solo dibuja una vista paginada (lienzo mucho
+  más chico, cámara más cerca) — cada método llena el panel con lo que
+  tiene, como antes pasaba entre plantas. El campo "Cámara" hacía
+  `setZoom(v / zoomDeAjuste)` una sola vez al tipear: guardaba un ZOOM
+  (`pxObjetivo/zoomDeAjuste` DE ESE MOMENTO), no un objetivo, así que apenas
+  cambiaba el método (o la planta, o la vista) el `zoomDeAjuste` de referencia
+  cambiaba y el zoom guardado dejaba de apuntar al mismo número. Ahora el
+  estado que se guarda es el ABSOLUTO (`pxObjetivo`, px por unidad) y el zoom
+  se recalcula en cada render contra el `zoomDeAjuste` de turno para
+  llegar a él — sostenido al cambiar de método, vista, pantalla o planta.
+  Verificado: fijando 0,5 px/unidad, "Actual", "Escalonado" y "Libre" dan
+  0,500 / 0,4999… / 0,500 (ruido de punto flotante, no del método). El
+  objetivo bypasea el tope del "Máximo" igual que la lupa —los dos son la
+  acción explícita de la persona— recalculando `zoomDeAjuste` sin `Math.min`
+  contra `zoomTopeMax` cuando `pxObjetivo` está fijado.
+
+  **Ojo: esto iguala la CÁMARA, no el tamaño MUNDO.** "Actual" no solo tiene
+  su propia cámara: `calcularLayoutCompacto` calcula su propio
+  `factorGlobal` y lo escribe (en memoria, para esta previsualización) sobre
+  el `factorAuto` de CADA equipo, pisando el 1.3 real que trae la planta.
+  Con la misma cámara fijada, el tanque salió 50 px en "Actual" contra 58-59
+  en "Escalonado"/"Libre" —un ~16% que no es de cámara: es que "Actual"
+  literalmente dibuja con un tamaño-mundo distinto, propio de lo que ese
+  algoritmo decidió para empaquetar parejo. Iguala método por método su
+  aporte a la densidad, pero no busca calzar sus píxeles con los de los
+  otros dos — son cosas distintas, no una cámara sin corregir.
+
 - **Cuando el mínimo ata, la cámara deja de ser libre — y ahí subir un tipo
   NO achica a los demás.** Es la mitad que faltaba de lo de arriba, y
   contradice el atajo de "lo que fija los píxeles es la densidad": en una
