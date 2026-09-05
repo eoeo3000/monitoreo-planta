@@ -3,6 +3,7 @@ import { condicionActual } from '../../analista/store';
 import { iconoBaseDe } from '../../gerencia/iconos';
 import { contornosDeArea, repartirEnVistas } from '../../gerencia/layout/escalonado';
 import { metricasDeCanerias, conectoresDeSalida } from '../../gerencia/layout/ensayo';
+import { conPosicionPropia } from '../../gerencia/layout/overrides';
 import './portalScada.css';
 
 // Vista de OPERACIÓN: mirar una planta, no editarla. No hay un solo control
@@ -103,7 +104,11 @@ export default function VistaOperacion({ data, plantaId, setPlantaId, tamanoIcon
     const arObjetivo = panel.ancho / panel.alto;
     const repartidas = repartirEnVistas(equiposDePlanta, data, { arObjetivo, panel, tamMinPx: tamanoIcono.min, tamMaxPx: tamanoIcono.max });
     return repartidas.map((v) => ({
-      piezas: v.layout.colocadas.map((c) => ({ eq: c.eq, escala: c.escala, anchoIcono: c.anchoIcono, altoIcono: c.altoIcono, x: c.x + c.ancho / 2, y: c.y + c.altoIcono })),
+      // El override de posición se aplica ACÁ también: lo que se arrastra en
+      // el editor tiene que verse acá, que es lo que el editor promete.
+      piezas: conPosicionPropia(
+        v.layout.colocadas.map((c) => ({ eq: c.eq, escala: c.escala, anchoIcono: c.anchoIcono, altoIcono: c.altoIcono, x: c.x + c.ancho / 2, y: c.y + c.altoIcono }))
+      ),
       contornos: v.layout.spans.flatMap((s) => contornosDeArea(s.spans).map((c) => ({ ...c, areaId: s.areaId }))),
       lienzo: { ancho: v.layout.ancho, alto: v.layout.alto },
       areaIds: v.areas.map((a) => a.areaId),

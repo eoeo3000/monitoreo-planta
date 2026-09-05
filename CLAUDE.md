@@ -34,6 +34,7 @@ src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   skyline.js                   UNA implementación del empaquetado
   compactado.js                el compactado de producción (bloques por área)
   escalonado.js                el layout escalonado y su reparto en vistas
+  overrides.js                 la posición puesta a mano que pisa a la calculada
   ensayo.js                    métodos alternativos que se comparan en pantalla,
                                más la geometría de cañerías que comparten el
                                editor y operación (métricas y conectores de salida)
@@ -111,6 +112,14 @@ Cosas que se rompen sin avisar si no se saben.
   así que negarlas dejaba a dos pantallas del mismo acomodado mostrando
   cosas distintas. Que estén apagadas por defecto sigue siendo razonable;
   que no estuvieran, no.
+
+**Lo que se edita en el editor tiene que verse en operación.** Es la promesa
+de la pantalla y hay que revisarla cada vez que se agrega un dato editable.
+Comprobado dato por dato: posición movida a mano, tamaño por tipo, nombre,
+duplicados, quiebre a mano y extremos fijados llegan todos. Con la pantalla
+de destino en "Panel real de esta ventana", los trazos de cañería salen
+**idénticos** en las dos; con otra pantalla difieren, y eso es correcto —el
+reparto depende del panel, no es dato perdido—.
 
 **Las posiciones NO son dato.** El escalonado las calcula en cada render
 desde los tipos y las áreas. Lo que se autora son las ENTRADAS del layout:
@@ -500,3 +509,20 @@ escalonado, 797 · 1.94 el libre.
   círculo. El punto que sí es libre es el CODO, que por eso puede quedar
   lejos de todo. Los dos tiradores se pintan del color de "fijado a mano"
   cuando lo están, y eso los hace fáciles de confundir.
+
+- **Un override que aplica una sola de las dos pantallas es peor que no
+  tenerlo.** `eq.posicionPropia` lo aplicaba el editor y lo ignoraba
+  operación: arrastrar un equipo lo movía en la pantalla donde se edita y no
+  en la que se mira, que es exactamente al revés de lo que el editor promete.
+  Medido: el editor lo dibujaba en (59,38) con `posicionPropia {x:72,y:67}`
+  guardado, y operación lo devolvía a (13,0). La aplicación quedó en
+  `layout/overrides.js`, una sola función que usan las dos; el arrastre EN
+  CURSO se le suma encima solo en el editor, porque es lo único de esto que
+  no existe en operación.
+
+- **Un campo que nadie lee es una promesa falsa en los datos.**
+  `eq.etiquetaOffset` (mover el TAG a mano) sobrevivió al Portal: el store
+  tenía `moverEtiquetaEquipo`, "Restablecer posiciones" avisaba que lo iba a
+  resetear, y ninguna pantalla lo escribía ni lo leía. Quien abriera el JSON
+  habría creído que los TAG se pueden mover. Borrado, junto con la línea del
+  aviso que lo mencionaba.
