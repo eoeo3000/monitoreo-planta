@@ -598,6 +598,26 @@ escalonado, 797 · 1.94 el libre.
   y sin `factorAuto`** (que lo borra "Restablecer tamaños"). No hay un cuarto
   factor escondido — está verificado equipo por equipo.
 
+- **Cuando el mínimo ata, la cámara deja de ser libre — y ahí subir un tipo
+  NO achica a los demás.** Es la mitad que faltaba de lo de arriba, y
+  contradice el atajo de "lo que fija los píxeles es la densidad": en una
+  planta densa el layout escala para que el ícono más chico llegue al
+  mínimo, así que ese queda CLAVADO y agrandar otro tipo se paga con más
+  vistas, no con alejar la cámara. Medido en la planta demo, subiendo solo
+  el peso del tanque:
+
+  | peso del tanque | cámara | vistas | tanque | bomba | motor |
+  |---|---|---|---|---|---|
+  | 1.00 | 0,796 | 4 | 93 px | 30 px | 27 px |
+  | 2.00 | 0,786 | 6 | **184 px** | **30 px** | **27 px** |
+  | 3.60 | 0,802 | 19 | — | **30 px** | **27 px** |
+
+  El tanque se duplica y la bomba y el motor no se mueven un píxel. De ahí
+  sale la asimetría que parece un factor por tipo escondido y no lo es: los
+  tipos chicos los ancla el mínimo, los grandes viajan con su peso.
+  `celdaDeEquipo` fija la escala una sola vez y el empaquetado solo
+  posiciona — no hay ningún factor por tipo en el layout.
+
 - **Un peso relativo mostrado sin píxeles no se puede comparar entre
   plantas.** El panel decía "3.50" y el doble clic también, y esa misma
   bomba medía 132 px en la semilla y 72 en la demo: el peso es cuánto mide un
