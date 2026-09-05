@@ -27,7 +27,7 @@ algo por terminado.
 ```
 src/analista/store.js        estado (useAnalistaData) y persistencia. SOLO estado.
 src/analista/preferencias.js preferencias de quien mira (planta elegida,
-                             tamaño de ícono), en su propia clave
+                             tamaño de ícono POR PLANTA), en su propia clave
 src/analista/severidad.js    modelo de severidad — fijo, no configurable
 src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   grilla.js                    escalas, geometría de grilla, búsqueda de ancho
@@ -180,11 +180,20 @@ Al elegir el destino de una conexión nueva hay línea de previsualización
 (`rutaHaciaPunto`), que sale del mismo puerto por el que saldrá la cañería
 definitiva.
 
-El **tamaño mínimo/máximo de ícono se comparte** entre las dos (vive en
-`preferencias.js`). El **selector de pantalla NO**, y no debe: operación
-tiene que usar el panel donde realmente dibuja. Por eso las dos solo
-coinciden con "Panel real de esta ventana" elegido en el editor, y por eso
-los dos paneles laterales miden lo mismo (300 px).
+El **tamaño mínimo/máximo de ícono se comparte entre las dos pantallas**
+(vive en `preferencias.js`) pero es **de cada planta**: el mínimo decide
+cuántas vistas hacen falta, y eso depende de la planta —una de 500 equipos
+no quiere el mismo mínimo que una de 13—. Compartido entre PANTALLAS, propio
+de cada PLANTA. El **selector de pantalla NO se comparte**, y no debe:
+operación tiene que usar el panel donde realmente dibuja. Por eso las dos
+solo coinciden con "Panel real de esta ventana" elegido en el editor, y por
+eso los dos paneles laterales miden lo mismo (300 px).
+
+Los **multiplicadores de tamaño por tipo también son de cada planta**
+(`data.escalasPorPlanta[plantaId]`). Todo el layout los lee de
+`data.escalasPorTipo`, así que cada pantalla resuelve la tabla de su planta
+una vez con `datosDePlanta(data, plantaId)` y trabaja con eso — así ninguna
+función de geometría necesita saber qué planta es.
 
 ## Dos gramáticas visuales
 
@@ -526,3 +535,27 @@ escalonado, 797 · 1.94 el libre.
   resetear, y ninguna pantalla lo escribía ni lo leía. Quien abriera el JSON
   habría creído que los TAG se pueden mover. Borrado, junto con la línea del
   aviso que lo mencionaba.
+
+- **Una tabla global escondida detrás de un selector de planta miente.** Los
+  multiplicadores de tamaño por tipo eran globales a toda la app, y el panel
+  que los edita vive debajo del selector de planta: se subía "tanque"
+  mirando una planta y TODAS cambiaban de tamaño sin avisar. El síntoma con
+  el que apareció es de manual: dos plantas que el doble clic informaba con
+  el mismo 3.5 se veían distinto, porque las capturas eran de antes y de
+  después del cambio global. Ahora la tabla es de cada planta y el panel lo
+  dice. Lo guardado se migra copiándolo a todas las plantas existentes, así
+  ninguna cambia de aspecto al actualizar.
+
+- **El número del panel no es un tamaño: es un peso relativo.** Con el mismo
+  "3.50", una bomba se dibuja a 132 px en la planta semilla y a 72 px en la
+  demo. Dos causas se suman y ninguna se ve en el número: `factorAuto` (el
+  generador de la demo pone 1.3, así que "3.5" dibuja con 4.55) y el
+  encuadre (el lienzo mide 660 en la semilla y 1570 en la demo, o sea que la
+  cámara se aleja 2,4×). Por eso el que tiene el número interno MÁS grande
+  termina más chico. Lo que fija los píxeles es la densidad, no el número.
+
+- **Un botón ± que calcula desde el valor dibujado se pisa a sí mismo.** Los
+  ± del panel de tamaños tomaban el valor renderizado y le sumaban el paso,
+  así que dos clics antes de que React re-renderizara partían del mismo
+  número: medido, 5 clics movían de 1.00 a 1.10 en vez de a 1.50. La acción
+  del store va ahora por DELTA y lee el valor actual adentro del `setData`.
