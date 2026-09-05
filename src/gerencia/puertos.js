@@ -410,8 +410,16 @@ export function rutaHaciaPunto(puertoA, destino) {
 // hacer sin duplicar el ruteo.
 export function rutaEntreEquipos(conexion, deEq, aEq, posDe, posA, iconoDe, iconoA, obstaculos, limites) {
   if (!iconoDe || !iconoA) return null;
-  const puertoDe = puertoElegido(posDe, iconoDe, posA, conexion.puertoDe);
-  const puertoA = puertoElegido(posA, iconoA, posDe, conexion.puertoA);
+  // Con quiebre puesto a mano, cada puerto mira AL QUIEBRE y no al otro
+  // equipo. Es el primer tramo de la ruta el que va al quiebre, así que ese
+  // es el lado por el que conviene salir: mirando al otro equipo, subir el
+  // codo dejaba la cañería saliendo de costado y pegando el salto después.
+  // Mover el codo mueve, con esto, también el punto donde la línea toca el
+  // equipo. Un extremo fijado a mano no se toca: ahí ya mandó el usuario.
+  const objetivoDe = conexion.quiebreManual || posA;
+  const objetivoA = conexion.quiebreManual || posDe;
+  const puertoDe = puertoElegido(posDe, iconoDe, objetivoDe, conexion.puertoDe);
+  const puertoA = puertoElegido(posA, iconoA, objetivoA, conexion.puertoA);
   if (!puertoDe || !puertoA) return null;
   // Los dos equipos de la conexión no son obstáculo de su propia cañería. Se
   // saltean POR ID en la consulta al índice; antes se armaba un array filtrado

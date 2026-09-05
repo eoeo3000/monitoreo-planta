@@ -3,7 +3,7 @@ import { migrarEscalas } from '../../analista/store';
 import { empaquetarSkyline } from './skyline';
 import { solapamientoDeCajas } from './ensayo';
 import { contornosDeArea, repartirEnVistas, encuadrar } from './escalonado';
-import { rutaPuertos, indiceDeObstaculos, crucesEntreRutas, puntoPerimetroCercano, puertoElegido } from '../puertos';
+import { rutaPuertos, indiceDeObstaculos, crucesEntreRutas, puntoPerimetroCercano, puertoElegido, rutaEntreEquipos } from '../puertos';
 
 // Geometría pura: se puede probar sin navegador y sin React, que es
 // justamente lo que motivó separarla del store.
@@ -498,5 +498,50 @@ describe('extremo de conexión fijado a mano', () => {
   test('un extremo guardado con formato viejo se ignora en vez de romper', () => {
     const auto = puertoElegido(posicion, icono, { x: 400, y: 140 }, undefined);
     expect(puertoElegido(posicion, icono, { x: 400, y: 140 }, { lado: 'izq', t: 0.5 })).toEqual(auto);
+  });
+});
+
+describe('el puerto sigue al quiebre puesto a mano', () => {
+  // Dos equipos uno al lado del otro: sin quiebre, la cañería sale por los
+  // costados que se miran.
+  const icono = () => ({
+    anchoBase: 40,
+    altoBase: 40,
+    escala: 1,
+    formas: [{ tipo: 'rectangulo', x: 0, y: 0, ancho: 40, alto: 40 }],
+    puertos: { n: { x: 20, y: 0, dir: 'N' }, s: { x: 20, y: 40, dir: 'S' }, e: { x: 40, y: 20, dir: 'E' }, w: { x: 0, y: 20, dir: 'W' } },
+  });
+  const de = { id: 'a', tag: 'A' };
+  const a = { id: 'b', tag: 'B' };
+  const posDe = { x: 100, y: 140 };
+  const posA = { x: 300, y: 140 };
+  const ruta = (conexion) => rutaEntreEquipos(conexion, de, a, posDe, posA, icono(), icono(), null, null);
+
+  test('sin quiebre a mano, cada puerto mira al otro equipo', () => {
+    const r = ruta({ deId: 'a', aId: 'b' });
+    // El de la izquierda sale por el este; el de la derecha, por el oeste.
+    expect(r.puntos[0]).toEqual({ x: 120, y: 120 });
+    expect(r.puntos[r.puntos.length - 1]).toEqual({ x: 280, y: 120 });
+  });
+
+  test('con el quiebre bien arriba, los dos salen por el norte', () => {
+    const r = ruta({ deId: 'a', aId: 'b', quiebreManual: { x: 200, y: 20 } });
+    expect(r.puntos[0]).toEqual({ x: 100, y: 100 });
+    expect(r.puntos[r.puntos.length - 1]).toEqual({ x: 300, y: 100 });
+  });
+
+  test('con el quiebre bien abajo, los dos salen por el sur', () => {
+    const r = ruta({ deId: 'a', aId: 'b', quiebreManual: { x: 200, y: 400 } });
+    expect(r.puntos[0]).toEqual({ x: 100, y: 140 });
+    expect(r.puntos[r.puntos.length - 1]).toEqual({ x: 300, y: 140 });
+  });
+
+  test('un extremo fijado a mano NO se mueve con el quiebre', () => {
+    const fijado = puntoPerimetroCercano(posDe, icono(), { x: 60, y: 120 }); // lado izquierdo
+    const r = ruta({ deId: 'a', aId: 'b', quiebreManual: { x: 200, y: 20 }, puertoDe: fijado });
+    const sinFijar = ruta({ deId: 'a', aId: 'b', quiebreManual: { x: 200, y: 20 } });
+    expect(r.puntos[0]).not.toEqual(sinFijar.puntos[0]);
+    // el otro extremo, que no se fijó, sí sigue al quiebre
+    expect(r.puntos[r.puntos.length - 1]).toEqual(sinFijar.puntos[sinFijar.puntos.length - 1]);
   });
 });
