@@ -329,12 +329,26 @@ escalonado, 797 · 1.94 el libre.
   ahora `minPxParaCaber` (el tamaño SIN topar). Con eso el reparto da igual
   con el máximo en 180 que en 400, que es la propiedad que hay que sostener.
 
-  **Ojo: el tope tampoco se aplica al dibujar.** Se dijo que sí y no es
-  cierto — medido en la planta semilla con la bomba en 3.50: con el máximo en
-  180, en 120 y en 60, se dibuja siempre a 191 px. El editor y operación
-  encuadran con el lienzo COMÚN a todas las vistas y el `zoom` del panel, sin
-  pasar por el `zoomTope` de `encuadrar`. O sea que hoy el slider "Máximo" no
-  hace nada.
+  **El tope tampoco se aplicaba al dibujar, y eso ya se corrigió.** Se dijo
+  que sí lo hacía y no era cierto — medido en la planta semilla con la bomba
+  en 3.50: con el máximo en 180, en 120 y en 60, se dibujaba siempre a 191 px.
+  El editor y operación encuadran con el lienzo COMÚN a todas las vistas y el
+  `zoom` del panel (la lupa), sin pasar por el `zoomTope` de `encuadrar` —que
+  además se calculaba contra el ícono más grande DE LA VISTA, no de la
+  planta, inconsistente con el criterio del mínimo—. El slider "Máximo" no
+  hacía nada.
+
+  Ahora sí topa: cada pantalla calcula su propio `altoIconoMaxPlanta` (el
+  ícono más grande de TODA la planta, mismo criterio que el mínimo) y un
+  `factorTope` que agranda el `viewBox` más allá del lienzo cuando el ícono
+  más grande superaría el máximo — sobra lienzo vacío en vez de agrandarse,
+  la misma idea que "una vista menos llena queda con aire, no agrandada".
+  La lupa manual no se entera: sigue siendo la acción explícita de la
+  persona, y el tope solo topa la cámara AUTOMÁTICA. Medido en la semilla con
+  B-101: máximo 60 → 30 px, 120 → 60 px, 180 → 90 px (escala linealmente
+  mientras el tope ata) y 400 → 118 px (deja de moverse: ahí ata el llenado
+  del panel, no el máximo). Editor y Vista de operación dan el mismo
+  resultado con el mismo panel y el mismo máximo — 17.3 px los dos, medido.
 
 - **Una bisección sobre un criterio inalcanzable devuelve el PEOR
   resultado, no ninguno.** Si el mínimo no se cumple ni con un área sola, no
@@ -597,6 +611,26 @@ escalonado, 797 · 1.94 el libre.
   La receta para que dos plantas se vean igual: **misma cámara, mismos pesos
   y sin `factorAuto`** (que lo borra "Restablecer tamaños"). No hay un cuarto
   factor escondido — está verificado equipo por equipo.
+
+- **Cuando el mínimo ata, la cámara deja de ser libre — y ahí subir un tipo
+  NO achica a los demás.** Es la mitad que faltaba de lo de arriba, y
+  contradice el atajo de "lo que fija los píxeles es la densidad": en una
+  planta densa el layout escala para que el ícono más chico llegue al
+  mínimo, así que ese queda CLAVADO y agrandar otro tipo se paga con más
+  vistas, no con alejar la cámara. Medido en la planta demo, subiendo solo
+  el peso del tanque:
+
+  | peso del tanque | cámara | vistas | tanque | bomba | motor |
+  |---|---|---|---|---|---|
+  | 1.00 | 0,796 | 4 | 93 px | 30 px | 27 px |
+  | 2.00 | 0,786 | 6 | **184 px** | **30 px** | **27 px** |
+  | 3.60 | 0,802 | 19 | — | **30 px** | **27 px** |
+
+  El tanque se duplica y la bomba y el motor no se mueven un píxel. De ahí
+  sale la asimetría que parece un factor por tipo escondido y no lo es: los
+  tipos chicos los ancla el mínimo, los grandes viajan con su peso.
+  `celdaDeEquipo` fija la escala una sola vez y el empaquetado solo
+  posiciona — no hay ningún factor por tipo en el layout.
 
 - **Un peso relativo mostrado sin píxeles no se puede comparar entre
   plantas.** El panel decía "3.50" y el doble clic también, y esa misma
