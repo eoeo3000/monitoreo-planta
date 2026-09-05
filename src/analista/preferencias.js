@@ -74,3 +74,26 @@ export function useTamanoIcono() {
   const cambiar = useCallback((cambios) => setTamano((prev) => acotar({ ...prev, ...cambios })), []);
   return [tamano, cambiar];
 }
+
+// Si la Vista de operación dibuja las cañerías. Apagado por defecto: esa
+// pantalla es de VIGILANCIA DE CONDICIÓN y el escalonado acomoda ignorando
+// el proceso, así que las conexiones salen cruzadas —medido, 1.86 cruces por
+// conexión contra 0.19 del compactado—. Pero es información real que a veces
+// hace falta ("¿de dónde viene este equipo?"), así que se puede prender.
+//
+// Va en preferencias y no en estado local por lo mismo que la planta elegida:
+// App.js desmonta la pantalla al cambiar de pestaña, y una variable local se
+// perdería en cada ida y vuelta.
+export function useVerCaneriasOperacion() {
+  const [ver, setVer] = useState(() => Boolean(leer().verCaneriasOperacion));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CLAVE, JSON.stringify({ ...leer(), verCaneriasOperacion: ver }));
+    } catch (e) {
+      // sin persistencia, pero la sesión sigue funcionando
+    }
+  }, [ver]);
+
+  return [ver, setVer];
+}

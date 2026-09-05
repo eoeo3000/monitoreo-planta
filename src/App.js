@@ -5,7 +5,7 @@ import Administracion from './components/gerencia/Administracion';
 import VistaOperacion from './components/gerencia/VistaOperacion';
 import EditorPlanta from './components/gerencia/EditorPlanta';
 import { useAnalistaData } from './analista/store';
-import { usePlantaSeleccionada, useTamanoIcono } from './analista/preferencias';
+import { usePlantaSeleccionada, useTamanoIcono, useVerCaneriasOperacion } from './analista/preferencias';
 
 export default function App() {
   const [vista, setVista] = useState('analista');
@@ -19,6 +19,8 @@ export default function App() {
   // laboratorio: se ajusta en el ensayo y lo aplica la Vista de operación.
   const [tamanoIcono, setTamanoIcono] = useTamanoIcono();
   const deTamano = { tamanoIcono, setTamanoIcono };
+  // Si operación dibuja las cañerías. Persistido, como la planta elegida.
+  const [verCaneriasOperacion, setVerCaneriasOperacion] = useVerCaneriasOperacion();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100vw', height: '100vh' }}>
@@ -26,7 +28,9 @@ export default function App() {
       <div style={{ flexGrow: 1, minHeight: 0, overflowY: 'auto', overflowX: 'auto' }}>
         {vista === 'analista' && <AnalistaApp {...analista} />}
         {vista === 'administracion' && <Administracion {...analista} />}
-        {vista === 'operacion' && <VistaOperacion {...analista} {...dePlanta} {...deTamano} />}
+        {vista === 'operacion' && (
+          <VistaOperacion {...analista} {...dePlanta} {...deTamano} verCanerias={verCaneriasOperacion} setVerCanerias={setVerCaneriasOperacion} />
+        )}
         {vista === 'editor' && <EditorPlanta {...analista} {...dePlanta} {...deTamano} />}
       </div>
     </div>

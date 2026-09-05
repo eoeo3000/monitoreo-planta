@@ -2,7 +2,7 @@ import { MULTIPLICADORES_FINOS, buscarMejorAncho } from './grilla';
 import { empaquetarSkyline } from './skyline';
 import { celdaDeEquipo, ALTO_TAG } from './escalonado';
 import { iconoBaseDe } from '../iconos';
-import { cajaEquipo, rutaEntreEquipos, crucesEntreRutas, largoDeRutas, indiceDeObstaculos } from '../puertos';
+import { cajaEquipo, rutaEntreEquipos, crucesEntreRutas, largoDeRutas, indiceDeObstaculos, puertoHacia } from '../puertos';
 
 // Métodos de layout que solo existen para COMPARARSE contra el de
 // producción en la pantalla de ensayo, más las métricas con las que se los
@@ -191,4 +191,76 @@ export function metricasDeCanerias(piezas, conexiones, data) {
   });
 
   return { rutas, largo: Math.round(largoDeRutas(rutas)), cruces: crucesEntreRutas(rutas), fuera };
+}
+
+// --- Conectores de salida: la cañería que sigue en OTRA vista -----------
+//
+// Una conexión con un extremo en esta vista y el otro en otra desaparecería
+// del lienzo sin dejar rastro. Se dibuja como conector de salida de P&ID: un
+// cabo corto que apunta AFUERA del dibujo —no hacia donde está el otro
+// equipo, que vive en otro lienzo y cuya posición en estas coordenadas no
+// querría decir nada— con el TAG del otro extremo y a qué vista ir.
+//
+// Vive acá y no en la pantalla porque es geometría pura y la necesitan las
+// DOS: el editor y la Vista de operación.
+//
+// Son pocas: medido, 3 de 470 conexiones en la planta demo a 28 px de
+// mínimo, 6 a 48 px. El reparto nunca parte un área entre vistas y la demo
+// conecta con colectores dentro de cada área, así que solo cruza lo que une
+// áreas distintas.
+const LARGO_SALIDA = 20;
+const AIRE_VIEWBOX = 20; // el aire que agrega el encuadre por lado
+const DIR_VECTOR_SALIDA = { N: { x: 0, y: -1 }, S: { x: 0, y: 1 }, E: { x: 1, y: 0 }, W: { x: -1, y: 0 } };
+
+export function conectoresDeSalida({ piezas, conexiones, vistaDeEquipo, data, lienzo }) {
+  const porId = new Map((piezas || []).map((p) => [p.eq.id, p]));
+  if (porId.size === 0 || !lienzo) return [];
+
+  const centro = { x: (lienzo.ancho || 0) / 2, y: (lienzo.alto || 0) / 2 };
+  const izqVisible = -AIRE_VIEWBOX;
+  const arribaVisible = -AIRE_VIEWBOX;
+  const derVisible = (lienzo.ancho || 0) + AIRE_VIEWBOX;
+  const abajoVisible = (lienzo.alto || 0) + AIRE_VIEWBOX;
+
+  const salidas = [];
+  (conexiones || []).forEach((c) => {
+    const aca = porId.get(c.deId) || porId.get(c.aId);
+    const otroId = porId.has(c.deId) ? c.aId : c.deId;
+    if (!aca || porId.has(otroId)) return;
+    const vistaOtro = vistaDeEquipo.get(otroId);
+    if (vistaOtro === undefined) return; // el otro extremo no está en ninguna vista
+    const base = iconoBaseDe(aca.eq.tipo, data);
+    if (!base) return;
+    const icono = { ...base, escala: aca.escala };
+
+    // Un objetivo bien lejos en la dirección opuesta al centro: el puerto que
+    // elige es el que mira hacia el borde más cercano.
+    const afuera = { x: aca.x + (aca.x - centro.x) * 10, y: aca.y + (aca.y - centro.y) * 10 };
+    const puerto = puertoHacia({ x: aca.x, y: aca.y }, icono, afuera);
+    if (!puerto) return;
+    const v = DIR_VECTOR_SALIDA[puerto.dir];
+    const x2 = puerto.x + v.x * LARGO_SALIDA;
+    const y2 = puerto.y + v.y * LARGO_SALIDA;
+    const sale = porId.has(c.deId); // el equipo de acá es el origen
+    const tagOtro = data.equipos.find((e) => e.id === otroId)?.tag || otroId;
+    const texto = `${sale ? '▸ ' : '◂ '}${tagOtro} · vista ${vistaOtro + 1}`;
+
+    // El cartel se acota al lienzo VISIBLE. Sin esto, un equipo pegado al
+    // borde lo manda afuera del viewBox y no se dibuja: medido, 4 de 6
+    // conectores de la demo quedaban invisibles —justo el mal que esto viene
+    // a curar—. Si no entra del lado de afuera, el texto se pasa al otro lado
+    // del cabo en vez de salirse.
+    const ancho = texto.length * 5.6 + 8;
+    let ancla = v.x < 0 ? 'end' : v.x > 0 ? 'start' : 'middle';
+    let xTexto = x2 + (ancla === 'end' ? -6 : ancla === 'start' ? 6 : 0);
+    if (ancla === 'start' && xTexto + ancho > derVisible) { ancla = 'end'; xTexto = x2 - 6; }
+    else if (ancla === 'end' && xTexto - ancho < izqVisible) { ancla = 'start'; xTexto = x2 + 6; }
+    if (ancla === 'middle') xTexto = Math.min(derVisible - ancho / 2, Math.max(izqVisible + ancho / 2, xTexto));
+    else if (ancla === 'start') xTexto = Math.min(xTexto, derVisible - ancho);
+    else xTexto = Math.max(xTexto, izqVisible + ancho);
+    const yTexto = Math.min(abajoVisible - 2, Math.max(arribaVisible + 10, y2 - 6));
+
+    salidas.push({ id: c.id, sale, tagOtro, vistaOtro, texto, x1: puerto.x, y1: puerto.y, x2, y2, ancla, xTexto, yTexto });
+  });
+  return salidas;
 }

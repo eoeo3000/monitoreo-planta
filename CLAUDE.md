@@ -34,7 +34,9 @@ src/gerencia/layout/         geometría pura de acomodado (sin React, testeable)
   skyline.js                   UNA implementación del empaquetado
   compactado.js                el compactado de producción (bloques por área)
   escalonado.js                el layout escalonado y su reparto en vistas
-  ensayo.js                    métodos alternativos que se comparan en pantalla
+  ensayo.js                    métodos alternativos que se comparan en pantalla,
+                               más la geometría de cañerías que comparten el
+                               editor y operación (métricas y conectores de salida)
 src/gerencia/iconos.js       resuelve íconos de fábrica y personalizados
 src/gerencia/puertos.js      puertos de conexión y ruteo de cañerías
 src/components/gerencia/EditorPlanta.js    donde se arma la planta
@@ -100,7 +102,15 @@ Cosas que se rompen sin avisar si no se saben.
   panel de comparación de métodos, los sliders de tamaño legible, el selector
   de pantalla, las cañerías y las métricas.
 - **Vista de operación** — VIGILANCIA de condición, solo lectura. Lo mismo,
-  sin controles.
+  sin controles, y con las **cañerías apagadas por defecto**: acá se viene a
+  mirar condición, y sobre el escalonado las conexiones se cruzan mucho
+  (1.86 por conexión contra 0.19 del compactado). Se prenden con un
+  interruptor, persistido en `preferencias.js`. Antes no estaban y punto,
+  con el argumento de que el diagrama de proceso era el Portal SCADA; el
+  Portal se retiró y el editor dibuja las cañerías sobre ESTE MISMO layout,
+  así que negarlas dejaba a dos pantallas del mismo acomodado mostrando
+  cosas distintas. Que estén apagadas por defecto sigue siendo razonable;
+  que no estuvieran, no.
 
 **Las posiciones NO son dato.** El escalonado las calcula en cada render
 desde los tipos y las áreas. Lo que se autora son las ENTRADAS del layout:
@@ -215,6 +225,10 @@ la demo a 28 px, 6 (1.3%) a 48 px. Son pocas porque el reparto nunca parte un
 cruza lo que une áreas distintas. Una planta con un flujo de proceso que
 atraviesa áreas daría muchas más, así que el número dice más de los datos que
 del algoritmo.
+
+Vista de operación con la planta demo: abre en **0,2 s** con las cañerías
+apagadas, y prenderlas cuesta otros **0,2 s** (rutea solo la vista activa y
+un solo método, contra los tres de la tabla del editor).
 
 Ruteo de cañerías de la planta demo (470 conexiones, los tres métodos), de
 clic en "Cañerías" a tabla completa: **0,6–0,7 s** según la corrida
